@@ -5,6 +5,14 @@
 > + 目前不支持任何带有验证码（登陆或签到时需要输入验证码）功能的机场
 
 ## Usage
++ 克隆代码库
+ ```shell
+git clone https://github.com/wzdnzd/ssr-checkin.git
+```
++ 安装依赖库
+```shell
+pip install -U requests
+```
 + 修改 `config.json` 配置文件
 ```json
 proxyServer: 代理服务器地址，非必需
