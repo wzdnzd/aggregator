@@ -164,6 +164,7 @@ def get_cookie(headers):
 
 
 def flow(domain, params, headers, proxy=False):
+    domain = domain.strip()
     regex = "(?i)^(https?:\\/\\/)?(www.)?([^\\/]+\\.[^.]*$)"
     flag = re.search(regex, domain)
 
