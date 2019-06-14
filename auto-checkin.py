@@ -4,7 +4,6 @@
 # @Author  : wzdnzd
 # @Time    : 2018-04-25
 
-import json
 import logging
 import multiprocessing
 import os
@@ -13,7 +12,8 @@ import re
 import sys
 import time
 import warnings
-from json.decoder import JSONDecodeError
+import simplejson as json
+from simplejson.decoder import JSONDecodeError
 
 import requests
 from requests.exceptions import RequestException
