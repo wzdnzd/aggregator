@@ -117,10 +117,11 @@ def checkin(url, headers, retry, proxy=False):
 
         if response.status_code == 200:
             key = 'Content-Encoding'
-            data = json.loads(brotli.decompress(response.content).decode('utf-8')) if key in response.headers and response.headers[
-                'Content-Encoding'] == 'br' else response.json()
-
             try:
+                data = json.loads(brotli.decompress(response.content).decode('utf-8')) \
+                    if key in response.headers and response.headers['Content-Encoding'] == 'br' \
+                    else response.json()
+
                 logging.info(u"签到成功 URL: {} {}".format(
                     extract_domain(url), data['msg']))
             except JSONDecodeError:
