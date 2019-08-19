@@ -17,7 +17,7 @@ pip install -U requests
 ```json
 proxyServer: 代理服务器地址，非必需
 
-waitTime: 0 ~ 20，模拟任意时间签到，非必需
+waitTime: 0 ~ 24，模拟任意时间签到，非必需
 
 retry: 失败时重试次数，非必需
 
