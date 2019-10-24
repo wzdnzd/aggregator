@@ -96,7 +96,7 @@ def login(url, params, headers, retry, proxy=False):
                 url, data=params, headers=headers, allow_redirects=True)
 
         if response.status_code == 200:
-            return response.headers
+            return {str(key).lower(): value for key, value in response.headers.items()}
 
     except RequestException as e:
         logging.error(str(e))
