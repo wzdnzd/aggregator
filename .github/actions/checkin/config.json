@@ -1,0 +1,14 @@
+{
+    "retry": 5,
+    "domains": [
+        {
+            "domain": "aHR0cHM6Ly9pa3V1dS5jbw==",
+            "param": {
+                "email": "d2s1MjAxMzE0MDFAb3V0bG9vay5jb20=",
+                "passwd": "aGFueGkqMjAxNCEhIQ==",
+                "login": "L2F1dGgvbG9naW4=",
+                "checkin": "L3VzZXIvY2hlY2tpbg=="
+            }
+        }
+    ]
+}

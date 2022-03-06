@@ -1,3 +1,9 @@
+<!--
+ * @Author: wzdnzd
+ * @Date: 2022-03-06 14:51:29
+ * @Description: 
+ * Copyright (c) 2022 by wzdnzd, All Rights Reserved.
+-->
 # SSR机场自动签到脚本（适用于大部分基于SS-Panel的机场）
 
 > Note: 
@@ -14,7 +20,7 @@ git clone https://github.com/wzdnzd/ssr-checkin.git
 pip install -U requests
 ```
 + 修改 `config.json` 配置文件
-```json
+```ini
 proxyServer: 代理服务器地址，非必需
 
 waitTime: 0 ~ 24，模拟任意时间签到，非必需
