@@ -1,7 +1,6 @@
 name: checkin
 on:
-  schedule:
-    - cron:  '45 00 * * *'
+  workflow_dispatch:
 
 jobs:
   sync_with_upstream:
