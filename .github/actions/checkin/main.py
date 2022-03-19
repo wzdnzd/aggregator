@@ -12,6 +12,7 @@ import urllib.parse
 import base64
 import multiprocessing
 import os
+import ssl
 import json
 
 warnings.filterwarnings('ignore')
@@ -26,6 +27,10 @@ HEADER = {
     "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
     "x-requested-with": "XMLHttpRequest"
 }
+
+CTX = ssl.create_default_context()
+CTX.check_hostname = False
+CTX.verify_mode = ssl.CERT_NONE
 
 RETRY_NUM = 5
 
@@ -56,7 +61,7 @@ def login(url, params, headers, retry):
                                          headers=headers,
                                          method='POST')
 
-        response = urllib.request.urlopen(request)
+        response = urllib.request.urlopen(request, context=CTX)
         print(response.read().decode('unicode_escape'))
 
         if response.getcode() == 200:
@@ -77,7 +82,7 @@ def checkin(url, headers, retry):
     try:
         request = urllib.request.Request(url, headers=headers, method='POST')
 
-        response = urllib.request.urlopen(request)
+        response = urllib.request.urlopen(request, context=CTX)
         data = response.read().decode('unicode_escape')
         print("[CheckInFinished] URL: {}\t\tResult:{}".format(
             extract_domain(url), data))
