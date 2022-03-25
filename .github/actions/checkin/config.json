@@ -9,6 +9,15 @@
                 "login": "L2F1dGgvbG9naW4=",
                 "checkin": "L3VzZXIvY2hlY2tpbg=="
             }
+        },
+        {
+            "domain": "aHR0cHM6Ly9iLmx1eHVyeQ==",
+            "param": {
+                "email": "ZXJpa2w=",
+                "passwd": "aGFueGkqMjAxNCEhIQ==",
+                "login": "L2F1dGgvbG9naW4=",
+                "checkin": "L3VzZXIvY2hlY2tpbg=="
+            }
         }
     ]
 }
