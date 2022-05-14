@@ -4,9 +4,10 @@
  * @Description: 
  * Copyright (c) 2022 by wzdnzd, All Rights Reserved.
 -->
-# 机场自动签到脚本（适用于大部分基于SSPanel的机场），同时支持多个机场签到
+# 机场自动签到脚本，支持多个机场签到
 
 > 说明: 
+> + `auto-checkin.py`用于基于SS-Panel搭建的机场签到，`renewal.py`用于基于V2Board搭建的机场订阅续期
 > + 支持`Python2` 和 `Python3`
 > + 目前不支持任何带有验证码（登陆或签到时需要输入验证码）功能的机场
 > + 用户名及密码转base64编码可使用[Base64在线编码解码](https://base64.us)
