@@ -451,6 +451,7 @@ if __name__ == "__main__":
             print("select batch mode, but file not found, path: {}".format(args.address))
             sys.exit(-1)
 
+        tasks = []
         with open(args.address, "r") as f:
             for line in f.readlines():
                 domain = extract_domain(line)
@@ -459,7 +460,15 @@ if __name__ == "__main__":
                     continue
 
                 filepath = os.path.join(args.path, "{}.yaml".format(domain.split("/")[2]))
-                scan(domain, filepath, args)
+                tasks.append((domain, filepath, args))
+
+        import multiprocessing     
+        cpu_count = multiprocessing.cpu_count()
+        num = len(tasks) if len(tasks) <= cpu_count else cpu_count
+
+        pool = multiprocessing.Pool(num)
+        pool.starmap(scan, tasks)
+        pool.close()
     else:
         domain = extract_domain(args.address)
         if not domain:
