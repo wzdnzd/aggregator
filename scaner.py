@@ -54,11 +54,13 @@ def convert(chars: bytes, filepath: str = "", persist: bool = False, includes: s
         admin = {}
         if nodes_muport:
             user = nodes_muport[0]["user"]
-            if user and "uuid" in user:
-                uuid = user["uuid"]
-                properties = ["id", "passwd", "method", "protocol", "protocol_param", "obfs", "obfs_param", "port"]
-                for k in properties:
-                    admin[k] = user[k]
+            if not user:
+                return []
+            
+            uuid = user.get("uuid", "")
+            properties = ["id", "passwd", "method", "protocol", "protocol_param", "obfs", "obfs_param", "port"]
+            for k in properties:
+                admin[k] = user.get(k, "")
 
             if persist and filepath:
                 os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -90,7 +92,6 @@ def parse_v2ray(node: dict, uuid: str) -> dict:
         "type": "vmess",
         "uuid": uuid,
         "cipher": "auto",
-        "tls": False,
         "skip-cert-verify": False
     }
 
@@ -100,7 +101,12 @@ def parse_v2ray(node: dict, uuid: str) -> dict:
 
     items = server.split(";")
     result["alterId"] = int(items[2])
-    result["network"] = items[3]
+
+    network = items[3].strip()
+    if network == "" or "tls" in network:
+        network = items[4].strip()
+    result["network"] = network
+    result["tls"] = "tls" in items[3] or "tls" in items[4]
 
     host = items[0]
     port = int(items[1])
@@ -141,8 +147,16 @@ def parse_ssr(node: dict, user: dict) -> dict:
     else:
         contents = server.split(";")
         host = contents[0]
-        info = contents[1].split("|")[0]
-        chars = info.split("=")[1]
+        words = contents[1].split("|")
+        ans = {}
+        for word in words:
+            if "=" not in word:
+                continue
+            kv = word.split("=")
+            ans[kv[0]] = kv[1]
+        
+        host = ans.get("server", host)
+        chars = ans.get("port", "")
         if "#" not in chars:
             port = int(chars)
         else:
