@@ -39,9 +39,14 @@ PATH = os.path.abspath(os.path.dirname(__file__))
 原理: https://bulianglin.com/archives/getnodelist.html
 """
 
-def convert(chars: bytes, filepath: str = "", persist: bool = False) -> list:
-    if not chars:
+def convert(chars: bytes, filepath: str = "", persist: bool = False, includes: str = "all") -> list:
+    if chars is None or b'' == chars:
         return []
+
+    if includes not in ["vmess", "ssr", "all"]:
+        print("not support protocal: {}".format(includes))
+        return []
+
     try:
         uuid = ""
         contents = json.loads(chars)["nodeinfo"]
@@ -68,7 +73,7 @@ def convert(chars: bytes, filepath: str = "", persist: bool = False) -> list:
         nodes = contents["nodes"]
         for node in nodes:
             if node["online"] != -1:
-                result = parse(node["raw_node"], uuid, admin)
+                result = parse(node["raw_node"], uuid, admin, includes)
                 if result:
                     arrays.append(result)
         return arrays
@@ -125,7 +130,7 @@ def parse_v2ray(node: dict, uuid: str) -> dict:
     result["port"] = port
     return result
 
-def parse_ss(node: dict, user: dict) -> dict:
+def parse_ssr(node: dict, user: dict) -> dict:
     host = ""
     port = int(user["port"])
 
@@ -163,19 +168,32 @@ def parse_ss(node: dict, user: dict) -> dict:
     result["port"] = port
     return result
 
-def parse(node: dict, uuid: str, user: dict = None) -> dict:
+def parse(node: dict, uuid: str, user: dict = None, includes: str="all") -> dict:
+    def get_protocal(num: int) -> str:
+        if num in [0, 10, 13]:
+            return "ssr"
+        elif num in [11, 12]:
+            return "vmess"
+        elif num == 14:
+            return "trojan"
+        else:
+            return "unknow"
+
+
     if not node:
         return None
 
     # https://github.com/EmiyaTKK/Malio-Theme-for-SSPANEL/blob/54d85d75a180a198a7a46800738e8de0c95f1cd5/app/Utils/URL.php#L242
     num = int(node["sort"])
-    if num in [11, 12]:
+    protocal = get_protocal(num)
+    if protocal == "vmess" and includes in ["vmess", "all"]:
         return parse_v2ray(node, uuid)
-    elif num in [0, 10]:
-        return parse_ss(node, user)
-    else:
-        print("cannot parse, server={}\ttype={}".format(node.get("server"), "ss" if num==13 else "trojan"))
-        return None
+    elif protocal == "ssr" and includes in ["ssr", "all"]:
+        return parse_ssr(node, user)
+    elif protocal == "unknow":
+        print("cannot parse, server={}\ttype={}".format(node.get("server"), protocal))
+
+    return None
     
 
 def login(url, params, headers, retry):
@@ -330,7 +348,7 @@ def scan(domain: str, file: str, args: argparse.Namespace):
     # 获取机场所有节点信息
     content = fetch_nodes(domain, args.email, args.passwd)
     filepath = os.path.join(args.path, "{}.json".format(domain.split("/")[2]))
-    nodes = convert(content, filepath, args.keep)
+    nodes = convert(content, filepath, args.keep, args.type)
     if not nodes:
         print("cannot found any proxy node, domain: {}".format(domain))
         return
@@ -407,6 +425,16 @@ if __name__ == "__main__":
         required=False,
         default="",
         help="password"
+    )
+
+    parser.add_argument(
+        "-t",
+        "--type",
+        type=str,
+        required=False,
+        choices=["vmess", "ssr", "all"],
+        default="all",
+        help="include node type"
     )
 
     parser.add_argument(
