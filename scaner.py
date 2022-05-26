@@ -48,36 +48,47 @@ def convert(chars: bytes, filepath: str = "", persist: bool = False, includes: s
         return []
 
     try:
-        uuid = ""
-        contents = json.loads(chars)["nodeinfo"]
+        contents = json.loads(chars).get("nodeinfo", None)
+        if not contents:
+            print("cannot fetch node list, response: {}".format(chars))
+            return []
+            
         nodes_muport = contents["nodes_muport"]
-        admin = {}
-        if nodes_muport:
-            user = nodes_muport[0]["user"]
+        if not nodes_muport:
+            return []
+        
+        if persist and filepath:
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            with open(filepath, "w+") as f:
+                f.write(chars.decode('unicode_escape'))
+                f.flush()
+        
+        params = []
+        for nm in nodes_muport:
+            uuid = ""
+            customer = {}
+            user = nm.get("user")
             if not user:
-                return []
+                continue
             
             uuid = user.get("uuid", "")
             properties = ["id", "passwd", "method", "protocol", "protocol_param", "obfs", "obfs_param", "port"]
             for k in properties:
-                admin[k] = user.get(k, "")
+                customer[k] = user.get(k, "")
 
-            if persist and filepath:
-                os.makedirs(os.path.dirname(filepath), exist_ok=True)
-                with open(filepath, "w+") as f:
-                    f.write(chars.decode('unicode_escape'))
-                    f.flush()
+            if not uuid:
+                print("[warning] uuid is empty")
 
-        if not uuid:
-            print("[warning] uuid is empty")
+            params.append((uuid, customer))
 
         arrays = []
         nodes = contents["nodes"]
         for node in nodes:
             if node["online"] != -1:
-                result = parse(node["raw_node"], uuid, admin, includes)
-                if result:
-                    arrays.append(result)
+                for ps in params:
+                    result = parse(node["raw_node"], ps[0], ps[1], includes)
+                    if result:
+                        arrays.append(result)
         return arrays
     except Exception as e:
         print("convert failed: {}".format(str(e)))
@@ -155,17 +166,28 @@ def parse_ssr(node: dict, user: dict) -> dict:
             kv = word.split("=")
             ans[kv[0]] = kv[1]
         
-        host = ans.get("server", host)
+        # host = ans.get("server", host)
         chars = ans.get("port", "")
         if "#" not in chars:
-            port = int(chars)
+            port += int(chars)
         else:
-            port = int(chars.split("#")[1])
+            if "+" not in chars:
+                arrays = chars.split("#")
+                # port = int(array[1]) if port == int(arrays[0]) else port
+                if int(arrays[0]) == port:
+                    port = int(arrays[1])
+            else:
+                arrays = chars.split("+")
+                for arr in arrays:
+                    sl = arr.split("#")
+                    if port == int(sl[0]):
+                        port = int[sl[1]]
+                        break
 
     if user.get("obfs", "") == "tls1.2_ticket_auth_compatible":
         user["obfs"] = "tls1.2_ticket_auth"
 
-    result = {
+    item = {
         "name": node.get("name"),
         "server": host,
         "port": port,
@@ -178,9 +200,9 @@ def parse_ssr(node: dict, user: dict) -> dict:
         "obfs-param": user["obfs_param"]
     }
     
-    result["server"] = host
-    result["port"] = port
-    return result
+    item["server"] = host
+    item["port"] = port
+    return item
 
 def parse(node: dict, uuid: str, user: dict = None, includes: str="all") -> dict:
     def get_protocal(num: int) -> str:
