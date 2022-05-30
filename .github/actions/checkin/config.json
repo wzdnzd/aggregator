@@ -2,10 +2,10 @@
     "retry": 5,
     "domains": [
         {
-            "domain": "",
+            "domain": "https://ark.to/",
             "param": {
-                "email": "",
-                "passwd": "",
+                "email": "am9ic3M5OTAzQGdtYWlsLmNvbQ==",
+                "passwd": "VmIzIU4jV0tjOVJ0S0AkVw==",
                 "login": "L2F1dGgvbG9naW4=",
                 "checkin": "L3VzZXIvY2hlY2tpbg=="
             }
