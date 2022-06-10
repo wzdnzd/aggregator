@@ -32,13 +32,10 @@ CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
-RETRY_NUM = 5
-
 PATH = os.path.abspath(os.path.dirname(__file__))
 
-
 def extract_domain(url):
-    if not url:
+    if not url or not re.match('^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$', url):
         return ""
 
     start = url.find("//")
@@ -47,9 +44,9 @@ def extract_domain(url):
 
     end = url.find("/", start + 2)
     if end == -1:
-        end = len(url) - 1
+        end = len(url)
 
-    return url[start + 2:end]
+    return url[:end]
 
 
 def login(url, params, headers, retry):
@@ -117,29 +114,22 @@ def config_load(filename):
 
 
 def flow(domain, params, headers):
-    domain = base64.b64decode(domain).decode("utf8")
     print('start to checkin, domain: {}'.format(domain))
-
-    domain = domain.strip()
-    regex = "(?i)^(https?:\\/\\/)?(www.)?([^\\/]+\\.[^.]*$)"
-    flag = re.search(regex, domain)
-
-    if not flag:
+    domain = extract_domain(domain.strip())
+    if not domain:
         return False
 
-    login_url = domain + base64.b64decode(
-        params.get("login", "L2F1dGgvbG9naW4=")).decode("utf8")
-    checkin_url = domain + base64.b64decode(
-        params.get("checkin", "L3VzZXIvY2hlY2tpbg==")).decode("utf8")
+    login_url = domain + params.get("login", "/auth/login")
+    checkin_url = domain + params.get("checkin", "/user/checkin")
     headers["origin"] = domain
     headers["referer"] = login_url
 
     user_info = {
-        "email": base64.b64decode(params['email']),
-        "passwd": base64.b64decode(params['passwd'])
+        "email": params.get("email", ""),
+        "passwd": params.get("passwd", "")
     }
 
-    text = login(login_url, user_info, headers, RETRY_NUM)
+    text = login(login_url, user_info, headers, 3)
     if not text:
         return False
 
@@ -150,7 +140,7 @@ def flow(domain, params, headers):
     headers["referer"] = domain + "/user"
     headers["cookie"] = cookie
 
-    checkin(checkin_url, headers, RETRY_NUM)
+    checkin(checkin_url, headers, 3)
 
 
 def wrapper(args):

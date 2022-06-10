@@ -10,13 +10,12 @@
 > + `auto-checkin.py`用于基于SS-Panel搭建的机场签到，`renewal.py`用于基于V2Board搭建的机场订阅续期
 > + 支持`Python2` 和 `Python3`
 > + 目前不支持任何带有验证码（登陆或签到时需要输入验证码）功能的机场
-> + 用户名及密码转base64编码可使用[Base64在线编码解码](https://base64.us)
 
 ## 使用方法
 ### 1. 利用Github Actions签到（推荐）
 + 点击右上角`Fork`克隆本项目
 + 修改项目为私有，具体方法见[Github更改仓库的可见性](https://docs.github.com/cn/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility#changing-a-repositorys-visibility)
-+ 编辑`.github/actions/checkin/config.json`，填写base64编码后的邮箱及密码
++ 编辑`.github/actions/checkin/config.json`，填写机场域名、邮箱及密码
 + 若要修改签到时间，可修改`.github/workflows/checkin.yml`文件的`cron`配置
 ![修改签到时间](https://s1.ax1x.com/2022/05/14/Oc6H56.png)
 
