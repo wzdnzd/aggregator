@@ -2,10 +2,10 @@
     "retry": 5,
     "domains": [
         {
-            "domain": "",
+            "domain": "http://adsl.cloud/",
             "param": {
-                "email": "",
-                "passwd": ""
+                "email": "2557558162@qq.com",
+                "passwd": "woshizhu"
             }
         },
         {
