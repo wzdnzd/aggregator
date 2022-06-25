@@ -1,22 +1,12 @@
 {
-    "retry": 5,
     "domains": [
         {
             "domain": "",
             "param": {
                 "email": "",
                 "passwd": "",
-                "login": "L2F1dGgvbG9naW4=",
-                "checkin": "L3VzZXIvY2hlY2tpbg=="
-            }
-        },
-        {
-            "domain": "",
-            "param": {
-                "email": "",
-                "passwd": "",
-                "login": "L2F1dGgvbG9naW4=",
-                "checkin": "L3VzZXIvY2hlY2tpbg=="
+                "login": "/auth/login",
+                "checkin": "/user/checkin"
             }
         }
     ]
