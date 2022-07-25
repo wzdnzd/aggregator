@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import argparse
+import datetime
 import itertools
 import json
 import multiprocessing
@@ -15,12 +16,13 @@ import ssl
 import string
 import subprocess
 import sys
-from threading import Lock
 import time
+import traceback
 import urllib
 import urllib.parse
 import urllib.request
 from multiprocessing.managers import ListProxy
+from threading import Lock
 
 import yaml
 
@@ -31,6 +33,8 @@ EMAILS_DOMAINS = [
     "@126.com",
     "@sina.com",
     "@hotmail.com",
+    "@qq.com",
+    "@foxmail.com",
 ]
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -142,41 +146,43 @@ class TempSite:
         if "" == url:
             return []
 
-        count = 1
-        while count <= retry:
-            try:
-                request = urllib.request.Request(url=url, headers=self.headers)
-                response = urllib.request.urlopen(request, timeout=10, context=CTX)
-                v2conf = str(response.read(), encoding="utf8")
+        # count = 1
+        # while count <= retry:
+        #     try:
+        #         request = urllib.request.Request(url=url, headers=self.headers)
+        #         response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        #         v2conf = str(response.read(), encoding="utf8")
 
-                # 读取附件内容
-                # disposition = response.getheader("content-disposition", "")
-                # v2conf = ""
-                # if disposition:
-                #     print(str(response.read(), encoding="utf8"))
-                #     regex = "(filename)=(\S+)"
-                #     content = re.findall(regex, disposition)
-                #     if content:
-                #         attachment = os.path.join(
-                #             os.path.abspath(os.path.dirname(__file__)),
-                #             content[0][1],
-                #         )
-                #         if os.path.exists(attachment) or os.path.isfile(attachment):
-                #             v2conf = str(
-                #                 open(attachment, "r", encoding="utf8").read(),
-                #                 encoding="utf8",
-                #             )
-                #             os.remove(attachment)
-                # else:
-                #     v2conf = str(response.read(), encoding="utf8")
+        #         # 读取附件内容
+        #         disposition = response.getheader("content-disposition", "")
+        #         v2conf = ""
+        #         if disposition:
+        #             print(str(response.read(), encoding="utf8"))
+        #             regex = "(filename)=(\S+)"
+        #             content = re.findall(regex, disposition)
+        #             if content:
+        #                 attachment = os.path.join(
+        #                     os.path.abspath(os.path.dirname(__file__)),
+        #                     content[0][1],
+        #                 )
+        #                 if os.path.exists(attachment) or os.path.isfile(attachment):
+        #                     v2conf = str(
+        #                         open(attachment, "r", encoding="utf8").read(),
+        #                         encoding="utf8",
+        #                     )
+        #                     os.remove(attachment)
+        #         else:
+        #             v2conf = str(response.read(), encoding="utf8")
 
-                break
-            except:
-                v2conf = ""
+        #         break
+        #     except:
+        #         v2conf = ""
 
-            count += 1
+        #     count += 1
 
-        if "" == v2conf.strip():
+        v2conf = http_get(url=url, headers=self.headers, retry=retry)
+        # if "" == v2conf.strip() or not re.match("^[0-9a-zA-Z=]*$", v2conf):
+        if "" == v2conf.strip() or "{" in v2conf:
             return []
 
         artifact = f"{self.name}{str(index)}"
@@ -213,6 +219,8 @@ class TempSite:
         for item in nodes:
             if item.get("name") in unused_nodes:
                 continue
+
+            item["name"] = re.sub(r"[\^\?\:\/]|\s+", " ", item.get("name")).strip()
 
             if index >= 0:
                 mode = index % 26
@@ -621,8 +629,10 @@ def push(filepath: str, push_conf: dict, group: str, retry: int = 5) -> bool:
             )
             return False
 
-    except Exception as e:
-        print("[PushError]: group=[{}], error message: \n{}".format(e.with_traceback()))
+    except Exception:
+        print(f"[PushError]: group=[{group}], error message:")
+        traceback.print_exc()
+
         retry -= 1
         if retry > 0:
             return push(filepath, push_conf, group, retry)
@@ -635,32 +645,43 @@ def load_configs(file: str, url: str) -> tuple[list, dict]:
         sites.extend(config.get("domains", []))
         push_configs.update(config.get("push", {}))
 
-    sites, push_configs = [], {}
-    if os.path.exists(file) and os.path.isfile(file):
-        config = json.loads(open(file, "r", encoding="utf8").read())
-        parse_config(config)
+        telegram = config.get("telegram", {})
+        disable = telegram.get("disable", False)
+        push_to = list(set(telegram.get("push_to", [])))
+        items = list(set([str(item).strip() for item in telegram.get("users", [])]))
+        if not disable and items and push_to:
+            for item in items:
+                ps = users.get(item, [])
+                ps.extend(push_to)
+                users[item] = list(set(ps))
 
-    if re.match(
-        "^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
-        url,
-    ):
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
-            "Referer": url,
-        }
-        count = 1
-        while count <= 5:
-            try:
-                request = urllib.request.Request(url=url, headers=headers)
-                response = urllib.request.urlopen(request, timeout=10, context=CTX)
-                if response.getcode() == 200:
-                    content = str(response.read(), encoding="utf8")
-                    parse_config(json.loads(content))
-                break
-            except:
-                pass
+    sites, users, push_configs = [], {}, {}
+    try:
+        if os.path.exists(file) and os.path.isfile(file):
+            config = json.loads(open(file, "r", encoding="utf8").read())
+            parse_config(config)
 
-            count += 1
+        if re.match(
+            "^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
+            url,
+        ):
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
+                "Referer": url,
+            }
+
+            content = http_get(url=url, headers=headers)
+            if not content:
+                print(f"cannot fetch config from remote, url: {url}")
+            else:
+                parse_config(json.loads(content))
+
+        # 从telegram抓取订阅信息
+        if users:
+            result = batch_crawl(users, 7)
+            sites.extend(result)
+    except:
+        print("occur error when load task config")
 
     return sites, push_configs
 
@@ -784,7 +805,7 @@ def execute_names() -> tuple[str, str]:
     return clashname, subconverter
 
 
-def extract_domain(url):
+def extract_domain(url: str) -> str:
     if not url:
         return ""
 
@@ -797,6 +818,133 @@ def extract_domain(url):
         end = len(url) - 1
 
     return url[start + 2 : end]
+
+
+def batch_crawl(conf: dict, period: int, thread: int = 50) -> list:
+    if not conf:
+        return []
+
+    params = [[k, period, v] for k, v in conf.items()]
+    cpu_count = multiprocessing.cpu_count()
+    num = len(params) if len(params) <= cpu_count else cpu_count
+
+    pool = multiprocessing.Pool(num)
+    results = pool.starmap(crawl_telegram, params)
+    pool.close()
+
+    tasks = {}
+    for r in results:
+        for k, v in r.items():
+            items = tasks.get(k, [])
+            items.extend(v)
+            tasks[k] = list(set(items))
+
+    if not tasks:
+        print("cannot any subscribe url from telegram")
+        return []
+
+    with multiprocessing.Manager() as manager:
+        availables = manager.list()
+        processes = []
+        semaphore = multiprocessing.Semaphore(max(thread, 1))
+        time.sleep(random.randint(1, 3))
+        for k, v in tasks.items():
+            semaphore.acquire()
+            p = multiprocessing.Process(
+                target=validate_available, args=(k, v, availables, semaphore)
+            )
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
+
+        time.sleep(random.randint(1, 3))
+        return list(availables)
+
+
+def crawl_telegram(
+    userid: str, period: int, push_to: list = [], limits: int = 20
+) -> dict:
+    if not userid:
+        return {}
+
+    now = time.time() - 3600 * 12
+    crawl_time = datetime.datetime.fromtimestamp(now).strftime("%Y-%m-%dT%H:%M:%SZ")
+    url = f"https://telemetr.io/post-list-ajax/{userid}/with-date-panel?period={period}&date={crawl_time}"
+
+    content = http_get(url=url)
+    if content == "":
+        return {}
+
+    regex = "https://\S+/api/v1/client/subscribe\?token=[a-zA-Z0-9]+|https://\S+/link/[a-zA-Z0-9]+\?sub=\d"
+    subscribes = re.findall(regex, content)
+
+    collections = {}
+    for s in subscribes:
+        if "token=" in s:
+            s += "&flag=v2ray"
+        collections[s] = push_to
+        if len(collections) >= limits:
+            break
+
+    return collections
+
+
+def http_get(url: str, headers: dict = None, retry: int = 3) -> str:
+    if not re.match(
+        "^(https?:\/\/(\S+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
+        url,
+    ):
+        print(f"invalid url: {url}")
+        return ""
+
+    if retry <= 0:
+        print(f"achieves max retry, url={url}")
+        return ""
+
+    if not headers:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+        }
+
+    try:
+        request = urllib.request.Request(url=url, headers=headers)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        status_code = response.getcode()
+        content = str(response.read(), encoding="utf8")
+        if status_code != 200:
+            print(f"request failed, status code: {status_code}\t message: {content}")
+            return ""
+
+        return content
+    except urllib.error.HTTPError as e:
+        print(f"request failed, url=[{url}], code: {e.code}")
+        if e.code == 503:
+            return http_get(url, headers, retry - 1)
+        return ""
+    except urllib.error.URLError as e:
+        print(f"request failed, url=[{url}], message: {e.reason}")
+        return ""
+    except Exception:
+        return http_get(url, headers, retry - 1)
+
+
+def validate_available(
+    url: str, push_to: list, availables: ListProxy, semaphore: multiprocessing.Semaphore
+) -> None:
+    if http_get(url=url, retry=2) != "":
+        item = {"name": naming_task(url), "sub": url, "push_to": push_to}
+        availables.append(item)
+
+    semaphore.release()
+
+
+def naming_task(url):
+    prefix = extract_domain(url=url).replace(".", "")
+    return prefix + "".join(
+        random.sample(string.digits + string.ascii_lowercase, random.randint(3, 5))
+    )
 
 
 if __name__ == "__main__":
