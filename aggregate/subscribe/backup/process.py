@@ -982,7 +982,7 @@ if __name__ == "__main__":
         "--file",
         type=str,
         required=False,
-        default=os.path.join(PATH, "subscribe", "config.json"),
+        default=os.path.join(PATH, "subscribe", "config", "config.json"),
         help="local config file",
     )
 
