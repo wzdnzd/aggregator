@@ -1,0 +1,366 @@
+# Advertising
+# > General
+DOMAIN-KEYWORD,adservice
+
+# (0~9)
+# > 51wnl
+DOMAIN,ad.51wnl-cq.com
+DOMAIN,adextra.51wnl-cq.com
+DOMAIN,log.51wnl-cq.com
+DOMAIN,r.51wnl-cq.com
+
+# (A)
+# > Apple
+DOMAIN-SUFFIX,iadsdk.apple.com
+DOMAIN-SUFFIX,ads.internal.unity3d.com
+DOMAIN-SUFFIX,ads.prd.ie.internal.unity3d.com
+DOMAIN-SUFFIX,unityads.unity3d.com
+# --- (Alibaba) ---
+DOMAIN,tunion-api.m.taobao.com
+# > YOUKU
+DOMAIN-SUFFIX,atm.youku.com
+DOMAIN,ad.mobile.youku.com
+DOMAIN,iyes.youku.com
+DOMAIN,pl.cp31.ott.cibntv.net
+# > AMap
+DOMAIN,optimus-ads.amap.com
+DOMAIN,optimus-ads.amap.com.w.alikunlun.com
+# ------
+# > Autohome
+DOMAIN,adproxy.autohome.com.cn
+DOMAIN,rd.autohome.com.cn
+DOMAIN,al.autohome.com.cn
+DOMAIN,applogapi.autohome.com.cn
+DOMAIN,adm0.autoimg.cn
+DOMAIN,adm1.autoimg.cn
+DOMAIN,adm2.autoimg.cn
+DOMAIN,adm3.autoimg.cn
+
+# (B)
+# --- (Baidu) ---
+DOMAIN-SUFFIX,duapps.com
+DOMAIN-SUFFIX,cpro.baidu.com
+DOMAIN-SUFFIX,pos.baidu.com
+DOMAIN,afd.baidu.com
+DOMAIN,als.baidu.com
+DOMAIN,duclick.baidu.com
+DOMAIN,mobads.baidu.com
+DOMAIN,mobads-logs.baidu.com
+DOMAIN,nadvideo2.baidu.com
+DOMAIN,nsclick.baidu.com
+# > iQIYI
+DOMAIN,t7z.cupid.iqiyi.com
+DOMAIN,t7z.cupid.ptqy.gitv.tv
+IP-CIDR,101.227.97.240/32,no-resolve
+IP-CIDR,101.227.200.11/32,no-resolve
+IP-CIDR,101.227.200.28/32,no-resolve
+IP-CIDR,124.192.153.42/32,no-resolve
+# ------
+# > ByteDance
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com
+DOMAIN-SUFFIX,pangolin-sdk-toutiao-b.com
+DOMAIN,ad.toutiao.com
+DOMAIN,dsp.toutiao.com
+DOMAIN,pangolin.snssdk.com
+# > baicizhan
+DOMAIN,advertise.baicizhan.com
+DOMAIN,advertise.baicizhan.org
+# > BitAuto
+DOMAIN,adx.yiche.com
+DOMAIN,log.ycapp.yiche.com
+# > Braze
+DOMAIN-SUFFIX,iad.appboy.com
+DOMAIN-SUFFIX,iad-03.appboy.com
+DOMAIN-SUFFIX,iad-01.braze.com
+DOMAIN-SUFFIX,iad-02.braze.com
+DOMAIN-SUFFIX,iad-03.braze.com
+DOMAIN-SUFFIX,iad-04.braze.com
+DOMAIN-SUFFIX,iad-05.braze.com
+DOMAIN-SUFFIX,iad-06.braze.com
+DOMAIN-SUFFIX,iad-08.braze.com
+
+# (C)
+# > CCTVVideo
+DOMAIN,adstore-index-1252524079.file.myqcloud.com
+# > CNTV
+DOMAIN,galaxy.bjcathay.com
+DOMAIN,mdrecv.app.cntvwb.cn
+DOMAIN,sdapprecv.app.cntvwb.cn
+DOMAIN,vdapprecv.app.cntvwb.cn
+# > ChinaTelecom
+DOMAIN,ad.21cn.com
+DOMAIN,ad.k.21cn.com
+DOMAIN,admarket.21cn.com
+DOMAIN,adshows.21cn.com
+# > Chelaile
+DOMAIN,atrace.chelaile.net.cn
+DOMAIN,logs.chelaile.net.cn
+# > Camera360
+DOMAIN,dispatcher.360in.com
+DOMAIN,ad.360in.com
+DOMAIN,exp.360in.com
+
+# (D)
+# > Douban
+AND,((USER-AGENT,Frodo*), (DOMAIN,119.29.29.29))
+
+# (G)
+# > Google
+DOMAIN-SUFFIX,doubleclick.net
+DOMAIN-SUFFIX,googleadservices.com
+DOMAIN-SUFFIX,googleadsserving.cn
+DOMAIN-SUFFIX,googlesyndication.com
+DOMAIN-SUFFIX,googletagservices.com
+DOMAIN,ads.youtube.com
+
+# (H)
+# > HunanTV
+DOMAIN-SUFFIX,da.mgtv.com
+DOMAIN-SUFFIX,da.hunantv.com
+DOMAIN-SUFFIX,log.hunantv.com
+DOMAIN-SUFFIX,v2.hunantv.com
+# > Hupu
+DOMAIN,adx.hupu.com
+DOMAIN,adx-api.hupu.com
+DOMAIN,goblin.hupu.com
+# > happycast
+DOMAIN,ad.hpplay.cn
+DOMAIN,adc.hpplay.cn
+DOMAIN,adcdn.hpplay.cn
+DOMAIN,adeng.hpplay.cn
+DOMAIN,pin.hpplay.cn
+DOMAIN,rp.hpplay.cn
+DOMAIN,rpt.hpplay.cn
+
+# (J)
+# >jxedt
+DOMAIN,richmanapi.jxedt.com
+DOMAIN,richmanmain.jxedt.com
+DOMAIN,richmanrules.jxedt.com
+
+# (K)
+# > Kingsoft
+DOMAIN,ad-stat.ksosoft.com
+DOMAIN,img.auction-ads.wpscdn.cn
+DOMAIN,counter.kingsoft.com
+DOMAIN,counter.ksosoft.com
+DOMAIN,minfo.wps.cn
+DOMAIN,mobad.ijinshan.com
+DOMAIN,ups.ksmobile.net
+DOMAIN,ws.ksmobile.net
+# > Kuaishou
+DOMAIN-SUFFIX,e.kuaishou.com
+DOMAIN,js-ad.a.yximgs.com
+
+# (L)
+# > Le
+DOMAIN-SUFFIX,webp2p.letv.com
+DOMAIN,ark.letv.com
+DOMAIN,emma-414870e223.huodonghezi.com
+DOMAIN,g3.letv.com
+DOMAIN,n.mark.letv.com
+# > LinkWiFi
+DOMAIN,a.wkanx.com
+DOMAIN,cwx.lianwangtech.com
+DOMAIN,c1wx.lianwangtech.com
+
+# (M)
+# > Microsoft
+DOMAIN-SUFFIX,ads.msn.com
+DOMAIN-SUFFIX,ads1.msn.com
+DOMAIN-SUFFIX,ads2.msn.com
+DOMAIN-SUFFIX,bingads.microsoft.com
+DOMAIN-SUFFIX,rads.msn.com
+DOMAIN,mobileads.msn.com
+# > MojiWeather
+DOMAIN,ad.api.moji.com
+DOMAIN,adlaunch.moji.com
+DOMAIN,ads.mojicdn.com
+DOMAIN,v1.log.moji.com
+# > MiguVideo
+DOMAIN-SUFFIX,ad.cmvideo.cn
+DOMAIN,ggc.cmvideo.cn
+DOMAIN,ggic03.miguvideo.com
+DOMAIN,ggmk.miguvideo.com
+DOMAIN,ggv.cmvideo.cn
+DOMAIN,ggx.cmvideo.cn
+DOMAIN,ggx03.miguvideo.com
+
+# (N)
+# > NetEase
+DOMAIN-SUFFIX,dsp.youdao.com
+DOMAIN-SUFFIX,union.youdao.com
+DOMAIN,ad.bn.netease.com
+DOMAIN,ad.yixin.im
+DOMAIN,admusicpic.music.126.net
+DOMAIN,g1.163.com
+DOMAIN,gorgon.youdao.com
+DOMAIN,iad.g.163.com
+DOMAIN,iadmat.nosdn.127.net
+DOMAIN,iadmusicmat.music.126.net
+DOMAIN,iadmusicmatvideo.music.126.net
+DOMAIN,impservice.dictapp.youdao.com
+DOMAIN,impservice.youdao.com
+DOMAIN,n.3g.163.com
+DOMAIN,nex.163.com
+DOMAIN,yt-adp.nosdn.127.net
+DOMAIN,yt-adp.ws.126.net
+
+# (P)
+# > PPTV
+DOMAIN,ads.aplus.pptv.com
+DOMAIN,ads.aplusapi.pptv.com
+DOMAIN,asimgs.pplive.cn
+DOMAIN,de.as.pptv.com
+# > Photoable
+DOMAIN,regist.fotoable.com
+DOMAIN,cdn.adapi.fotoable.com
+# > PeanutWiFi
+DOMAIN,adnew.wifi8.com
+DOMAIN,adfile.wifi8.com
+# > PConline
+DOMAIN,ad-analysis.pconline.com.cn
+DOMAIN,iad0ssl.pcauto.com.cn
+DOMAIN,iad0ssl.pconline.com.cn
+DOMAIN,imgad0.pcauto.com.cn
+DOMAIN,imgad0.pconline.com.cn
+DOMAIN,ivy.pchouse.com.cn
+# > Phoenix New Media
+DOMAIN-SUFFIX,deliver.ifeng.com
+DOMAIN,api.newad.ifeng.com
+DOMAIN,ifengad.3g.ifeng.com
+
+# (Q)
+# > QingTing
+DOMAIN,ad.qingting.fm
+DOMAIN,adlaunch.qingting.fm
+DOMAIN,ad-cdn.qingting.fm
+# > OPPO
+DOMAIN-SUFFIX,ads.oppomobile.com
+DOMAIN,adsfs.oppomobile.com
+
+# (S)
+# > Sina
+DOMAIN-SUFFIX,alitui.weibo.com
+DOMAIN-SUFFIX,beacon.sina.com.cn
+DOMAIN,adimg.uve.weibo.com
+DOMAIN,adimg.vue.weibo.com
+DOMAIN,u1.img.mobile.sina.cn
+DOMAIN,sax.sina.com.cn
+DOMAIN,saxs.sina.com.cn
+DOMAIN,saxn.sina.com.cn
+# > SOHU
+DOMAIN-SUFFIX,ad.sohu.com
+DOMAIN-SUFFIX,ads.sohu.com
+DOMAIN-SUFFIX,aty.sohu.com
+DOMAIN,hui.sohu.com
+# > Snapcha‪t‬
+DOMAIN,ads.snapchat.com
+DOMAIN,adsapi.snapchat.com
+# > Skyworth
+DOMAIN-SUFFIX,hoisin.coocaa.com
+DOMAIN-SUFFIX,hoisin.coocaatv.com
+DOMAIN,data-hoisin.coocaa.com
+
+# (T)
+# --- (Tencent) ---
+DOMAIN-SUFFIX,e.qq.com
+DOMAIN-SUFFIX,gdt.qq.com
+DOMAIN-SUFFIX,l.qq.com
+DOMAIN,adsmind.apdcdn.tc.qq.com
+DOMAIN,adsmind.gdtimg.com
+DOMAIN,adsmind.tc.qq.com
+DOMAIN,livep.l.t002.ottcn.com
+DOMAIN,pgdt.gtimg.cn
+DOMAIN,pgdt.gtimg.com
+DOMAIN,pgdt.ugdtimg.com
+DOMAIN,splashqqlive.gtimg.com
+DOMAIN,vv.video.qq.com
+DOMAIN,wa.gtimg.com
+DOMAIN,wxsnsdy.wxs.qq.com
+DOMAIN,wxsnsdythumb.wxs.qq.com
+# > Tencent Music (TME)
+DOMAIN,ad.tencentmusic.com
+DOMAIN,adstats.tencentmusic.com
+DOMAIN,adserviceretry.kugou.com
+DOMAIN,ads.service.kugou.com
+DOMAIN,adsfile.bssdlbig.kugou.com
+DOMAIN,g.koowo.com
+DOMAIN,kgmobilestat.kugou.com
+DOMAIN,kgmobilestatbak.kugou.com
+DOMAIN,mobilelog.kugou.com
+DOMAIN,mobilead.kuwo.cn
+DOMAIN,rich.kuwo.cn
+DOMAIN,tmead.y.qq.com
+# ------
+# > TongHuaShun
+DOMAIN,adm.10jqka.com.cn
+DOMAIN,stat.10jqka.com.cn
+# > The Paper
+DOMAIN,admonitor.thepaper.cn
+DOMAIN,adpai.thepaper.cn
+DOMAIN,imgadpai.thepaper.cn
+# > Thunder
+DOMAIN,adsp.xunlei.com
+DOMAIN,etl.xlmc.sandai.net
+
+# (V)
+# > VariFlight
+DOMAIN,adv-adlog.variflight.com
+DOMAIN,adv-ads.variflight.com
+DOMAIN,app-ad.variflight.com
+# > vivo
+DOMAIN,adlog.vivo.com.cn
+DOMAIN,adreq.vivo.com.cn
+DOMAIN,ads-marketing-vivofs.vivo.com.cn
+DOMAIN,adsdk.vivo.com.cn
+DOMAIN,adsstatic.vivo.com.cn
+DOMAIN,adxlog.vivo.com.cn
+DOMAIN,vcardsdkservice.vivo.com.cn
+DOMAIN-KEYWORD,stsdk.vivo.com.cn
+DOMAIN-KEYWORD,stsdk.vivoglobal.com
+# > Viber
+DOMAIN,ads.viber.com
+DOMAIN,ads-d.viber.com
+DOMAIN,ads.aws.viber.com
+
+# (X)
+# > Ximalaya
+DOMAIN,ad.ximalaya.com
+DOMAIN,adbs.ximalaya.com
+DOMAIN,adse.ximalaya.com
+DOMAIN,adse.wsa.ximalaya.com
+DOMAIN,adbehavior.wsa.ximalaya.com
+DOMAIN,adbehavior.ximalaya.com
+DOMAIN,adsebs.ximalaya.com
+DOMAIN,adwbs.ximalaya.com
+# > Xiaohongshu
+DOMAIN,ads-img-qc.xhscdn.com
+DOMAIN,ads-video-al.xhscdn.com
+DOMAIN,ads-video-qc.xhscdn.com
+DOMAIN,t-ads.xiaohongshu.com
+
+# (Y)
+# > Yahoo
+DOMAIN-SUFFIX,adserver.yahoo.com
+DOMAIN-SUFFIX,adspecs.yahoo.com
+DOMAIN-SUFFIX,advertising.yahoo.com
+DOMAIN-SUFFIX,gemini.yahoo.com
+DOMAIN,admarketing.yahoo.net
+DOMAIN,ads.auctions.yahoo.com
+DOMAIN,ads.finance.yahoo.com
+DOMAIN,ads.yahoo.com
+DOMAIN,ads.yahoo.de
+
+# (Z)
+# > Zhihu
+USER-AGENT,AVOS*
+DOMAIN,appcloud2.in.zhihu.com
+DOMAIN,mqtt.zhihu.com
+DOMAIN,sugar.zhihu.com
+DOMAIN,118.89.204.198
+IP-CIDR,118.89.204.198/32,no-resolve
+IP-CIDR6,2402:4e00:1200:ed00:0:9089:6dac:96b6/128,no-resolve
+# > ZOL
+DOMAIN,apppv.zol.com.cn
+DOMAIN,pvnapp.zol.com.cn
