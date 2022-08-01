@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import argparse
+import base64
 import itertools
 import json
 import multiprocessing
@@ -13,12 +14,15 @@ import re
 import subprocess
 import sys
 import time
+import traceback
+from dataclasses import dataclass
 
 import yaml
 
 import clash
 import crawl
 import push
+import renewal
 import subconverter
 import utils
 from airport import AirPort
@@ -26,22 +30,43 @@ from airport import AirPort
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
-def execute(
-    name,
-    url: str,
-    sub: str,
-    index: int,
-    retry: int,
-    rate: float,
-    bin_name: str,
-    tag: str,
-    need_verify: bool,
-) -> list:
-    obj = AirPort(name, url, sub)
+@dataclass
+class TaskConfig:
+    name: str
+    domain: str
+    sub: str
+    index: int
+    retry: int
+    rate: float
+    bin_name: str
+    tag: str
+    need_verify: bool
+    renew: dict
 
-    print(f"start fetch proxy: name=[{name}]\tdomain=[{url}]")
-    url, cookie = obj.get_subscribe(retry=retry, need_verify=need_verify)
-    return obj.parse(url, cookie, retry, rate, index, bin_name, tag.upper())
+
+def execute(task_conf: TaskConfig) -> list:
+    if not task_conf:
+        return []
+
+    obj = AirPort(task_conf.name, task_conf.domain, task_conf.sub)
+
+    # 套餐续期
+    if task_conf.renew:
+        add_traffic_flow(domain=obj.ref, params=task_conf.renew)
+
+    print(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
+    url, cookie = obj.get_subscribe(
+        retry=task_conf.retry, need_verify=task_conf.need_verify
+    )
+    return obj.parse(
+        url,
+        cookie,
+        task_conf.retry,
+        task_conf.rate,
+        task_conf.index,
+        task_conf.bin_name,
+        task_conf.tag,
+    )
 
 
 def cleanup(process: subprocess.Popen, filepath: str, filenames: list = []) -> None:
@@ -51,6 +76,65 @@ def cleanup(process: subprocess.Popen, filepath: str, filenames: list = []) -> N
             os.remove(filename)
 
     process.terminate()
+
+
+def add_traffic_flow(domain: str, params: dict) -> None:
+    if not domain or not params:
+        print(f"[RenewalError] invalidate arguments")
+        return
+    try:
+        email = base64.b64decode(params.get("email", ""))
+        password = base64.b64decode(params.get("passwd", ""))
+        cookie = renewal.get_cookie(domain=domain, username=email, password=password)
+        subscribe_info = renewal.get_subscribe_info(domain=domain, cookie=cookie)
+        if not subscribe_info:
+            print(f"[RenewalError] cannot fetch subscribe information")
+            return
+
+        print(f"subscribe information: domain: {domain}\t{subscribe_info}")
+        plan_id = params.get("plan_id", subscribe_info.plan_id)
+        package = params.get("package", subscribe_info.package)
+        coupon_code = params.get("coupon_code", "")
+        method = params.get("method", -1)
+        if method <= 0:
+            methods = renewal.get_payment_method(domain=domain, cookie=cookie)
+            if not methods:
+                method = 1
+            else:
+                method = random.choice(methods)
+
+        payload = {
+            "email": email,
+            "passwd": password,
+            "package": package,
+            "plan_id": plan_id,
+            "method": method,
+            "coupon_code": coupon_code,
+        }
+        if subscribe_info.reset_enable and subscribe_info.used_rate >= 0.8:
+            success = renewal.flow(
+                domain=domain, params=payload, reset=True, cookie=cookie
+            )
+            print(
+                "reset {}, domain: {}".format("success" if success else "fail", domain)
+            )
+        else:
+            print(
+                f"skip reset traffic plan, domain: {domain}\tenable: {subscribe_info.reset_enable}\tused-rate: {subscribe_info.used_rate}"
+            )
+        if subscribe_info.renew_enable and subscribe_info.expired_days <= 5:
+            success = renewal.flow(
+                domain=domain, params=payload, reset=False, cookie=cookie
+            )
+            print(
+                "renew {}, domain: {}".format("success" if success else "fail", domain)
+            )
+        else:
+            print(
+                f"skip renew traffic plan, domain: {domain}\tenable: {subscribe_info.renew_enable}\texpired-days: {subscribe_info.expired_days}"
+            )
+    except:
+        traceback.print_exc()
 
 
 def load_configs(file: str, url: str) -> tuple[list, dict, int]:
@@ -108,13 +192,13 @@ def dedup_task(tasks: list) -> list:
     for task in tasks:
         found = False
         for item in items:
-            if task[2] != "":
-                if task[2] == item[2]:
+            if task.sub != "":
+                if task.sub == item.sub:
                     found = True
                     break
 
             else:
-                if task[1] == item[1] and task[3] == item[3]:
+                if task.domain == item.domain and task.index == item.index:
                     found = True
                     break
 
@@ -127,7 +211,7 @@ def dedup_task(tasks: list) -> list:
 def assign(
     sites: list,
     retry: int,
-    subconverter: str,
+    bin_name: str,
     remain: bool,
     params: dict = {},
 ) -> dict:
@@ -138,35 +222,58 @@ def assign(
             continue
 
         name = site.get("name", "").strip().lower()
-        url = site.get("url", "").strip().lower()
+        domain = site.get("domain", "").strip().lower()
         sub = site.get("sub", "").strip()
-        tag = site.get("tag", "").strip()
+        tag = site.get("tag", "").strip().upper()
         rate = float(site.get("rate", 3.0))
         num = min(max(0, int(site.get("count", 1))), 10)
         need_verify = site.get("need_verify", False)
         push_names = site.get("push_to", [])
 
-        if "" == name or ("" == url and "" == sub) or num <= 0:
+        if "" == name or ("" == domain and "" == sub) or num <= 0:
             continue
 
-        for push_name in push_names:
+        for idx, push_name in enumerate(push_names):
             if not params.get(push_name, None):
                 print(f"cannot found push config, name=[{push_name}]\tsite=[{name}]")
                 continue
 
             tasks = jobs.get(push_name, [])
+            renewal = site.get("renewal", {}) if idx == 0 else {}
 
             if sub != "":
                 num = 1
 
             if num == 1:
                 tasks.append(
-                    [name, url, sub, -1, retry, rate, subconverter, tag, need_verify]
+                    TaskConfig(
+                        name=name,
+                        domain=domain,
+                        sub=sub,
+                        index=-1,
+                        retry=retry,
+                        rate=rate,
+                        bin_name=bin_name,
+                        tag=tag,
+                        need_verify=need_verify,
+                        renew=renewal,
+                    )
                 )
             else:
                 subtasks = [
-                    [name, url, sub, i, retry, rate, subconverter, tag, need_verify]
-                    for i in range(num)
+                    TaskConfig(
+                        name=name,
+                        domain=domain,
+                        sub=sub,
+                        index=i,
+                        retry=retry,
+                        rate=rate,
+                        bin_name=bin_name,
+                        tag=tag,
+                        need_verify=need_verify,
+                        renew=renewal,
+                    )
+                    for i in range(1, num + 1)
                 ]
                 tasks.extend(subtasks)
 
@@ -183,7 +290,18 @@ def assign(
 
             sub = f"https://paste.gg/p/{username}/{folderid}/files/{fileid}/raw"
             tasks.append(
-                ["remains", "", sub, -1, retry, rate, subconverter, "R", False]
+                TaskConfig(
+                    name="remains",
+                    domain="",
+                    sub=sub,
+                    index=-1,
+                    retry=retry,
+                    rate=rate,
+                    bin_name=bin_name,
+                    tag="R",
+                    need_verify=False,
+                    renew={},
+                )
             )
             jobs[k] = tasks
     return jobs
@@ -217,7 +335,7 @@ def aggregate(args: argparse.Namespace):
         num = len(v) if len(v) <= cpu_count else cpu_count
 
         pool = multiprocessing.Pool(num)
-        results = pool.starmap(execute, v)
+        results = pool.map(execute, v)
         pool.close()
 
         proxies = list(itertools.chain.from_iterable(results))
@@ -233,6 +351,7 @@ def aggregate(args: argparse.Namespace):
         utils.chmod(binpath)
         with multiprocessing.Manager() as manager:
             alive = manager.list()
+            print(f"startup clash now, workspace: {workspace}, config: {filename}")
             process = subprocess.Popen(
                 [
                     binpath,
@@ -243,6 +362,7 @@ def aggregate(args: argparse.Namespace):
                 ]
             )
 
+            print("clash start success")
             processes = []
             semaphore = multiprocessing.Semaphore(args.num)
             time.sleep(random.randint(3, 6))
@@ -266,6 +386,10 @@ def aggregate(args: argparse.Namespace):
                 p.join()
 
             time.sleep(random.randint(3, 6))
+            if len(alive) <= 0:
+                print("cannot fetch any proxy, exit")
+                sys.exit(0)
+
             data = {"proxies": list(alive)}
             source_file = "config.yaml"
             filepath = os.path.join(PATH, "subconverter", source_file)
@@ -289,7 +413,7 @@ def aggregate(args: argparse.Namespace):
             if subconverter.convert(binname=subconverter_bin, artifact=artifact):
                 # 推送到https://paste.gg
                 filepath = os.path.join(PATH, "subconverter", dest_file)
-                push.push_to(filepath, push_configs.get(k, {}), k)
+                push.push_file(filepath, push_configs.get(k, {}), k)
 
             # 关闭clash
             cleanup(

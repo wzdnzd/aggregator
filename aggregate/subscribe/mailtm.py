@@ -104,14 +104,19 @@ class Account:
         except Exception:
             return self.delete_account(retry=retry - 1)
 
-    def monitor_account(self) -> Message:
+    def monitor_account(self, timeout: int = 300) -> Message:
         """keep waiting for new messages"""
+        timeout = min(600, max(0, timeout))
+        endtime = time.time() + timeout
         try:
             while True:
                 start = len(self.get_messages())
-                while len(self.get_messages()) == start:
+                while len(self.get_messages()) == start and time.time() < endtime:
                     time.sleep(1)
-                return self.get_messages()[0]
+                messages = self.get_messages()
+                if not messages:
+                    return None
+                return messages[0]
         except:
             print(f"cannot get any message from address: {self.address}")
             return None
@@ -183,7 +188,7 @@ class MailTm:
                 headers=headers,
                 method="POST",
             )
-            response = urllib.request.urlopen(request, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=CTX)
             if not response or response.getcode() not in [200, 201]:
                 return {}
 
