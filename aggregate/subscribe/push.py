@@ -16,21 +16,25 @@ CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
 
-def push_to(filepath: str, push_conf: dict, group: str, retry: int = 5) -> bool:
+def push_file(filepath: str, push_conf: dict, group: str, retry: int = 5) -> bool:
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        print(f"[PushError] file {filepath} not found")
+        return False
+
+    content = open(filepath, "r", encoding="utf8").read()
+    return push_to(content=content, push_conf=push_conf, group=group, retry=retry)
+
+
+def push_to(content: str, push_conf: dict, group: str, retry: int = 5) -> bool:
     folderid = push_conf.get("folderid", "")
     fileid = push_conf.get("fileid", "")
     key = push_conf.get("key", "")
 
-    if (
-        not os.path.exists(filepath)
-        or not os.path.isfile(filepath)
-        or "" == key.strip()
-        or "" == fileid.strip()
-    ):
+    if "" == key.strip() or "" == fileid.strip():
+        print(f"[PushError] push config is invalidate")
         return False
 
     headers = {"Authorization": f"Key {key}", "Content-Type": "application/json"}
-    content = open(filepath, "r", encoding="utf8").read()
     data = json.dumps({"content": {"format": "text", "value": content}}).encode("UTF8")
     url = f"https://api.paste.gg/v1/pastes/{folderid}/files/{fileid}"
 
@@ -38,7 +42,7 @@ def push_to(filepath: str, push_conf: dict, group: str, retry: int = 5) -> bool:
         request = urllib.request.Request(
             url, data=data, headers=headers, method="PATCH"
         )
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=15, context=CTX)
         if response.getcode() == 204:
             print(
                 f"[PushSuccess] push subscribes information to remote successed, group=[{group}]"
@@ -58,7 +62,7 @@ def push_to(filepath: str, push_conf: dict, group: str, retry: int = 5) -> bool:
 
         retry -= 1
         if retry > 0:
-            return push_to(filepath, push_conf, group, retry)
+            return push_to(content, push_conf, group, retry)
 
         return False
 

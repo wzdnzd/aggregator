@@ -11,6 +11,7 @@ import re
 import ssl
 import string
 import time
+import traceback
 import urllib
 import urllib.parse
 import urllib.request
@@ -47,7 +48,8 @@ class AirPort:
         if sub.strip() != "":
             self.sub = sub
             self.fetch = ""
-            self.ref = utils.extract_domain(sub)
+            self.ref = utils.extract_domain(sub, include_protocal=True)
+            self.reg = ""
             self.registed = True
             self.send_email = ""
         else:
@@ -55,9 +57,8 @@ class AirPort:
             self.fetch = f"{site}/api/v1/user/server/fetch"
             self.registed = False
             self.send_email = f"{site}/api/v1/passport/comm/sendEmailVerify"
-
-        self.reg = f"{site}/api/v1/passport/auth/register"
-        self.ref = site
+            self.reg = f"{site}/api/v1/passport/auth/register"
+            self.ref = site
         self.name = name
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
@@ -77,7 +78,7 @@ class AirPort:
             request = urllib.request.Request(
                 self.send_email, data=data, headers=headers, method="POST"
             )
-            response = urllib.request.urlopen(request, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=CTX)
             if not response or response.getcode() != 200:
                 return False
 
@@ -106,12 +107,12 @@ class AirPort:
             request = urllib.request.Request(
                 self.reg, data=data, headers=headers, method="POST"
             )
-            response = urllib.request.urlopen(request, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=CTX)
             if not response or response.getcode() != 200:
                 return "", ""
 
             token = json.loads(response.read())["data"]["token"]
-            cookie = utils.get_cookie(response.getheader("Set-Cookie"))
+            cookie = utils.extract_cookie(response.getheader("Set-Cookie"))
             subscribe = self.sub + token
             return subscribe, cookie
         except:
@@ -150,35 +151,40 @@ class AirPort:
             email = email + random.choice(EMAILS_DOMAINS)
             return self.register(email=email, password=password, retry=retry)
         else:
-            mailtm = MailTm()
-            account = mailtm.get_account()
-            if not account:
-                print(f"cannot create account, site: {self.ref}")
-                return "", ""
-
-            message = None
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(account.monitor_account)
-                success = self.sen_email_verify(email=account.address, retry=3)
-                if not success:
+            try:
+                mailtm = MailTm()
+                account = mailtm.get_account()
+                if not account:
+                    print(f"cannot create account, site: {self.ref}")
                     return "", ""
-                message = future.result(timeout=250)
 
-            if not message:
-                print(f"cannot receive any message, site: {self.ref}")
+                message = None
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(account.monitor_account, 240)
+                    success = self.sen_email_verify(email=account.address, retry=3)
+                    if not success:
+                        executor.shutdown(wait=False)
+                        return "", ""
+                    message = future.result(timeout=240)
+
+                if not message:
+                    print(f"cannot receive any message, site: {self.ref}")
+                    return "", ""
+                content = message.text
+                mask = "".join(re.findall("[0-9]{6}", content))
+                account.delete_account(retry=2)
+                if not mask:
+                    print(f"cannot fetch mask, url: {self.ref}")
+                    return "", ""
+                return self.register(
+                    email=account.address,
+                    password=account.password,
+                    email_code=mask,
+                    retry=retry,
+                )
+            except:
+                traceback.print_exc()
                 return "", ""
-            content = message.text
-            mask = "".join(re.findall("[0-9]{6}", content))
-            account.delete_account(retry=2)
-            if not mask:
-                print(f"cannot fetch mask, url: {self.ref}")
-                return "", ""
-            return self.register(
-                email=account.address,
-                password=account.password,
-                email_code=mask,
-                retry=retry,
-            )
 
     def parse(
         self,
@@ -232,7 +238,9 @@ class AirPort:
         if "" == v2conf.strip() or "{" in v2conf:
             return []
 
-        artifact = f"{self.name}{str(index)}"
+        chars = utils.random_chars(length=3, punctuation=False)
+        suffix = f"-{index}-{chars}" if index >= 0 else f"{index}-{chars}"
+        artifact = f"{self.name}{suffix}"
         v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
         clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
 

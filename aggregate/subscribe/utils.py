@@ -75,7 +75,7 @@ def http_get(url: str, headers: dict = None, retry: int = 3) -> str:
         return http_get(url, headers, retry - 1)
 
 
-def extract_domain(url: str) -> str:
+def extract_domain(url: str, include_protocal: bool = False) -> str:
     if not url:
         return ""
 
@@ -87,11 +87,15 @@ def extract_domain(url: str) -> str:
     if end == -1:
         end = len(url) - 1
 
+    if include_protocal:
+        return url[:end]
+
     return url[start + 2 : end]
 
 
-def get_cookie(text: str) -> str:
-    regex = "(_session)=(.+?);"
+def extract_cookie(text: str) -> str:
+    # ?: 标识后面的内容不是一个group
+    regex = "((?:v2board)?_session)=((?:.+?);|.*)"
     if not text:
         return ""
 

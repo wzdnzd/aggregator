@@ -1,11 +1,9 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # @Author  : wzdnzd
 # @Time    : 2022-04-05
 
 import argparse
-import base64
 import json
 import os
 import re
@@ -21,7 +19,7 @@ from random import randint
 warnings.filterwarnings("ignore")
 
 HEADER = {
-    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36 Edg/91.0.864.54",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39",
     "accept": "*/*",
     "accept-language": "zh-CN,zh;q=0.9",
     "content-language": "zh-CN",
@@ -55,7 +53,7 @@ def login(url, params, headers, retry):
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         if response.getcode() == 200:
             return response.getheader("Set-Cookie")
         else:
@@ -66,7 +64,7 @@ def login(url, params, headers, retry):
         retry -= 1
 
         if retry > 0:
-            login(url, params, headers, retry)
+            return login(url, params, headers, retry)
 
         print("[LoginError] URL: {}".format(extract_domain(url)))
         return ""
@@ -77,7 +75,7 @@ def order(url, params, headers, retry):
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         trade_no = None
         if response.getcode() == 200:
             result = json.loads(response.read().decode("UTF8"))
@@ -92,7 +90,7 @@ def order(url, params, headers, retry):
         retry -= 1
 
         if retry > 0:
-            order(url, params, headers, retry)
+            return order(url, params, headers, retry)
 
         print("[OrderError] URL: {}".format(extract_domain(url)))
 
@@ -100,7 +98,7 @@ def order(url, params, headers, retry):
 def fetch(url, headers, retry):
     try:
         request = urllib.request.Request(url, headers=headers, method="GET")
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         if response.getcode() != 200:
             print(response.read().decode("UTF8"))
             return None
@@ -118,7 +116,7 @@ def fetch(url, headers, retry):
         retry -= 1
 
         if retry > 0:
-            fetch(url, headers, retry)
+            return fetch(url, headers, retry)
 
         print("[FetchError] URL: {}".format(extract_domain(url)))
 
@@ -128,7 +126,7 @@ def payment(url, params, headers, retry):
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         success = False
         if response.getcode() == 200:
             result = json.loads(response.read().decode("UTF8"))
@@ -143,7 +141,7 @@ def payment(url, params, headers, retry):
         retry -= 1
 
         if retry > 0:
-            payment(url, params, headers, retry)
+            return payment(url, params, headers, retry)
 
         print("[PaymentError] URL: {}".format(extract_domain(url)))
         return False
@@ -154,7 +152,7 @@ def check(url, params, headers, retry):
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         success = False
         if response.getcode() == 200:
             result = json.loads(response.read().decode("UTF8"))
@@ -169,14 +167,14 @@ def check(url, params, headers, retry):
         retry -= 1
 
         if retry > 0:
-            payment(url, params, headers, retry)
+            return check(url, params, headers, retry)
 
         print("[CheckError] URL: {}".format(extract_domain(url)))
         return False
 
 
 def get_cookie(text):
-    regex = "(v2board_session)=(.+?);"
+    regex = "((?:v2board)?_session)=((?:.+?);|.*)"
     if not text:
         return ""
 
@@ -195,32 +193,24 @@ def config_load(filename):
 
 
 def flow(domain, params, headers, reset, retry):
-    domain = base64.b64decode(domain).decode("utf8").strip()
+    domain = domain.strip()
     regex = "(?i)^(https?:\\/\\/)?(www.)?([^\\/]+\\.[^.]*$)"
     if not re.search(regex, domain):
         return False
 
-    login_url = domain + base64.b64decode(
-        params.get("login", "L2FwaS92MS9wYXNzcG9ydC9hdXRoL2xvZ2lu")
-    ).decode("utf8")
-    fetch_url = domain + base64.b64decode(
-        params.get("fetch", "L2FwaS92MS91c2VyL29yZGVyL2ZldGNo")
-    ).decode("utf8")
-    order_url = domain + base64.b64decode(
-        params.get("order", "L2FwaS92MS91c2VyL29yZGVyL3NhdmU=")
-    ).decode("utf8")
-    payment_url = domain + base64.b64decode(
-        params.get("payment", "L2FwaS92MS91c2VyL29yZGVyL2NoZWNrb3V0")
-    ).decode("utf8")
-    method = base64.b64decode(params.get("method", "MA=="))
-    coupon = base64.b64decode(params.get("couponCode", ""))
+    login_url = domain + params.get("login", "/api/v1/passport/auth/login")
+    fetch_url = domain + params.get("fetch", "/api/v1/user/order/fetch")
+    order_url = domain + params.get("order", "/api/v1/user/order/save")
+    payment_url = domain + params.get("payment", "/api/v1/user/order/checkout")
+    method = params.get("method", "0")
+    coupon = params.get("couponCode", "")
 
     headers["origin"] = domain
     headers["referer"] = domain + "/"
 
     user_info = {
-        "email": base64.b64decode(params["email"]),
-        "password": base64.b64decode(params["passwd"]),
+        "email": params.get("email", ""),
+        "password": params.get("passwd", ""),
     }
 
     text = login(login_url, user_info, headers, retry)
@@ -231,7 +221,6 @@ def flow(domain, params, headers, reset, retry):
     if len(cookie) <= 0:
         return False
 
-    # xsfr_token = cookie.replace("v2board_session", "XSRF-TOKEN")
     headers["cookie"] = cookie
 
     trade_no = fetch(fetch_url, headers, retry)
@@ -244,20 +233,21 @@ def flow(domain, params, headers, reset, retry):
             return
 
     period = "resetPeriod" if reset else "renewalPeriod"
-    if not params[period]:
-        print("not support reset or renewal")
-        return
+    if not params.get(period):
+        if reset:
+            params[period] = "reset_price"
+        else:
+            print("not support renewal")
+            return
 
-    plan_id = base64.b64decode(params["planId"])
+    plan_id = params.get("planId", "")
     payload = {
-        "period": base64.b64decode(params[period]),
+        "period": params.get(period, ""),
         "plan_id": plan_id,
     }
 
     if coupon:
-        check_url = domain + base64.b64decode(
-            params.get("check", "L2FwaS92MS91c2VyL2NvdXBvbi9jaGVjaw==")
-        ).decode("utf8")
+        check_url = domain + params.get("check", "/api/v1/user/coupon/check")
         result = check(check_url, {"code": coupon, "plan_id": plan_id}, headers, retry)
         if not result:
             print("failed to renewal because coupon is valid")
@@ -281,15 +271,11 @@ def wrapper(args, reset: bool, retry: int):
 
 def main(reset: bool, retry: int):
     config = config_load(os.path.join(PATH, "config.json"))
-    params = config["domains"]
+    params = config.get("domains", [])
     for args in params:
         flag = args.get("renewal", True)
         if not flag:
-            print(
-                "skip renewal, domain: {}".format(
-                    base64.b64decode(args["domain"]).decode("utf8").strip()
-                )
-            )
+            print("skip renewal, domain: {}".format(args.get("domain", "").strip()))
             continue
         wrapper(args, reset, retry)
 
@@ -334,5 +320,7 @@ if __name__ == "__main__":
     for i in range(args.num):
         main(reset=False, retry=args.retry)
         delay = randint(0, 60 * args.sleep)
+        print("第{}次续订完成，下次运行需等待{}秒".format(i + 1, delay))
+        print()
         if i != args.num - 1:
             time.sleep(delay)
