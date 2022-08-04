@@ -144,17 +144,71 @@ def load_configs(file: str, url: str) -> tuple[list, dict, int]:
         nonlocal delay
         delay = min(delay, max(config.get("delay", sys.maxsize), 50))
 
-        telegram = config.get("telegram", {})
-        disable = telegram.get("disable", False)
-        push_to = list(set(telegram.get("push_to", [])))
-        items = list(set([str(item).strip() for item in telegram.get("users", [])]))
+        spiders = config.get("spiders", {})
+        telegram_conf = spiders.get("telegram", {})
+        disable = telegram_conf.get("disable", False)
+        push_to = list(set(telegram_conf.get("push_to", [])))
+        items = list(
+            set([str(item).strip() for item in telegram_conf.get("users", [])])
+        )
         if not disable and items and push_to:
+            telegram_conf = crawl_conf.get("telegram", {})
+            telegram_conf["period"] = max(telegram_conf.get("period", 7), 7)
+            users = telegram_conf.get("users", {})
             for item in items:
-                ps = users.get(item, [])
-                ps.extend(push_to)
-                users[item] = list(set(ps))
+                pts = users.get(item, [])
+                pts.extend(push_to)
+                users[item] = list(set(pts))
+            telegram_conf["users"] = users
+            crawl_conf["telegram"] = telegram_conf
 
-    sites, users, push_configs, delay = [], {}, {}, sys.maxsize
+        google_conf = spiders.get("google", {})
+        disable = google_conf.get("disable", False)
+        push_to = list(set(google_conf.get("push_to", [])))
+        if not disable and push_to:
+            pts = crawl_conf.get("google", [])
+            pts.extend(push_to)
+            crawl_conf["google"] = list(set(pts))
+
+        github_conf = spiders.get("github", {})
+        disable = github_conf.get("disable", False)
+        push_to = list(set(github_conf.get("push_to", [])))
+        pages = github_conf.get("pages", 3)
+        exclude = github_conf.get("exclude", "")
+
+        if not disable and push_to:
+            github_conf = crawl_conf.get("github", {})
+            github_conf["pages"] = max(pages, github_conf.get("pages", 3))
+            github_conf["exclude"] = "|".join([exclude, github_conf.get("exclude", "")])
+            pts = github_conf.get("push_to", [])
+            pts.extend(push_to)
+            github_conf["push_to"] = list(set(pts))
+            crawl_conf["github"] = github_conf
+
+        repositories = spiders.get("repositories", [])
+        repo_conf = crawl_conf.get("repositories", {})
+        for repo in repositories:
+            disable = repo.get("disable", False)
+            username = repo.get("username", "").strip()
+            repo_name = repo.get("repo_name", "").strip()
+            push_to = list(set(repo.get("push_to", [])))
+            commits = max(repo.get("commits", 3), 1)
+
+            if disable or not username or not repo_name:
+                continue
+            key = "/".join([username, repo_name])
+            item = repo_conf.get(key, {})
+            item["username"] = username
+            item["repo_name"] = repo_name
+            item["commits"] = max(commits, item.get("commits", 3))
+            pts = item.get("push_to", [])
+            pts.extend(push_to)
+            item["push_to"] = list(set(push_to))
+
+            repo_conf[key] = item
+        crawl_conf["repositories"] = repo_conf
+
+    sites, crawl_conf, push_configs, delay = [], {}, {}, sys.maxsize
     try:
         if os.path.exists(file) and os.path.isfile(file):
             config = json.loads(open(file, "r", encoding="utf8").read())
@@ -176,8 +230,8 @@ def load_configs(file: str, url: str) -> tuple[list, dict, int]:
                 parse_config(json.loads(content))
 
         # 从telegram抓取订阅信息
-        if users:
-            result = crawl.batch_crawl(users, 7)
+        if crawl_conf:
+            result = crawl.batch_crawl(conf=crawl_conf)
             sites.extend(result)
     except:
         print("occur error when load task config")
