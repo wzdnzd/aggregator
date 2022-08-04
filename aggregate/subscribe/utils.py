@@ -34,7 +34,9 @@ def random_chars(length: int, punctuation: bool = False) -> str:
     return chars
 
 
-def http_get(url: str, headers: dict = None, retry: int = 3) -> str:
+def http_get(
+    url: str, headers: dict = None, params: dict = None, retry: int = 3
+) -> str:
     if not re.match(
         "^(https?:\/\/(\S+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
         url,
@@ -53,6 +55,13 @@ def http_get(url: str, headers: dict = None, retry: int = 3) -> str:
         }
 
     try:
+        if params:
+            data = urllib.parse.urlencode(params)
+            if "?" in url:
+                url += f"&{data}"
+            else:
+                url += f"?{data}"
+
         request = urllib.request.Request(url=url, headers=headers)
         response = urllib.request.urlopen(request, timeout=10, context=CTX)
         status_code = response.getcode()
