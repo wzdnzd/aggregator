@@ -39,6 +39,10 @@ CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
+BASE64_PATTERN = re.compile(
+    "^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$"
+)
+
 
 class AirPort:
     def __init__(self, name: str, site: str, sub: str):
@@ -204,11 +208,11 @@ class AirPort:
         #     try:
         #         request = urllib.request.Request(url=url, headers=self.headers)
         #         response = urllib.request.urlopen(request, timeout=10, context=CTX)
-        #         v2conf = str(response.read(), encoding="utf8")
+        #         text = str(response.read(), encoding="utf8")
 
         #         # 读取附件内容
         #         disposition = response.getheader("content-disposition", "")
-        #         v2conf = ""
+        #         text = ""
         #         if disposition:
         #             print(str(response.read(), encoding="utf8"))
         #             regex = "(filename)=(\S+)"
@@ -219,23 +223,23 @@ class AirPort:
         #                     content[0][1],
         #                 )
         #                 if os.path.exists(attachment) or os.path.isfile(attachment):
-        #                     v2conf = str(
+        #                     text = str(
         #                         open(attachment, "r", encoding="utf8").read(),
         #                         encoding="utf8",
         #                     )
         #                     os.remove(attachment)
         #         else:
-        #             v2conf = str(response.read(), encoding="utf8")
+        #             text = str(response.read(), encoding="utf8")
 
         #         break
         #     except:
-        #         v2conf = ""
+        #         text = ""
 
         #     count += 1
 
-        v2conf = utils.http_get(url=url, headers=self.headers, retry=retry)
-        # if "" == v2conf.strip() or not re.match("^[0-9a-zA-Z=]*$", v2conf):
-        if "" == v2conf.strip() or "{" in v2conf:
+        text = utils.http_get(url=url, headers=self.headers, retry=retry).strip()
+        # if "" == text.strip() or not re.match("^[0-9a-zA-Z=]*$", text):
+        if "" == text or (text.startswith("{") and text.endswith("}")):
             return []
 
         chars = utils.random_chars(length=3, punctuation=False)
@@ -244,61 +248,76 @@ class AirPort:
         v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
         clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
 
-        with open(v2ray_file, "w+") as f:
-            f.write(v2conf)
-            f.flush()
+        try:
+            if BASE64_PATTERN.match(text):
+                with open(v2ray_file, "w+") as f:
+                    f.write(text)
+                    f.flush()
 
-        generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
-        success = subconverter.generate_conf(
-            generate_conf, artifact, f"{artifact}.txt", f"{artifact}.yaml", "clash"
-        )
-        if not success:
-            print("cannot generate subconverter config file")
+                generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
+                success = subconverter.generate_conf(
+                    generate_conf,
+                    artifact,
+                    f"{artifact}.txt",
+                    f"{artifact}.yaml",
+                    "clash",
+                )
+                if not success:
+                    print("cannot generate subconverter config file")
+                    return []
+
+                time.sleep(1)
+                success = subconverter.convert(binname=bin_name, artifact=artifact)
+                os.remove(v2ray_file)
+                if not success:
+                    return []
+
+                with open(clash_file, "r", encoding="utf8") as reader:
+                    config = yaml.load(reader, Loader=yaml.SafeLoader)
+                    nodes = config.get("proxies", [])
+
+                # 已经读取，可以删除
+                os.remove(clash_file)
+            else:
+                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
+
+            proxies = []
+            unused_nodes = self.fetch_unused(cookie, rate)
+            for item in nodes:
+                if item.get("name") in unused_nodes:
+                    continue
+
+                name = re.sub(r"[\^\?\:\/]|\(.*\)", "", item.get("name"))
+                name = re.sub("\s+", " ", name).strip()
+                item["name"] = name
+
+                if index >= 0:
+                    mode = index % 26
+                    factor = index // 26 + 1
+                    letter = string.ascii_uppercase[mode]
+                    item["name"] = "{}-{}".format(item.get("name"), letter * factor)
+
+                # 方便标记已有节点，最多留99天
+                if "" != tag:
+                    if not re.match(f".*-{tag}\d+$", item["name"]):
+                        item["name"] = "{}-{}".format(item.get("name"), tag + "01")
+                    else:
+                        words = item["name"].rsplit(f"-{tag}")
+                        if not words[1].isdigit():
+                            continue
+                        num = int(words[1]) + 1
+                        if num > 99:
+                            continue
+
+                        num = "0" + str(num) if num <= 9 else str(num)
+                        name = words[0] + f"-{tag}{num}"
+                        item["name"] = name
+
+                # 方便过滤无效订阅
+                item["sub"] = url
+                proxies.append(item)
+
+            return proxies
+        except:
+            print(f"[ParseError] occur error when parse data, url: {self.ref}")
             return []
-
-        time.sleep(1)
-        success = subconverter.convert(binname=bin_name, artifact=artifact)
-        os.remove(v2ray_file)
-        if not success:
-            return []
-
-        with open(clash_file, "r", encoding="utf8") as reader:
-            config = yaml.load(reader, Loader=yaml.SafeLoader)
-            nodes = config.get("proxies", [])
-
-        # 已经读取，可以删除
-        os.remove(clash_file)
-
-        proxies = []
-        unused_nodes = self.fetch_unused(cookie, rate)
-        for item in nodes:
-            if item.get("name") in unused_nodes:
-                continue
-
-            item["name"] = re.sub(r"[\^\?\:\/]|\s+", " ", item.get("name")).strip()
-
-            if index >= 0:
-                mode = index % 26
-                factor = index // 26 + 1
-                letter = string.ascii_uppercase[mode]
-                item["name"] = "{}-{}".format(item.get("name"), letter * factor)
-
-            # 方便标记已有节点，最多留99天
-            if "" != tag:
-                if not re.match(f".*-{tag}\d+$", item["name"]):
-                    item["name"] = "{}-{}".format(item.get("name"), tag + "01")
-                else:
-                    words = item["name"].rsplit(f"-{tag}")
-                    if not words[1].isdigit():
-                        continue
-                    num = int(words[1]) + 1
-                    if num > 99:
-                        continue
-
-                    num = "0" + str(num) if num <= 9 else str(num)
-                    name = words[0] + f"-{tag}{num}"
-                    item["name"] = name
-
-            proxies.append(item)
-
-        return proxies
