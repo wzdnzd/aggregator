@@ -109,10 +109,22 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
 
 def crawl_single_telegram(
-    userid: str, period: int, push_to: list = [], regex: str = "", limits: int = 20
+    userid: str,
+    period: int,
+    push_to: list = [],
+    include: str = "",
+    exclude: str = "",
+    limits: int = 20,
 ) -> dict:
     if not userid:
         return {}
+
+    pattern = None
+    try:
+        if exclude and exclude.strip() != "":
+            pattern = re.compile(exclude.strip())
+    except:
+        print(f"compile regex error, exclude: {exclude}")
 
     now = time.time() - 3600 * 8
     crawl_time = datetime.fromtimestamp(now).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -122,9 +134,10 @@ def crawl_single_telegram(
     return extract_subscribes(
         content=content,
         push_to=push_to,
-        regex=regex,
+        include=include,
         limits=limits,
         source=Origin.TELEGRAM.name,
+        exclude=pattern,
     )
 
 
@@ -136,9 +149,10 @@ def crawl_telegram(users: dict, period: int, limits: int = 20) -> dict:
     limits = max(1, limits)
     params = []
     for k, v in users.items():
-        regex = v.get("regex", "")
+        include = v.get("include", "")
+        exclude = v.get("exclude", "")
         pts = v.get("push_to", [])
-        params.append([k, period, pts, regex, limits])
+        params.append([k, period, pts, include, exclude, limits])
 
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[TelegramCrawl] start crawl from Telegram, time: {starttime}")
@@ -300,7 +314,7 @@ def extract_subscribes(
     content: str,
     exclude: re.Pattern = None,
     push_to: list = [],
-    regex: str = "",
+    include: str = "",
     limits: int = sys.maxsize,
     source: str = Origin.OWNED.name,
 ) -> dict:
@@ -312,15 +326,15 @@ def extract_subscribes(
         # subscribes = re.findall(regex, content)
 
         pattern = "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu)=\d))"
-        if regex:
-            if not regex.startswith("|"):
-                pattern = f"{pattern}|{regex}"
+        if include:
+            if not include.startswith("|"):
+                pattern = f"{pattern}|{include}"
             else:
-                pattern = f"{pattern}{regex}"
+                pattern = f"{pattern}{include}"
 
         subscribes = re.findall(pattern, content)
         for s in subscribes:
-            if regex and not re.match(
+            if include and not re.match(
                 "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
                 s,
             ):

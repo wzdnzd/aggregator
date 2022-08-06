@@ -157,11 +157,17 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
             enabled_users = telegram_conf.get("users", {})
             telegram_conf["period"] = max(telegram_conf.get("period", 7), period)
             for k, v in users.items():
-                regex = v.get("regex", "")
+                include = v.get("include", "")
+                exclude = v.get("exclude", "")
                 pts = v.get("push_to", [])
 
                 user = enabled_users.get(k, {})
-                user["regex"] = "|".join([user.get("regex", ""), regex])
+                user["include"] = "|".join(
+                    [user.get("include", ""), include]
+                ).removeprefix("|")
+                user["exclude"] = "|".join(
+                    [user.get("exclude", ""), exclude]
+                ).removeprefix("|")
                 array = user.get("push_to", [])
                 array.extend(pts)
                 user["push_to"] = list(set(array))
