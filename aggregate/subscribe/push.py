@@ -16,7 +16,7 @@ CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
 
-def push_file(filepath: str, push_conf: dict, group: str, retry: int = 5) -> bool:
+def push_file(filepath: str, push_conf: dict, group: str = "", retry: int = 5) -> bool:
     if not os.path.exists(filepath) or not os.path.isfile(filepath):
         print(f"[PushError] file {filepath} not found")
         return False
@@ -25,14 +25,14 @@ def push_file(filepath: str, push_conf: dict, group: str, retry: int = 5) -> boo
     return push_to(content=content, push_conf=push_conf, group=group, retry=retry)
 
 
-def push_to(content: str, push_conf: dict, group: str, retry: int = 5) -> bool:
+def push_to(content: str, push_conf: dict, group: str = "", retry: int = 5) -> bool:
+    if not validate(push_conf=push_conf):
+        print(f"[PushError] push config is invalidate")
+        return False
+
     folderid = push_conf.get("folderid", "")
     fileid = push_conf.get("fileid", "")
     key = push_conf.get("key", "")
-
-    if "" == key.strip() or "" == fileid.strip():
-        print(f"[PushError] push config is invalidate")
-        return False
 
     headers = {"Authorization": f"Key {key}", "Content-Type": "application/json"}
     data = json.dumps({"content": {"format": "text", "value": content}}).encode("UTF8")
@@ -67,9 +67,20 @@ def push_to(content: str, push_conf: dict, group: str, retry: int = 5) -> bool:
         return False
 
 
-def validate_push(push_configs: dict) -> dict:
+def validate(push_conf: dict) -> bool:
+    if not push_conf:
+        return False
+
+    folderid = push_conf.get("folderid", "")
+    fileid = push_conf.get("fileid", "")
+    key = push_conf.get("key", "")
+
+    return "" != key.strip() and "" != folderid.strip() and "" != fileid.strip()
+
+
+def filter_push(push_conf: dict) -> dict:
     configs = {}
-    for k, v in push_configs.items():
+    for k, v in push_conf.items():
         if (
             v.get("folderid", "")
             and v.get("fileid", "")

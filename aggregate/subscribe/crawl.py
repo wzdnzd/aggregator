@@ -17,10 +17,10 @@ from datetime import datetime
 from multiprocessing.managers import ListProxy
 
 import utils
+from origin import Origin
 
-PATTERN = re.compile(
-    "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu)=\d))"
-)
+
+SEPARATOR = "-"
 
 
 def multi_thread_crawl(fun: typing.Callable, params: list) -> dict:
@@ -45,9 +45,12 @@ def multi_thread_crawl(fun: typing.Callable, params: list) -> dict:
     tasks = {}
     for r in results:
         for k, v in r.items():
-            items = tasks.get(k, [])
-            items.extend(v)
-            tasks[k] = list(set(items))
+            item = tasks.get(k, {})
+            item["origin"] = v.get("origin", item.get("origin", ""))
+            pts = item.get("push_to", [])
+            pts.extend(v.get("push_to", []))
+            item["push_to"] = list(set(pts))
+            tasks[k] = item
 
     return tasks
 
@@ -56,53 +59,57 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
     if not conf:
         return []
 
-    tasks = {}
-    google_spider = conf.get("google", [])
-    if google_spider:
-        tasks.update(crawl_google(qdr=7, push_to=google_spider))
+    try:
+        tasks = {}
+        google_spider = conf.get("google", [])
+        if google_spider:
+            tasks.update(crawl_google(qdr=7, push_to=google_spider))
 
-    github_spider = conf.get("github", {})
-    if github_spider and github_spider.get("push_to", []):
-        push_to = github_spider.get("push_to")
-        pages = github_spider.get("pages", 1)
-        exclude = github_spider.get("exclude", "")
-        tasks.update(crawl_github(limits=pages, push_to=push_to, exclude=exclude))
+        github_spider = conf.get("github", {})
+        if github_spider and github_spider.get("push_to", []):
+            push_to = github_spider.get("push_to")
+            pages = github_spider.get("pages", 1)
+            exclude = github_spider.get("exclude", "")
+            tasks.update(crawl_github(limits=pages, push_to=push_to, exclude=exclude))
 
-    telegram_spider = conf.get("telegram", {})
-    if telegram_spider and telegram_spider.get("users", {}):
-        users = telegram_spider.get("users")
-        period = max(telegram_spider.get("period", 7), 7)
-        tasks.update(crawl_telegram(users=users, period=period))
+        telegram_spider = conf.get("telegram", {})
+        if telegram_spider and telegram_spider.get("users", {}):
+            users = telegram_spider.get("users")
+            period = max(telegram_spider.get("period", 7), 7)
+            tasks.update(crawl_telegram(users=users, period=period))
 
-    repositories = conf.get("repositories", {})
-    if repositories:
-        tasks.update(crawl_github_repo(repos=repositories))
+        repositories = conf.get("repositories", {})
+        if repositories:
+            tasks.update(crawl_github_repo(repos=repositories))
 
-    if not tasks:
-        print("cannot any subscribe url from telegram")
+        if not tasks:
+            print("cannot any subscribe url from telegram")
+            return []
+
+        with multiprocessing.Manager() as manager:
+            availables = manager.list()
+            processes = []
+            semaphore = multiprocessing.Semaphore(max(thread, 1))
+            time.sleep(random.randint(1, 3))
+            for k, v in tasks.items():
+                semaphore.acquire()
+                p = multiprocessing.Process(
+                    target=validate_available, args=(k, v, availables, semaphore)
+                )
+                p.start()
+                processes.append(p)
+            for p in processes:
+                p.join()
+
+            time.sleep(random.randint(1, 3))
+            return list(availables)
+    except:
+        print("crawl from web error")
         return []
-
-    with multiprocessing.Manager() as manager:
-        availables = manager.list()
-        processes = []
-        semaphore = multiprocessing.Semaphore(max(thread, 1))
-        time.sleep(random.randint(1, 3))
-        for k, v in tasks.items():
-            semaphore.acquire()
-            p = multiprocessing.Process(
-                target=validate_available, args=(k, v, availables, semaphore)
-            )
-            p.start()
-            processes.append(p)
-        for p in processes:
-            p.join()
-
-        time.sleep(random.randint(1, 3))
-        return list(availables)
 
 
 def crawl_single_telegram(
-    userid: str, period: int, push_to: list = [], limits: int = 20
+    userid: str, period: int, push_to: list = [], regex: str = "", limits: int = 20
 ) -> dict:
     if not userid:
         return {}
@@ -112,7 +119,13 @@ def crawl_single_telegram(
     url = f"https://telemetr.io/post-list-ajax/{userid}/with-date-panel?period={period}&date={crawl_time}"
 
     content = utils.http_get(url=url)
-    return extract_subscribes(content=content, push_to=push_to, limits=limits)
+    return extract_subscribes(
+        content=content,
+        push_to=push_to,
+        regex=regex,
+        limits=limits,
+        source=Origin.TELEGRAM.name,
+    )
 
 
 def crawl_telegram(users: dict, period: int, limits: int = 20) -> dict:
@@ -121,7 +134,12 @@ def crawl_telegram(users: dict, period: int, limits: int = 20) -> dict:
 
     period = max(period, 7)
     limits = max(1, limits)
-    params = [[k, period, v, limits] for k, v in users.items()]
+    params = []
+    for k, v in users.items():
+        regex = v.get("regex", "")
+        pts = v.get("push_to", [])
+        params.append([k, period, pts, regex, limits])
+
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[TelegramCrawl] start crawl from Telegram, time: {starttime}")
     subscribes = multi_thread_crawl(fun=crawl_single_telegram, params=params)
@@ -161,7 +179,11 @@ def crawl_single_repo(
             files = commit.get("files", [])
             for file in files:
                 patch = file.get("patch", "")
-                collections.update(extract_subscribes(content=patch, push_to=push_to))
+                collections.update(
+                    extract_subscribes(
+                        content=patch, push_to=push_to, source=Origin.REPO.name
+                    )
+                )
         return collections
     except:
         print(f"crawl from github error, username: {username}\trepo: {repo}")
@@ -210,14 +232,14 @@ def crawl_google(
     for start in range(0, limits, num):
         params["start"] = start
         content = utils.http_get(url=url, params=params)
-        regex = 'https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?(?:<em(?:\s+)?class="qkunPe">/?)?api/v1/client/subscribe\?token(?:</em>)?=[a-zA-Z0-9]{32}'
+        regex = 'https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?(?:<em(?:\s+)?class="qkunPe">/?)?api/v1/client/subscribe\?token(?:</em>)?=[a-zA-Z0-9]{16,32}'
         subscribes = re.findall(regex, content)
         for s in subscribes:
             s = re.sub('<em(?:\s+)?class="qkunPe">|</em>|\s+', "", s).replace(
                 "http://", "https://", 1
             )
             s += "&flag=v2ray"
-            collections[s] = push_to
+            collections[s] = {"push_to": push_to, "origin": Origin.GOOGLE.name}
 
         time.sleep(interval)
 
@@ -242,7 +264,9 @@ def crawl_github_page(
         "Cookie": f"user_session={cookie}",
     }
     content = utils.http_get(url=url, headers=headers)
-    return extract_subscribes(content=content, push_to=push_to, exclude=exclude)
+    return extract_subscribes(
+        content=content, push_to=push_to, exclude=exclude, source=Origin.GITHUB.name
+    )
 
 
 def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict:
@@ -258,7 +282,8 @@ def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict
         print("[GithubCrawl] cannot start crawl from github because cookie is missing")
         return {}
 
-    pages = range(1, limits + 1)
+    # 鉴于github搜索code不稳定，爬取两次
+    pages = range(1, limits + 1) * 2
     params = [[x, cookie, push_to, regex] for x in pages]
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[GithubCrawl] start crawl from Github, time: {starttime}")
@@ -275,7 +300,9 @@ def extract_subscribes(
     content: str,
     exclude: re.Pattern = None,
     push_to: list = [],
+    regex: str = "",
     limits: int = sys.maxsize,
+    source: str = Origin.OWNED.name,
 ) -> dict:
     if not content:
         return {}
@@ -284,18 +311,31 @@ def extract_subscribes(
         # regex = "https?://\S+/api/v1/client/subscribe\?token=[a-zA-Z0-9]+|https?://\S+/link/[a-zA-Z0-9]+\?sub=\d"
         # subscribes = re.findall(regex, content)
 
-        subscribes = PATTERN.findall(content)
+        pattern = "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu)=\d))"
+        if regex:
+            if not regex.startswith("|"):
+                pattern = f"{pattern}|{regex}"
+            else:
+                pattern = f"{pattern}{regex}"
+
+        subscribes = re.findall(pattern, content)
         for s in subscribes:
+            if regex and not re.match(
+                "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
+                s,
+            ):
+                continue
+
             if exclude and exclude.search(s):
                 # print(f"ignore url: {s} because matched exclude")
                 continue
 
             # 强制使用https协议
-            s = s.replace("http://", "https://", 1)
+            s = s.replace("http://", "https://", 1).strip()
 
             if "token=" in s:
                 s += "&flag=v2ray"
-            collections[s] = push_to
+            collections[s] = {"push_to": push_to, "origin": source}
             if len(collections) >= limits:
                 break
 
@@ -306,17 +346,26 @@ def extract_subscribes(
 
 
 def validate_available(
-    url: str, push_to: list, availables: ListProxy, semaphore: multiprocessing.Semaphore
+    url: str, params: dict, availables: ListProxy, semaphore: multiprocessing.Semaphore
 ) -> None:
+    if not params or not params.get("push_to", None) or not params.get("origin", ""):
+        semaphore.release()
+        return
+
     if utils.http_get(url=url, retry=2) != "":
-        item = {"name": naming_task(url), "sub": url, "push_to": push_to}
+        item = {
+            "name": naming_task(url),
+            "sub": url,
+            "push_to": params.get("push_to"),
+            "origin": params.get("origin"),
+        }
         availables.append(item)
 
     semaphore.release()
 
 
 def naming_task(url):
-    prefix = utils.extract_domain(url=url).replace(".", "")
+    prefix = utils.extract_domain(url=url).replace(".", "") + SEPARATOR
     return prefix + "".join(
         random.sample(string.digits + string.ascii_lowercase, random.randint(3, 5))
     )

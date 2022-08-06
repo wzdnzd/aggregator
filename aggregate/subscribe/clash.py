@@ -14,7 +14,7 @@ import sys
 import urllib
 import urllib.parse
 import urllib.request
-from multiprocessing.managers import ListProxy
+from multiprocessing.managers import DictProxy, ListProxy
 
 import yaml
 
@@ -237,6 +237,7 @@ def check(
     timeout: int,
     test_url: str,
     delay: int,
+    validates: DictProxy,
 ) -> None:
     proxy_name = urllib.parse.quote(proxy.get("name", ""))
     base_url = (
@@ -265,7 +266,10 @@ def check(
         response = urllib.request.urlopen(request, timeout=10, context=CTX)
         data = json.loads(response.read())
         if data.get("delay", -1) > 0 and data.get("delay", -1) <= delay:
+            sub = proxy.get("sub", "")
+            proxy.pop("sub")
             alive.append(proxy)
+            validates[sub] = True
     except:
         pass
 

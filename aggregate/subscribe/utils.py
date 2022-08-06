@@ -55,7 +55,7 @@ def http_get(
         }
 
     try:
-        if params:
+        if params and isinstance(params, dict):
             data = urllib.parse.urlencode(params)
             if "?" in url:
                 url += f"&{data}"

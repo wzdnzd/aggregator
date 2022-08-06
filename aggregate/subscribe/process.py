@@ -26,6 +26,7 @@ import renewal
 import subconverter
 import utils
 from airport import AirPort
+from origin import Origin
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -137,38 +138,45 @@ def add_traffic_flow(domain: str, params: dict) -> None:
         traceback.print_exc()
 
 
-def load_configs(file: str, url: str) -> tuple[list, dict, int]:
+def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
     def parse_config(config: dict) -> None:
         sites.extend(config.get("domains", []))
-        push_configs.update(config.get("push", {}))
+        push_conf.update(config.get("push", {}))
+        update_conf.update(config.get("update", {}))
         nonlocal delay
         delay = min(delay, max(config.get("delay", sys.maxsize), 50))
 
         spiders = config.get("spiders", {})
+        crawl_conf.update(spiders)
         telegram_conf = spiders.get("telegram", {})
         disable = telegram_conf.get("disable", False)
-        push_to = list(set(telegram_conf.get("push_to", [])))
-        items = list(
-            set([str(item).strip() for item in telegram_conf.get("users", [])])
-        )
-        if not disable and items and push_to:
-            telegram_conf = crawl_conf.get("telegram", {})
-            telegram_conf["period"] = max(telegram_conf.get("period", 7), 7)
-            users = telegram_conf.get("users", {})
-            for item in items:
-                pts = users.get(item, [])
-                pts.extend(push_to)
-                users[item] = list(set(pts))
-            telegram_conf["users"] = users
-            crawl_conf["telegram"] = telegram_conf
+        users = telegram_conf.get("users", {})
+        period = max(telegram_conf.get("period", 7), 7)
+        if not disable and users:
+            telegram_conf = params.get("telegram", {})
+            enabled_users = telegram_conf.get("users", {})
+            telegram_conf["period"] = max(telegram_conf.get("period", 7), period)
+            for k, v in users.items():
+                regex = v.get("regex", "")
+                pts = v.get("push_to", [])
+
+                user = enabled_users.get(k, {})
+                user["regex"] = "|".join([user.get("regex", ""), regex])
+                array = user.get("push_to", [])
+                array.extend(pts)
+                user["push_to"] = list(set(array))
+
+                enabled_users[k] = user
+            telegram_conf["users"] = enabled_users
+            params["telegram"] = telegram_conf
 
         google_conf = spiders.get("google", {})
         disable = google_conf.get("disable", False)
         push_to = list(set(google_conf.get("push_to", [])))
         if not disable and push_to:
-            pts = crawl_conf.get("google", [])
+            pts = params.get("google", [])
             pts.extend(push_to)
-            crawl_conf["google"] = list(set(pts))
+            params["google"] = list(set(pts))
 
         github_conf = spiders.get("github", {})
         disable = github_conf.get("disable", False)
@@ -177,16 +185,16 @@ def load_configs(file: str, url: str) -> tuple[list, dict, int]:
         exclude = github_conf.get("exclude", "")
 
         if not disable and push_to:
-            github_conf = crawl_conf.get("github", {})
+            github_conf = params.get("github", {})
             github_conf["pages"] = max(pages, github_conf.get("pages", 3))
             github_conf["exclude"] = "|".join([exclude, github_conf.get("exclude", "")])
             pts = github_conf.get("push_to", [])
             pts.extend(push_to)
             github_conf["push_to"] = list(set(pts))
-            crawl_conf["github"] = github_conf
+            params["github"] = github_conf
 
         repositories = spiders.get("repositories", [])
-        repo_conf = crawl_conf.get("repositories", {})
+        repo_conf = params.get("repositories", {})
         for repo in repositories:
             disable = repo.get("disable", False)
             username = repo.get("username", "").strip()
@@ -206,9 +214,11 @@ def load_configs(file: str, url: str) -> tuple[list, dict, int]:
             item["push_to"] = list(set(push_to))
 
             repo_conf[key] = item
-        crawl_conf["repositories"] = repo_conf
+        params["repositories"] = repo_conf
 
-    sites, crawl_conf, push_configs, delay = [], {}, {}, sys.maxsize
+    sites, delay = [], sys.maxsize
+    params, push_conf, crawl_conf, update_conf = {}, {}, {}, {}
+
     try:
         if os.path.exists(file) and os.path.isfile(file):
             config = json.loads(open(file, "r", encoding="utf8").read())
@@ -230,13 +240,13 @@ def load_configs(file: str, url: str) -> tuple[list, dict, int]:
                 parse_config(json.loads(content))
 
         # 从telegram抓取订阅信息
-        if crawl_conf:
-            result = crawl.batch_crawl(conf=crawl_conf)
+        if params:
+            result = crawl.batch_crawl(conf=params)
             sites.extend(result)
     except:
         print("occur error when load task config")
 
-    return sites, push_configs, delay
+    return sites, push_conf, crawl_conf, update_conf, delay
 
 
 def dedup_task(tasks: list) -> list:
@@ -246,14 +256,30 @@ def dedup_task(tasks: list) -> list:
     for task in tasks:
         found = False
         for item in items:
-            if task.sub != "":
-                if task.sub == item.sub:
-                    found = True
-                    break
+            if isinstance(item, TaskConfig):
+                if task.sub != "":
+                    if task.sub == item.sub:
+                        found = True
+                        break
 
-            else:
-                if task.domain == item.domain and task.index == item.index:
-                    found = True
+                else:
+                    if task.domain == item.domain and task.index == item.index:
+                        found = True
+                        break
+            elif isinstance(item, dict):
+                if task.get("sub", "") != "":
+                    if task.get("sub", "") == item.get("sub", ""):
+                        found = True
+
+                else:
+                    if task.get("domain", "") == item.get("domain", "") and task.get(
+                        "index", -1
+                    ) == item.get("index", -1):
+                        found = True
+
+                if found:
+                    if task.get("errors", 0) > item.get("errors", 0):
+                        item["errors"] = task.get("errors", 0)
                     break
 
         if not found:
@@ -268,11 +294,11 @@ def assign(
     bin_name: str,
     remain: bool,
     params: dict = {},
-) -> dict:
-    jobs = {}
+) -> tuple[dict, list]:
+    jobs, arrays = {}, []
     retry = max(1, retry)
     for site in sites:
-        if not site or site.get("disable", False):
+        if not site:
             continue
 
         name = site.get("name", "").strip().lower()
@@ -283,8 +309,22 @@ def assign(
         num = min(max(0, int(site.get("count", 1))), 10)
         need_verify = site.get("need_verify", False)
         push_names = site.get("push_to", [])
+        errors = max(site.get("errors", 0), 0) + 1
+        source = site.get("origin", "")
+        if not source:
+            source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
+        site["origin"] = source
+        if source != Origin.TEMPORARY.name:
+            site["errors"] = errors
+        site["name"] = name.rsplit(crawl.SEPARATOR, maxsplit=1)[0]
+        arrays.append(site)
 
-        if "" == name or ("" == domain and "" == sub) or num <= 0:
+        if (
+            site.get("disable", False)
+            or "" == name
+            or ("" == domain and "" == sub)
+            or num <= 0
+        ):
             continue
 
         for idx, push_name in enumerate(push_names):
@@ -358,7 +398,53 @@ def assign(
                 )
             )
             jobs[k] = tasks
-    return jobs
+    return jobs, arrays
+
+
+def refresh(config: dict, alives: dict, filepath: str = "") -> None:
+    if not config:
+        print("[UpdateError] cannot update remote config because content is empty")
+        return
+
+    domains = config.get("domains", [])
+    if alives:
+        sites = []
+        for item in domains:
+            source = item.get("origin", "")
+            sub = item.get("sub", "")
+            if source in [Origin.TEMPORARY.name, Origin.OWNED.name] or alives.get(
+                sub, False
+            ):
+                item.pop("errors", None)
+                sites.append(item)
+                continue
+
+            errors = item.get("errors", 1)
+            expire = Origin.get_expire(source)
+            if errors < expire:
+                sites.append(item)
+
+        config["domains"] = sites
+        domains = config.get("domains", [])
+
+    if not domains:
+        print("[UpdateError] skip update remote config because domians is empty")
+        return
+
+    content = json.dumps(config)
+    if filepath:
+        directory = os.path.abspath(os.path.dirname(filepath))
+        os.makedirs(directory, exist_ok=True)
+        with open(filepath, "w+", encoding="UTF8") as f:
+            f.write(content)
+            f.flush()
+
+    update_conf = config.get("update", {})
+    if not push.validate(push_conf=update_conf):
+        print(f"[UpdateError] update config is invalidate")
+        return
+
+    push.push_to(content=content, push_conf=update_conf, group="update")
 
 
 def aggregate(args: argparse.Namespace):
@@ -367,43 +453,46 @@ def aggregate(args: argparse.Namespace):
 
     clash_bin, subconverter_bin = clash.which_bin()
 
-    sites, push_configs, delay = load_configs(file=args.file, url=args.server)
-    push_configs = push.validate_push(push_configs)
-    tasks = assign(sites, 3, subconverter_bin, args.remain, push_configs)
+    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
+        file=args.file, url=args.server
+    )
+    push_configs = push.filter_push(push_configs)
+    tasks, sites = assign(sites, 3, subconverter_bin, args.remain, push_configs)
     if not tasks:
         print("cannot found any valid config, exit")
         sys.exit(0)
+    with multiprocessing.Manager() as manager:
+        subscribes = manager.dict()
 
-    for k, v in tasks.items():
-        v = dedup_task(v)
-        if not v:
-            print(f"task is empty, group=[{k}]")
-            continue
+        for k, v in tasks.items():
+            v = dedup_task(v)
+            if not v:
+                print(f"task is empty, group=[{k}]")
+                continue
 
-        print(f"start generate subscribes information, group=[{k}]")
-        generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
-        if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-            os.remove(generate_conf)
+            print(f"start generate subscribes information, group=[{k}]")
+            generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
+            if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+                os.remove(generate_conf)
 
-        cpu_count = multiprocessing.cpu_count()
-        num = len(v) if len(v) <= cpu_count else cpu_count
+            cpu_count = multiprocessing.cpu_count()
+            num = len(v) if len(v) <= cpu_count else cpu_count
 
-        pool = multiprocessing.Pool(num)
-        results = pool.map(execute, v)
-        pool.close()
+            pool = multiprocessing.Pool(num)
+            results = pool.map(execute, v)
+            pool.close()
 
-        proxies = list(itertools.chain.from_iterable(results))
-        if len(proxies) == 0:
-            print(f"exit because cannot fetch any proxy node, group=[{k}]")
-            continue
+            proxies = list(itertools.chain.from_iterable(results))
+            if len(proxies) == 0:
+                print(f"exit because cannot fetch any proxy node, group=[{k}]")
+                continue
 
-        workspace = os.path.join(PATH, "clash")
-        binpath = os.path.join(workspace, clash_bin)
-        filename = "config.yaml"
-        proxies = clash.generate_config(workspace, proxies, filename)
+            workspace = os.path.join(PATH, "clash")
+            binpath = os.path.join(workspace, clash_bin)
+            filename = "config.yaml"
+            proxies = clash.generate_config(workspace, proxies, filename)
 
-        utils.chmod(binpath)
-        with multiprocessing.Manager() as manager:
+            utils.chmod(binpath)
             alive = manager.list()
             print(f"startup clash now, workspace: {workspace}, config: {filename}")
             process = subprocess.Popen(
@@ -432,6 +521,7 @@ def aggregate(args: argparse.Namespace):
                         args.timeout,
                         args.url,
                         delay,
+                        subscribes,
                     ),
                 )
                 p.start()
@@ -475,6 +565,15 @@ def aggregate(args: argparse.Namespace):
                 os.path.join(PATH, "subconverter"),
                 [source_file, dest_file, "generate.ini"],
             )
+
+        config = {
+            "domains": dedup_task(sites),
+            "spiders": crawl_conf,
+            "push": push_configs,
+            "update": update_conf,
+        }
+
+        refresh(config=config, alives=dict(subscribes), filepath="")
 
 
 if __name__ == "__main__":
