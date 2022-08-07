@@ -39,13 +39,20 @@ CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
+# 判断是否为base64编码
 BASE64_PATTERN = re.compile(
     "^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$"
 )
 
+# 重命名分隔符
+RENAME_SEPARATOR = "#@&#@"
+
+# 标记数字位数
+SUFFIX_BITS = 2
+
 
 class AirPort:
-    def __init__(self, name: str, site: str, sub: str):
+    def __init__(self, name: str, site: str, sub: str, rename: str = ""):
         if site.endswith("/"):
             site = site[: len(site) - 1]
 
@@ -64,6 +71,7 @@ class AirPort:
             self.reg = f"{site}/api/v1/passport/auth/register"
             self.ref = site
         self.name = name
+        self.rename = rename
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
             "Referer": self.ref,
@@ -288,28 +296,47 @@ class AirPort:
                     continue
 
                 name = re.sub(r"[\^\?\:\/]|\(.*\)", "", item.get("name"))
-                name = re.sub("\s+", " ", name).strip()
+                if self.rename and RENAME_SEPARATOR in self.rename:
+                    try:
+                        words = self.rename.split(RENAME_SEPARATOR, maxsplit=1)
+                        old = words[0].strip()
+                        new = words[1].strip()
+                        if old:
+                            name = re.sub(old, new, name)
+                    except:
+                        print(
+                            f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
+                        )
+
+                name = re.sub("\s+", " ", name).replace("_", "-").strip()
                 item["name"] = name
 
                 if index >= 0:
                     mode = index % 26
                     factor = index // 26 + 1
                     letter = string.ascii_uppercase[mode]
-                    item["name"] = "{}-{}".format(item.get("name"), letter * factor)
+                    if factor > 1:
+                        item["name"] = "{}-{}{}".format(
+                            item.get("name"), factor, letter
+                        )
+                    else:
+                        item["name"] = "{}-{}".format(item.get("name"), letter)
 
-                # 方便标记已有节点，最多留99天
+                # 方便标记已有节点，最多留999天
                 if "" != tag:
                     if not re.match(f".*-{tag}\d+$", item["name"]):
-                        item["name"] = "{}-{}".format(item.get("name"), tag + "01")
+                        item["name"] = "{}-{}".format(
+                            item.get("name"), tag + "1".zfill(SUFFIX_BITS)
+                        )
                     else:
                         words = item["name"].rsplit(f"-{tag}")
                         if not words[1].isdigit():
                             continue
                         num = int(words[1]) + 1
-                        if num > 99:
+                        if num > pow(10, SUFFIX_BITS) - 1:
                             continue
 
-                        num = "0" + str(num) if num <= 9 else str(num)
+                        num = str(num).zfill(SUFFIX_BITS)
                         name = words[0] + f"-{tag}{num}"
                         item["name"] = name
 

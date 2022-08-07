@@ -8,6 +8,7 @@ import json
 import multiprocessing
 import os
 import platform
+import random
 import ssl
 import string
 import sys
@@ -109,7 +110,9 @@ def filter_proxies(proxies: list) -> dict:
             mode = i % 26
             factor = i // 26 + 1
             letter = string.ascii_uppercase[mode]
-            item["name"] = "{}{}".format(item.get("name"), letter * factor)
+            item["name"] = "{}-{}-{}{}".format(
+                item.get("name"), random.choice(string.ascii_uppercase), factor, letter
+            )
             proxies.append(item)
 
     # 按名字排序方便在节点相同时优先保留名字靠前的

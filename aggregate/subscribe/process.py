@@ -43,13 +43,14 @@ class TaskConfig:
     tag: str
     need_verify: bool
     renew: dict
+    rename: str = ""
 
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf:
         return []
 
-    obj = AirPort(task_conf.name, task_conf.domain, task_conf.sub)
+    obj = AirPort(task_conf.name, task_conf.domain, task_conf.sub, task_conf.rename)
 
     # 套餐续期
     if task_conf.renew:
@@ -266,12 +267,13 @@ def dedup_task(tasks: list) -> list:
                 if task.sub != "":
                     if task.sub == item.sub:
                         found = True
-                        break
-
                 else:
                     if task.domain == item.domain and task.index == item.index:
                         found = True
-                        break
+
+                if found and not item.rename:
+                    item.rename = task.rename
+
             elif isinstance(item, dict):
                 if task.get("sub", "") != "":
                     if task.get("sub", "") == item.get("sub", ""):
@@ -319,6 +321,7 @@ def assign(
         push_names = site.get("push_to", [])
         errors = max(site.get("errors", 0), 0) + 1
         source = site.get("origin", "")
+        rename = site.get("rename", "")
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -359,6 +362,7 @@ def assign(
                         tag=tag,
                         need_verify=need_verify,
                         renew=renewal,
+                        rename=rename,
                     )
                 )
             else:
@@ -374,6 +378,7 @@ def assign(
                         tag=tag,
                         need_verify=need_verify,
                         renew=renewal,
+                        rename=rename,
                     )
                     for i in range(1, num + 1)
                 ]
@@ -403,6 +408,7 @@ def assign(
                     tag="R",
                     need_verify=False,
                     renew={},
+                    rename="",
                 )
             )
             jobs[k] = tasks

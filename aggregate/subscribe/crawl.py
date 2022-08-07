@@ -83,7 +83,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             tasks.update(crawl_github_repo(repos=repositories))
 
         if not tasks:
-            print("cannot any subscribe url from telegram")
+            print("cannot found any subscribe url from crawler")
             return []
 
         with multiprocessing.Manager() as manager:
