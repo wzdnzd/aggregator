@@ -286,6 +286,8 @@ def dedup_task(tasks: list) -> list:
                 if found:
                     if task.get("errors", 0) > item.get("errors", 0):
                         item["errors"] = task.get("errors", 0)
+                    if item.get("debut", False):
+                        item["debut"] = task.get("debut", False)
                     break
 
         if not found:
@@ -422,12 +424,14 @@ def refresh(config: dict, alives: dict, filepath: str = "") -> None:
                 sub, False
             ):
                 item.pop("errors", None)
+                item.pop("debut", None)
                 sites.append(item)
                 continue
 
             errors = item.get("errors", 1)
             expire = Origin.get_expire(source)
-            if errors < expire:
+            if errors < expire and not item.get("debut", False):
+                item.pop("debut", None)
                 sites.append(item)
 
         config["domains"] = sites

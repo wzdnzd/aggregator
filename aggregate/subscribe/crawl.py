@@ -372,6 +372,7 @@ def validate_available(
             "sub": url,
             "push_to": params.get("push_to"),
             "origin": params.get("origin"),
+            "debut": True,
         }
         availables.append(item)
 
