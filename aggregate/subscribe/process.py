@@ -44,13 +44,20 @@ class TaskConfig:
     need_verify: bool
     renew: dict
     rename: str = ""
+    exclude: str = ""
 
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf:
         return []
 
-    obj = AirPort(task_conf.name, task_conf.domain, task_conf.sub, task_conf.rename)
+    obj = AirPort(
+        task_conf.name,
+        task_conf.domain,
+        task_conf.sub,
+        task_conf.rename,
+        task_conf.exclude,
+    )
 
     # 套餐续期
     if task_conf.renew:
@@ -271,8 +278,15 @@ def dedup_task(tasks: list) -> list:
                     if task.domain == item.domain and task.index == item.index:
                         found = True
 
-                if found and not item.rename:
-                    item.rename = task.rename
+                if found:
+                    if not item.rename:
+                        item.rename = task.rename
+                    if task.exclude:
+                        item.exclude = "|".join(
+                            [item.exclude, task.exclude]
+                        ).removeprefix("|")
+
+                    break
 
             elif isinstance(item, dict):
                 if task.get("sub", "") != "":
@@ -290,6 +304,12 @@ def dedup_task(tasks: list) -> list:
                         item["errors"] = task.get("errors", 0)
                     if item.get("debut", False):
                         item["debut"] = task.get("debut", False)
+                    if not item.get("rename", ""):
+                        item["rename"] = task.get("rename", "")
+                    if task.get("exclude", ""):
+                        item["exclude"] = "|".join(
+                            [item.get("exclude", ""), task.get("exclude", "")]
+                        ).removeprefix("|")
                     break
 
         if not found:
@@ -322,6 +342,7 @@ def assign(
         errors = max(site.get("errors", 0), 0) + 1
         source = site.get("origin", "")
         rename = site.get("rename", "")
+        exclude = site.get("exclude", "").strip()
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -363,6 +384,7 @@ def assign(
                         need_verify=need_verify,
                         renew=renewal,
                         rename=rename,
+                        exclude=exclude,
                     )
                 )
             else:
@@ -379,6 +401,7 @@ def assign(
                         need_verify=need_verify,
                         renew=renewal,
                         rename=rename,
+                        exclude=exclude,
                     )
                     for i in range(1, num + 1)
                 ]
@@ -409,6 +432,7 @@ def assign(
                     need_verify=False,
                     renew={},
                     rename="",
+                    exclude="",
                 )
             )
             jobs[k] = tasks
@@ -420,7 +444,16 @@ def refresh(config: dict, alives: dict, filepath: str = "") -> None:
         print("[UpdateError] cannot update remote config because content is empty")
         return
 
-    domains = config.get("domains", [])
+    update_conf = config.get("update", {})
+    if not update_conf.get("enable", False):
+        print("[UpdateError] skip update remote config because enable=[False]")
+        return
+
+    if not push.validate(push_conf=update_conf):
+        print(f"[UpdateError] update config is invalidate")
+        return
+
+    domains = dedup_task(tasks=config.get("domains", []))
     if alives:
         sites = []
         for item in domains:
@@ -454,11 +487,6 @@ def refresh(config: dict, alives: dict, filepath: str = "") -> None:
         with open(filepath, "w+", encoding="UTF8") as f:
             f.write(content)
             f.flush()
-
-    update_conf = config.get("update", {})
-    if not push.validate(push_conf=update_conf):
-        print(f"[UpdateError] update config is invalidate")
-        return
 
     push.push_to(content=content, push_conf=update_conf, group="update")
 
@@ -583,7 +611,7 @@ def aggregate(args: argparse.Namespace):
             )
 
         config = {
-            "domains": dedup_task(sites),
+            "domains": sites,
             "spiders": crawl_conf,
             "push": push_configs,
             "update": update_conf,
