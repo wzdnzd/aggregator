@@ -52,7 +52,9 @@ SUFFIX_BITS = 2
 
 
 class AirPort:
-    def __init__(self, name: str, site: str, sub: str, rename: str = ""):
+    def __init__(
+        self, name: str, site: str, sub: str, rename: str = "", exclude: str = ""
+    ):
         if site.endswith("/"):
             site = site[: len(site) - 1]
 
@@ -72,6 +74,7 @@ class AirPort:
             self.ref = site
         self.name = name
         self.rename = rename
+        self.exclude = exclude
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
             "Referer": self.ref,
@@ -292,10 +295,19 @@ class AirPort:
             proxies = []
             unused_nodes = self.fetch_unused(cookie, rate)
             for item in nodes:
-                if item.get("name") in unused_nodes:
+                name = item.get("name")
+                if name in unused_nodes:
                     continue
+                if self.exclude:
+                    try:
+                        if re.search(self.exclude, name):
+                            continue
+                    except:
+                        print(
+                            f"filter proxies error, maybe exclude regex exists problems, exclude: {self.exclude}"
+                        )
 
-                name = re.sub(r"[\^\?\:\/]|\(.*\)", "", item.get("name"))
+                name = re.sub(r"[\^\?\:\/]|\(.*\)", "", name)
                 if self.rename and RENAME_SEPARATOR in self.rename:
                     try:
                         words = self.rename.split(RENAME_SEPARATOR, maxsplit=1)
