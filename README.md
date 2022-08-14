@@ -14,10 +14,15 @@
 ## 使用方法
 ### 1. 利用Github Actions签到（推荐）
 + 点击右上角`Fork`克隆本项目
-+ 修改项目为私有，具体方法见[Github更改仓库的可见性](https://docs.github.com/cn/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility#changing-a-repositorys-visibility)
-+ 编辑`.github/actions/checkin/config.json`，填写机场域名、邮箱及密码
++ ~~修改项目为私有，具体方法见[Github更改仓库的可见性](https://docs.github.com/cn/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility#changing-a-repositorys-visibility)~~
++ ~~编辑`.github/actions/checkin/config.json`，填写机场域名、邮箱及密码~~
++ **设置密钥：分别添加名（即`Name`）为 `AP_DOMAINS`、`AP_EMAILS`、`AP_PASSWORDS` 的密钥并填写对应的值（即`Value`）。如有多个账号(不论是同一机场与否)，需要在 `Value` 栏里一一填写并用 `||` 隔开**
+[![添加密钥](https://s1.ax1x.com/2022/08/14/vNWxoj.png)](https://imgtu.com/i/vNWxoj)
+[![密钥](https://s1.ax1x.com/2022/08/14/vU1lng.png)](https://imgtu.com/i/vU1lng)
 + 若要修改签到时间，可修改`.github/workflows/checkin.yml`文件的`cron`配置
-![修改签到时间](https://s1.ax1x.com/2022/05/14/Oc6H56.png)
+[![修改签到时间](https://s1.ax1x.com/2022/08/14/vUSkjS.png)](https://imgtu.com/i/vUSkjS)
++ 在 Actions 页面启用 workflow，可先手动触发运行一次验证配置是否正确
+[![手动触发](https://s1.ax1x.com/2022/08/14/vUlBFI.png)](https://imgtu.com/i/vUlBFI)
 
 ### 2. 本地运行
 + 克隆代码库
