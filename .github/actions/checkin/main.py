@@ -5,6 +5,7 @@
 # @Time    : 2018-04-25
 
 import re
+import sys
 import warnings
 import urllib
 import urllib.request
@@ -34,7 +35,9 @@ PATH = os.path.abspath(os.path.dirname(__file__))
 
 
 def extract_domain(url):
-    if not url or not re.match("^(https?:\/\/(([a-zA-Z0-9]+-?)+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$", url):
+    if not url or not re.match(
+        "^(https?:\/\/(([a-zA-Z0-9]+-?)+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$", url
+    ):
         return ""
 
     start = url.find("//")
@@ -77,7 +80,9 @@ def checkin(url, headers, retry):
 
         response = urllib.request.urlopen(request, context=CTX)
         data = response.read().decode("unicode_escape")
-        print("[CheckInFinished] URL: {}\t\tResult:{}".format(extract_domain(url), data))
+        print(
+            "[CheckInFinished] URL: {}\t\tResult:{}".format(extract_domain(url), data)
+        )
 
     except Exception as e:
         print(str(e))
@@ -106,6 +111,28 @@ def config_load(filename):
 
     config = open(filename, "r").read()
     return json.loads(config)
+
+
+def getconf_from_env():
+    domains = os.environ.get("AP_DOMAINS", "").strip().split("||")
+    emails = os.environ.get("AP_EMAILS", "").strip().split("||")
+    passwords = os.environ.get("AP_PASSWORDS", "").strip().split("||")
+
+    if not domains or not emails or not passwords:
+        print(
+            "invalidate config, environment variables are missing or blank, must include AP_DOMAINS, AP_EMAILS and AP_PASSWORDS and cannot be empty"
+        )
+        return []
+
+    if len(domains) != len(emails) or len(emails) != len(passwords):
+        print("[Warning] the number of emails and passwords do not match")
+
+    configs = []
+    for _, item in enumerate(zip(domains, emails, passwords)):
+        conf = {"domain": item[0], "param": {"email": item[1], "passwd": item[2]}}
+        configs.append(conf)
+
+    return configs
 
 
 def flow(domain, params, headers):
@@ -141,8 +168,12 @@ def wrapper(args):
 
 
 def main():
-    config = config_load(os.path.join(PATH, "config.json"))
-    params = config.get("domains", [])
+    # config = config_load(os.path.join(PATH, "config.json"))
+    # params = config.get("domains", [])
+    params = getconf_from_env()
+    if not params:
+        print("skip checkin because config is missing, please check it and try again")
+        sys.exit(0)
 
     cpu_count = multiprocessing.cpu_count()
     num = len(params) if len(params) <= cpu_count else cpu_count
