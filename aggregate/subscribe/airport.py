@@ -9,7 +9,6 @@ import os
 import random
 import re
 import ssl
-import string
 import time
 import traceback
 import urllib
@@ -18,6 +17,7 @@ import urllib.request
 
 import yaml
 
+import renewal
 import subconverter
 import utils
 from mailtm import MailTm
@@ -53,7 +53,13 @@ SUFFIX_BITS = 2
 
 class AirPort:
     def __init__(
-        self, name: str, site: str, sub: str, rename: str = "", exclude: str = ""
+        self,
+        name: str,
+        site: str,
+        sub: str,
+        rename: str = "",
+        exclude: str = "",
+        include: str = "",
     ):
         if site.endswith("/"):
             site = site[: len(site) - 1]
@@ -75,6 +81,7 @@ class AirPort:
         self.name = name
         self.rename = rename
         self.exclude = exclude
+        self.include = include
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
             "Referer": self.ref,
@@ -126,12 +133,23 @@ class AirPort:
             if not response or response.getcode() != 200:
                 return "", ""
 
-            token = json.loads(response.read())["data"]["token"]
-            cookie = utils.extract_cookie(response.getheader("Set-Cookie"))
+            token = ""
+            cookies = utils.extract_cookie(response.getheader("Set-Cookie"))
+            try:
+                token = json.loads(response.read())["data"]["token"]
+            except:
+                subscribe_info = renewal.get_subscribe_info(
+                    domain=self.ref, cookies=cookies
+                )
+                if subscribe_info:
+                    token = subscribe_info.token
+                else:
+                    print(f"[RegisterError] cannot get token when register")
+
             subscribe = self.sub + token
-            return subscribe, cookie
+            return subscribe, cookies
         except:
-            return self.register(email, password, retry - 1)
+            return self.register(email, password, email_code, retry - 1)
 
     def fetch_unused(self, cookie: str, rate: float) -> list:
         if "" == cookie.strip() or "" == self.fetch.strip():
@@ -175,12 +193,16 @@ class AirPort:
 
                 message = None
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    starttime = time.time()
                     future = executor.submit(account.monitor_account, 240)
                     success = self.sen_email_verify(email=account.address, retry=3)
                     if not success:
                         executor.shutdown(wait=False)
                         return "", ""
-                    message = future.result(timeout=240)
+                    message = future.result(timeout=180)
+                    print(
+                        f"email has been received, domain: {self.ref}\tcost: {int(time.time()- starttime)}s"
+                    )
 
                 if not message:
                     print(f"cannot receive any message, site: {self.ref}")
@@ -207,11 +229,13 @@ class AirPort:
         cookie: str,
         retry: int,
         rate: float,
-        index: int,
         bin_name: str,
         tag: str,
     ) -> list:
         if "" == url:
+            print(
+                f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}"
+            )
             return []
 
         # count = 1
@@ -251,11 +275,13 @@ class AirPort:
         text = utils.http_get(url=url, headers=self.headers, retry=retry).strip()
         # if "" == text.strip() or not re.match("^[0-9a-zA-Z=]*$", text):
         if "" == text or (text.startswith("{") and text.endswith("}")):
+            print(
+                f"[ParseError] cannot found any proxies because token is error, domain: {self.ref}"
+            )
             return []
 
         chars = utils.random_chars(length=3, punctuation=False)
-        suffix = f"-{index}-{chars}" if index >= 0 else f"{index}-{chars}"
-        artifact = f"{self.name}{suffix}"
+        artifact = f"{self.name}-{chars}"
         v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
         clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
 
@@ -298,41 +324,37 @@ class AirPort:
                 name = item.get("name")
                 if name in unused_nodes:
                     continue
-                if self.exclude:
-                    try:
-                        if re.search(self.exclude, name):
+
+                try:
+                    if self.include and not re.search(self.include, name):
+                        continue
+                    else:
+                        if self.exclude and re.search(self.exclude, name):
                             continue
-                    except:
-                        print(
-                            f"filter proxies error, maybe exclude regex exists problems, exclude: {self.exclude}"
-                        )
+                except:
+                    print(
+                        f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
+                    )
 
                 name = re.sub(r"[\^\?\:\/]|\(.*\)", "", name)
-                if self.rename and RENAME_SEPARATOR in self.rename:
-                    try:
-                        words = self.rename.split(RENAME_SEPARATOR, maxsplit=1)
-                        old = words[0].strip()
-                        new = words[1].strip()
-                        if old:
-                            name = re.sub(old, new, name)
-                    except:
-                        print(
-                            f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
-                        )
+                try:
+                    if self.rename:
+                        if RENAME_SEPARATOR in self.rename:
+                            words = self.rename.split(RENAME_SEPARATOR, maxsplit=1)
+                            old = words[0].strip()
+                            new = words[1].strip()
+                            if old:
+                                name = re.sub(old, new, name)
+                        else:
+                            name = re.sub(self.rename, "", name)
+
+                except:
+                    print(
+                        f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
+                    )
 
                 name = re.sub("\s+", " ", name).replace("_", "-").strip()
                 item["name"] = name
-
-                if index >= 0:
-                    mode = index % 26
-                    factor = index // 26 + 1
-                    letter = string.ascii_uppercase[mode]
-                    if factor > 1:
-                        item["name"] = "{}-{}{}".format(
-                            item.get("name"), factor, letter
-                        )
-                    else:
-                        item["name"] = "{}-{}".format(item.get("name"), letter)
 
                 # 方便标记已有节点，最多留999天
                 if "" != tag:
