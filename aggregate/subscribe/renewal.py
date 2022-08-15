@@ -42,9 +42,12 @@ class SubscribeInfo:
     used_rate: float
     expired_days: int
     package: str
+    token: str
 
 
-def get_cookie(domain: str, username: str, password: str, retry: int = 3):
+def get_cookies(
+    domain: str, username: str, password: str, retry: int = 3
+) -> tuple[str, str]:
     login_url = domain + "/api/v1/passport/auth/login"
     headers = HEADER
     headers["origin"] = domain
@@ -55,24 +58,55 @@ def get_cookie(domain: str, username: str, password: str, retry: int = 3):
         "password": password,
     }
 
-    text = login(login_url, user_info, headers, retry)
-    return utils.extract_cookie(text)
+    headers = {
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39",
+        "referer": domain,
+    }
+
+    text, authorization = login(login_url, user_info, headers, retry)
+    return utils.extract_cookie(text), authorization
 
 
-def login(url: str, params: dict, headers: dict, retry: int = 3) -> str:
+def generate_headers(
+    domain: str, cookies: str, authorization: str, headers: dict = None
+) -> dict:
+    if not headers:
+        headers = {
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39"
+        }
+
+    if domain:
+        headers["referer"] = domain
+    if cookies:
+        headers["cookie"] = cookies
+    if authorization:
+        headers["authorization"] = authorization
+
+    return headers
+
+
+def login(url: str, params: dict, headers: dict, retry: int = 3) -> tuple[str, str]:
     if not params:
         print("[RenewalError] cannot login because parameters is empty")
-        return ""
+        return "", ""
 
     try:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
         response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        cookies, authorization = "", ""
         if response.getcode() == 200:
-            return response.getheader("Set-Cookie")
+            cookies = response.getheader("Set-Cookie")
+            try:
+                data = json.loads(response.read().decode("UTF8")).get("data", {})
+                authorization = data.get("auth_data", "")
+            except:
+                print(response.read().decode("UTF8"))
         else:
             print(response.read().decode("UTF8"))
+
+        return cookies, authorization
 
     except Exception as e:
         print(str(e))
@@ -82,7 +116,7 @@ def login(url: str, params: dict, headers: dict, retry: int = 3) -> str:
             return login(url, params, headers, retry)
 
         print("[LoginError] URL: {}".format(utils.extract_domain(url)))
-        return ""
+        return "", ""
 
 
 def order(url: str, params: dict, headers: dict, retry: int = 3) -> str:
@@ -188,17 +222,19 @@ def checkout(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
         return False
 
 
-def get_payment_method(domain: str, cookie: str, retry: int = 3) -> list:
-    if not domain or not cookie:
-        print(f"query payment method error, domain: {domain}")
+def get_payment_method(
+    domain: str, cookies: str, authorization: str = "", retry: int = 3
+) -> list:
+    if not domain or not cookies:
+        print(
+            f"query payment method error, cookies and authorization is empty, domain: {domain}"
+        )
         return []
 
     url = domain + "/api/v1/user/order/getPaymentMethod"
-    headers = {
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39",
-        "referer": domain,
-        "cookie": cookie,
-    }
+    headers = generate_headers(
+        domain=domain, cookies=cookies, authorization=authorization
+    )
 
     content = utils.http_get(url=url, headers=headers, retry=retry)
     if not content:
@@ -212,17 +248,19 @@ def get_payment_method(domain: str, cookie: str, retry: int = 3) -> list:
         return []
 
 
-def get_subscribe_info(domain: str, cookie: str, retry: int = 3) -> SubscribeInfo:
-    if not domain or not cookie:
-        print(f"query subscribe information error, domain: {domain}")
+def get_subscribe_info(
+    domain: str, cookies: str, authorization: str = "", retry: int = 3
+) -> SubscribeInfo:
+    if not domain or (not cookies and not authorization):
+        print(
+            f"query subscribe information error, cookies and authorization is empty, domain: {domain}"
+        )
         return None
 
     url = domain + "/api/v1/user/getSubscribe"
-    headers = {
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39",
-        "referer": domain,
-        "cookie": cookie,
-    }
+    headers = generate_headers(
+        domain=domain, cookies=cookies, authorization=authorization
+    )
 
     content = utils.http_get(url=url, headers=headers, retry=retry)
     if not content:
@@ -234,6 +272,7 @@ def get_subscribe_info(domain: str, cookie: str, retry: int = 3) -> SubscribeInf
             return None
 
         plan_id = data.get("plan_id", 1)
+        token = data.get("token", "")
         expired_at = datetime.fromtimestamp(data.get("expired_at", 1))
         today = datetime.fromtimestamp(time.time())
         expired_days = (expired_at - today).days
@@ -269,6 +308,7 @@ def get_subscribe_info(domain: str, cookie: str, retry: int = 3) -> SubscribeInf
             used_rate=used_rate,
             expired_days=expired_days,
             package=package,
+            token=token,
         )
     except:
         print(f"cannot get payment method because response is empty, domain: {domain}")
@@ -281,7 +321,8 @@ def flow(
     reset: bool = False,
     retry: int = 3,
     headers: dict = HEADER,
-    cookie: str = "",
+    cookies: str = "",
+    authorization: str = "",
 ) -> bool:
     domain = domain.strip()
     regex = "(?i)^(https?:\\/\\/)?(www.)?([^\\/]+\\.[^.]*$)"
@@ -297,23 +338,22 @@ def flow(
     headers["origin"] = domain
     headers["referer"] = domain + "/"
 
-    if not cookie.strip():
+    if not cookies.strip() and not authorization.strip():
         user_info = {
             "email": params.get("email", ""),
             "password": params.get("passwd", ""),
         }
 
         login_url = domain + params.get("login", "/api/v1/passport/auth/login")
-        text = login(login_url, user_info, headers, retry)
-        if not text:
-            return False
+        text, authorization = login(login_url, user_info, headers, retry)
+        cookies = utils.extract_cookie(text)
 
-        cookie = utils.extract_cookie(text)
-
-    if len(cookie) <= 0:
+    if len(cookies) <= 0 and not authorization:
         return False
 
-    headers["cookie"] = cookie
+    headers = generate_headers(
+        domain=domain, cookies=cookies, authorization=authorization, headers=headers
+    )
 
     trade_no = fetch(fetch_url, headers, retry)
 

@@ -8,7 +8,6 @@ import json
 import multiprocessing
 import os
 import platform
-import random
 import ssl
 import string
 import sys
@@ -110,9 +109,7 @@ def filter_proxies(proxies: list) -> dict:
             mode = i % 26
             factor = i // 26 + 1
             letter = string.ascii_uppercase[mode]
-            item["name"] = "{}-{}-{}{}".format(
-                item.get("name"), random.choice(string.ascii_uppercase), factor, letter
-            )
+            item["name"] = "{}-{}{}".format(item.get("name"), factor, letter)
             proxies.append(item)
 
     # 按名字排序方便在节点相同时优先保留名字靠前的
@@ -192,16 +189,17 @@ def proxies_exists(proxy: dict, proxies: list) -> bool:
     if not proxies:
         return False
 
+    duplicate = False
     protocal = proxy.get("type", "")
     if protocal == "ss" or protocal == "trojan":
-        return any(
+        duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             and p.get("password", "").lower() == proxy.get("password", "").lower()
             for p in proxies
         )
     elif protocal == "ssr":
-        return any(
+        duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             and p.get("protocol-param", "").lower()
@@ -209,27 +207,32 @@ def proxies_exists(proxy: dict, proxies: list) -> bool:
             for p in proxies
         )
     elif protocal == "vmess":
-        return any(
+        duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             and p.get("uuid", "").lower() == proxy.get("uuid", "").lower()
             for p in proxies
         )
     elif protocal == "snell":
-        return any(
+        duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             and p.get("psk", "").lower() == proxy.get("psk", "").lower()
             for p in proxies
         )
     elif protocal == "http" or protocal == "socks5":
-        return any(
+        duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             for p in proxies
         )
 
-    return True
+    if not duplicate:
+        duplicate = any(
+            p.get("name", "").lower() == proxy.get("name", "").lower() for p in proxies
+        )
+
+    return duplicate
 
 
 def check(
