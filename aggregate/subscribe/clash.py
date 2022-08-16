@@ -272,10 +272,10 @@ def check(
         response = urllib.request.urlopen(request, timeout=10, context=CTX)
         data = json.loads(response.read())
         if data.get("delay", -1) > 0 and data.get("delay", -1) <= delay:
-            sub = proxy.get("sub", "")
-            proxy.pop("sub")
+            sub = proxy.pop("sub", "")
             alive.append(proxy)
-            validates[sub] = True
+            if validates != None and sub:
+                validates[sub] = True
     except:
         pass
 

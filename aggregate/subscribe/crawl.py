@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import datetime
+import itertools
 import json
 import multiprocessing
 import os
@@ -17,8 +18,8 @@ from datetime import datetime
 from multiprocessing.managers import ListProxy
 
 import utils
+from airport import AirPort
 from origin import Origin
-
 
 SEPARATOR = "-"
 
@@ -384,3 +385,105 @@ def naming_task(url):
     return prefix + "".join(
         random.sample(string.digits + string.ascii_lowercase, random.randint(3, 5))
     )
+
+
+def get_pages(chanel_id: str) -> int:
+    if not chanel_id or chanel_id.strip() == "":
+        return 0
+
+    url = f"https://telemetr.io/en/channels/{chanel_id}/posts"
+    content = utils.http_get(url=url)
+    before = 0
+    try:
+        regex = f"https://telemetr.io/en/channels/{chanel_id}/posts\?before=(\d+)"
+        groups = re.findall(regex, content)
+        before = int(groups[0]) + 100 if groups else before
+    except:
+        print(f"[CrawlError] cannot count page num, chanel: {chanel_id}")
+
+    return before
+
+
+def collect_airport_page(url: str) -> list:
+    if not url:
+        return []
+
+    print(f"[AirPortCrawl] start collect airport, url: {url}")
+
+    content = utils.http_get(url=url)
+    if not content:
+        print(f"[CrawlError] cannot any content from url: {url}")
+        return []
+
+    try:
+        regex = '官网:.*"link\s+to\s+url"\>(https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+)\</a\>'
+        groups = re.findall(regex, content)
+        return list(set(groups)) if groups else []
+    except:
+        return []
+
+
+def collect_airport(chanel_id: int, group_name: str, thread_num: int = 50) -> list:
+    if not chanel_id or not group_name:
+        return []
+
+    count = get_pages(chanel_id=f"{chanel_id}-{group_name}")
+    if count == 0:
+        return []
+
+    pages = range(count, -1, -100)
+
+    urls = [
+        f"https://telemetr.io/post-list-ajax/{chanel_id}?sort=-date&postType=all&period=365&before={x}"
+        for x in pages
+    ]
+
+    cpu_count = multiprocessing.cpu_count()
+    num = len(urls) if len(urls) <= cpu_count else cpu_count
+
+    pool = multiprocessing.Pool(num)
+    results = pool.map(collect_airport_page, urls)
+    pool.close()
+
+    domains = list(set(itertools.chain.from_iterable(results)))
+    if not domains:
+        return []
+
+    with multiprocessing.Manager() as manager:
+        availables = manager.list()
+        processes = []
+        semaphore = multiprocessing.Semaphore(thread_num)
+        for domain in domains:
+            semaphore.acquire()
+            p = multiprocessing.Process(
+                target=validate_domain, args=(domain, availables, semaphore)
+            )
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
+
+        domains = list(availables)
+        if not domains:
+            print(
+                f"[CrawlError] cannot found any available domain, telegram group: {group_name}"
+            )
+        return domains
+
+
+def validate_domain(
+    url: str, availables: ListProxy, semaphore: multiprocessing.Semaphore
+) -> None:
+    if not url:
+        semaphore.release()
+        return
+
+    need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
+        domain=url
+    )
+    if invite_force or recaptcha or (whitelist and need_verify):
+        semaphore.release()
+        return
+
+    availables.append(url)
+    semaphore.release()
