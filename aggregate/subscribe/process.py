@@ -4,7 +4,6 @@
 # @Time    : 2022-07-15
 
 import argparse
-import base64
 import copy
 import itertools
 import json
@@ -15,159 +14,19 @@ import re
 import subprocess
 import sys
 import time
-import traceback
-from dataclasses import dataclass
 
 import yaml
 
 import clash
 import crawl
 import push
-import renewal
 import subconverter
 import utils
-from airport import AirPort
+import workflow
 from origin import Origin
+from workflow import TaskConfig
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-
-
-@dataclass
-class TaskConfig:
-    name: str
-    domain: str
-    sub: str
-    index: int
-    retry: int
-    rate: float
-    bin_name: str
-    tag: str
-    need_verify: bool
-    renew: dict
-    rename: str = ""
-    exclude: str = ""
-    include: str = ""
-
-
-def execute(task_conf: TaskConfig) -> list:
-    if not task_conf:
-        return []
-
-    obj = AirPort(
-        name=task_conf.name,
-        site=task_conf.domain,
-        sub=task_conf.sub,
-        rename=task_conf.rename,
-        exclude=task_conf.exclude,
-        include=task_conf.include,
-    )
-
-    # 套餐续期
-    if task_conf.renew:
-        token = add_traffic_flow(domain=obj.ref, params=task_conf.renew)
-        if token and not obj.registed:
-            obj.registed = True
-            obj.sub = obj.sub + token
-
-    print(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
-    url, cookie = obj.get_subscribe(
-        retry=task_conf.retry, need_verify=task_conf.need_verify
-    )
-    return obj.parse(
-        url,
-        cookie,
-        task_conf.retry,
-        task_conf.rate,
-        task_conf.bin_name,
-        task_conf.tag,
-    )
-
-
-def cleanup(process: subprocess.Popen, filepath: str, filenames: list = []) -> None:
-    for name in filenames:
-        filename = os.path.join(filepath, name)
-        if os.path.exists(filename):
-            os.remove(filename)
-
-    process.terminate()
-
-
-def add_traffic_flow(domain: str, params: dict) -> str:
-    if not domain or not params:
-        print(f"[RenewalError] invalidate arguments")
-        return ""
-    try:
-        email = base64.b64decode(params.get("email", ""))
-        password = base64.b64decode(params.get("passwd", ""))
-        cookies, authorization = renewal.get_cookies(
-            domain=domain, username=email, password=password
-        )
-        subscribe_info = renewal.get_subscribe_info(
-            domain=domain, cookies=cookies, authorization=authorization
-        )
-        if not subscribe_info:
-            print(f"[RenewalError] cannot fetch subscribe information")
-            return ""
-
-        print(f"subscribe information: domain: {domain}\t{subscribe_info}")
-        plan_id = params.get("plan_id", subscribe_info.plan_id)
-        package = params.get("package", subscribe_info.package)
-        coupon_code = params.get("coupon_code", "")
-        method = params.get("method", -1)
-        if method <= 0:
-            methods = renewal.get_payment_method(
-                domain=domain, cookies=cookies, authorization=authorization
-            )
-            if not methods:
-                method = 1
-            else:
-                method = random.choice(methods)
-
-        payload = {
-            "email": email,
-            "passwd": password,
-            "package": package,
-            "plan_id": plan_id,
-            "method": method,
-            "coupon_code": coupon_code,
-        }
-
-        renew = params.get("renew", True)
-        if renew and subscribe_info.reset_enable and subscribe_info.used_rate >= 0.8:
-            success = renewal.flow(
-                domain=domain,
-                params=payload,
-                reset=True,
-                cookies=cookies,
-                authorization=authorization,
-            )
-            print(
-                "reset {}, domain: {}".format("success" if success else "fail", domain)
-            )
-        else:
-            print(
-                f"skip reset traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.reset_enable}\tused-rate: {subscribe_info.used_rate}"
-            )
-        if renew and subscribe_info.renew_enable and subscribe_info.expired_days <= 5:
-            success = renewal.flow(
-                domain=domain,
-                params=payload,
-                reset=False,
-                cookies=cookies,
-                authorization=authorization,
-            )
-            print(
-                "renew {}, domain: {}".format("success" if success else "fail", domain)
-            )
-        else:
-            print(
-                f"skip renew traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.renew_enable}\texpired-days: {subscribe_info.expired_days}"
-            )
-
-        return subscribe_info.token
-    except:
-        traceback.print_exc()
-        return ""
 
 
 def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
@@ -287,107 +146,6 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
     return sites, push_conf, crawl_conf, update_conf, delay
 
 
-def dedup_task(tasks: list) -> list:
-    if not tasks:
-        return []
-    items = []
-    for task in tasks:
-        if not isinstance(task, TaskConfig):
-            print(f"[DedupError] need type 'TaskConfig' but got type '{type(task)}'")
-            continue
-
-        found = False
-        for item in items:
-            if task.sub != "":
-                if task.sub == item.sub:
-                    found = True
-            else:
-                if task.domain == item.domain and task.index == item.index:
-                    found = True
-
-            if found:
-                if not item.rename:
-                    item.rename = task.rename
-                if task.exclude:
-                    item.exclude = "|".join([item.exclude, task.exclude]).removeprefix(
-                        "|"
-                    )
-                if task.include:
-                    item.include = "|".join([item.include, task.include]).removeprefix(
-                        "|"
-                    )
-
-                break
-
-        if not found:
-            items.append(task)
-
-    return items
-
-
-def merge_config(configs: list) -> list:
-    def judge_exists(raw: dict, target: dict) -> bool:
-        if not raw or not target:
-            return False
-
-        rsub = raw.get("sub").strip()
-        tsub = target.get("sub", "")
-        if not tsub:
-            if rsub:
-                return False
-            return raw.get("domain", "").strip() == target.get("domain", "").strip()
-        if isinstance(tsub, str):
-            return rsub == tsub.strip()
-        for sub in tsub:
-            if rsub == sub.strip():
-                return True
-        return False
-
-    if not configs:
-        return []
-    items = []
-    for conf in configs:
-        if not isinstance(conf, dict):
-            print(f"[MergeError] need type 'dict' but got type '{type(conf)}'")
-            continue
-
-        sub = conf.get("sub", "")
-        if isinstance(sub, list) and len(sub) <= 1:
-            sub = sub[0] if sub else ""
-
-        # 人工维护配置，无需合并
-        if isinstance(sub, list) or conf.get("renew", {}):
-            items.append(conf)
-            continue
-
-        found = False
-        conf["sub"] = sub
-        for item in items:
-            found = judge_exists(raw=conf, target=item)
-            if found:
-                if conf.get("errors", 0) > item.get("errors", 0):
-                    item["errors"] = conf.get("errors", 0)
-                if item.get("debut", False):
-                    item["debut"] = conf.get("debut", False)
-                if not item.get("rename", ""):
-                    item["rename"] = conf.get("rename", "")
-                if conf.get("exclude", ""):
-                    item["exclude"] = "|".join(
-                        [item.get("exclude", ""), conf.get("exclude", "")]
-                    ).removeprefix("|")
-                if conf.get("include", ""):
-                    item["include"] = "|".join(
-                        [item.get("include", ""), conf.get("include", "")]
-                    ).removeprefix("|")
-
-                break
-
-        if not found:
-            items.append(conf)
-
-    return items
-
-
 def assign(
     sites: list,
     retry: int,
@@ -416,8 +174,6 @@ def assign(
 
         # 如果订阅链接不为空，num为订阅链接数
         num = len(subscribes) if subscribes else num
-
-        need_verify = site.get("need_verify", False)
         push_names = site.get("push_to", [])
         errors = max(site.get("errors", 0), 0) + 1
         source = site.get("origin", "")
@@ -473,7 +229,6 @@ def assign(
                         rate=rate,
                         bin_name=bin_name,
                         tag=tag,
-                        need_verify=need_verify,
                         renew=renew,
                         rename=rename,
                         exclude=exclude,
@@ -496,78 +251,16 @@ def assign(
             tasks.append(
                 TaskConfig(
                     name="remains",
-                    domain="",
                     sub=subscribes,
                     index=-1,
                     retry=retry,
                     rate=rate,
                     bin_name=bin_name,
                     tag="R",
-                    need_verify=False,
-                    renew={},
-                    rename="",
-                    exclude="",
-                    include="",
                 )
             )
             jobs[k] = tasks
     return jobs, arrays
-
-
-def refresh(config: dict, alives: dict, filepath: str = "") -> None:
-    if not config:
-        print("[UpdateError] cannot update remote config because content is empty")
-        return
-
-    update_conf = config.get("update", {})
-    if not update_conf.get("enable", False):
-        print("[UpdateError] skip update remote config because enable=[False]")
-        return
-
-    if not push.validate(push_conf=update_conf):
-        print(f"[UpdateError] update config is invalidate")
-        return
-
-    domains = merge_config(configs=config.get("domains", []))
-    if alives:
-        sites = []
-        for item in domains:
-            source = item.get("origin", "")
-            sub = item.get("sub", "")
-            if isinstance(sub, list) and len(sub) <= 1:
-                sub = sub[0] if sub else ""
-            if (
-                source in [Origin.TEMPORARY.name, Origin.OWNED.name]
-                or isinstance(sub, list)
-                or alives.get(sub, False)
-            ):
-                item.pop("errors", None)
-                item.pop("debut", None)
-                sites.append(item)
-                continue
-
-            errors = item.get("errors", 1)
-            expire = Origin.get_expire(source)
-            if errors < expire and not item.get("debut", False):
-                item.pop("debut", None)
-                sites.append(item)
-
-        config["domains"] = sites
-        domains = config.get("domains", [])
-
-    if not domains:
-        print("[UpdateError] skip update remote config because domians is empty")
-        return
-
-    content = json.dumps(config)
-    if filepath:
-        directory = os.path.abspath(os.path.dirname(filepath))
-        os.makedirs(directory, exist_ok=True)
-        with open(filepath, "w+", encoding="UTF8") as f:
-            f.write(content)
-            f.flush()
-
-    push.push_to(content=content, push_conf=update_conf, group="update")
 
 
 def aggregate(args: argparse.Namespace):
@@ -588,7 +281,7 @@ def aggregate(args: argparse.Namespace):
         subscribes = manager.dict()
 
         for k, v in tasks.items():
-            v = dedup_task(v)
+            v = workflow.dedup_task(v)
             if not v:
                 print(f"task is empty, group=[{k}]")
                 continue
@@ -602,7 +295,7 @@ def aggregate(args: argparse.Namespace):
             num = len(v) if len(v) <= cpu_count else cpu_count
 
             pool = multiprocessing.Pool(num)
-            results = pool.map(execute, v)
+            results = pool.map(workflow.execute, v)
             pool.close()
 
             proxies = list(itertools.chain.from_iterable(results))
@@ -660,7 +353,7 @@ def aggregate(args: argparse.Namespace):
             data = {"proxies": list(alive)}
             source_file = "config.yaml"
             filepath = os.path.join(PATH, "subconverter", source_file)
-            with open(filepath, "w+", encoding="utf-8") as f:
+            with open(filepath, "w+", encoding="utf8") as f:
                 yaml.dump(data, f, allow_unicode=True)
 
             # 转换成通用订阅模式
@@ -683,7 +376,7 @@ def aggregate(args: argparse.Namespace):
                 push.push_file(filepath, push_configs.get(k, {}), k)
 
             # 关闭clash
-            cleanup(
+            workflow.cleanup(
                 process,
                 os.path.join(PATH, "subconverter"),
                 [source_file, dest_file, "generate.ini"],
@@ -696,7 +389,7 @@ def aggregate(args: argparse.Namespace):
             "update": update_conf,
         }
 
-        refresh(config=config, alives=dict(subscribes), filepath="")
+        workflow.refresh(config=config, alives=dict(subscribes), filepath="")
 
 
 if __name__ == "__main__":

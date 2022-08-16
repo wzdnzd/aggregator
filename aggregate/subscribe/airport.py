@@ -31,6 +31,8 @@ EMAILS_DOMAINS = [
     "@hotmail.com",
     "@qq.com",
     "@foxmail.com",
+    "@hotmail.com",
+    "@yahoo.com",
 ]
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -50,6 +52,9 @@ RENAME_SEPARATOR = "#@&#@"
 # 标记数字位数
 SUFFIX_BITS = 2
 
+# 本地路径协议标识
+FILEPATH_PROTOCAL = "file:///"
+
 
 class AirPort:
     def __init__(
@@ -65,9 +70,14 @@ class AirPort:
             site = site[: len(site) - 1]
 
         if sub.strip() != "":
+            if sub.startswith(FILEPATH_PROTOCAL):
+                ref = sub[8:]
+            else:
+                ref = utils.extract_domain(sub, include_protocal=True)
+
             self.sub = sub
             self.fetch = ""
-            self.ref = utils.extract_domain(sub, include_protocal=True)
+            self.ref = ref
             self.reg = ""
             self.registed = True
             self.send_email = ""
@@ -86,6 +96,39 @@ class AirPort:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
             "Referer": self.ref,
         }
+
+    @staticmethod
+    def get_register_require(
+        domain: str, proxy: str = ""
+    ) -> tuple[bool, bool, bool, list]:
+        domain = utils.extract_domain(url=domain, include_protocal=True)
+        if not domain:
+            return True, True, True, []
+
+        url = f"{domain}/api/v1/guest/comm/config"
+        content = utils.http_get(url=url, retry=2, proxy=proxy)
+        if not content or not content.startswith("{") and content.endswith("}"):
+            print(f"[QueryError] cannot get register require, domain: {domain}")
+            return True, True, True, []
+
+        try:
+            data = json.loads(content).get("data", {})
+            need_verify = data.get("is_email_verify", 0) != 0
+            invite_force = data.get("is_invite_force", 0) != 0
+            recaptcha = data.get("is_recaptcha", 0) != 0
+            whitelist = data.get("email_whitelist_suffix", [])
+
+            try:
+                from collections.abc import Iterable
+            except ImportError:
+                from collections import Iterable
+
+            if whitelist is None or not isinstance(whitelist, Iterable):
+                whitelist = []
+
+            return need_verify, invite_force, recaptcha, whitelist
+        except:
+            return True, True, True, []
 
     def sen_email_verify(self, email: str, retry: int = 3) -> bool:
         if not email.strip() or retry <= 0:
@@ -172,16 +215,29 @@ class AirPort:
         except:
             return []
 
-    def get_subscribe(self, retry: int, need_verify: bool) -> tuple[str, str]:
+    def get_subscribe(self, retry: int) -> tuple[str, str]:
         if self.registed:
             return self.sub, ""
+
+        need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
+            self.ref
+        )
+        # 需要邀请码或者强制验证
+        if invite_force or recaptcha or (whitelist and need_verify):
+            return "", ""
 
         if not need_verify:
             email = utils.random_chars(length=random.randint(6, 10), punctuation=False)
             password = utils.random_chars(
                 length=random.randint(8, 16), punctuation=True
             )
-            email = email + random.choice(EMAILS_DOMAINS)
+
+            email_suffixs = whitelist if whitelist else EMAILS_DOMAINS
+            email_domain = random.choice(email_suffixs)
+            if not email_domain:
+                return "", ""
+
+            email = email + email_domain
             return self.register(email=email, password=password, retry=retry)
         else:
             try:
@@ -271,8 +327,16 @@ class AirPort:
         #         text = ""
 
         #     count += 1
+        if url.startswith(FILEPATH_PROTOCAL):
+            url = url[8:]
+            if not os.path.exists(url) or not os.path.isfile(url):
+                print(f"[ParseError] file: {url} not found")
+                return []
 
-        text = utils.http_get(url=url, headers=self.headers, retry=retry).strip()
+            with open(url, "r", encoding="UTF8") as f:
+                text = f.read()
+        else:
+            text = utils.http_get(url=url, headers=self.headers, retry=retry).strip()
         # if "" == text.strip() or not re.match("^[0-9a-zA-Z=]*$", text):
         if "" == text or (text.startswith("{") and text.endswith("}")):
             print(
@@ -280,13 +344,13 @@ class AirPort:
             )
             return []
 
-        chars = utils.random_chars(length=3, punctuation=False)
-        artifact = f"{self.name}-{chars}"
-        v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
-        clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
-
         try:
             if BASE64_PATTERN.match(text):
+                chars = utils.random_chars(length=3, punctuation=False)
+                artifact = f"{self.name}-{chars}"
+                v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
+                clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
+
                 with open(v2ray_file, "w+") as f:
                     f.write(text)
                     f.flush()

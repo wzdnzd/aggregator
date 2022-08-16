@@ -3,11 +3,14 @@
 # @Author  : wzdnzd
 # @Time    : 2022-04-05
 
+import base64
 import json
 import os
+import random
 import re
 import ssl
 import time
+import traceback
 import urllib
 import urllib.parse
 import urllib.request
@@ -396,3 +399,81 @@ def flow(
     payload = {"trade_no": trade_no, "method": method}
     success = payment(payment_url, payload, headers, retry)
     return success
+
+
+def add_traffic_flow(domain: str, params: dict) -> str:
+    if not domain or not params:
+        print(f"[RenewalError] invalidate arguments")
+        return ""
+    try:
+        email = base64.b64decode(params.get("email", ""))
+        password = base64.b64decode(params.get("passwd", ""))
+        cookies, authorization = get_cookies(
+            domain=domain, username=email, password=password
+        )
+        subscribe_info = get_subscribe_info(
+            domain=domain, cookies=cookies, authorization=authorization
+        )
+        if not subscribe_info:
+            print(f"[RenewalError] cannot fetch subscribe information")
+            return ""
+
+        print(f"subscribe information: domain: {domain}\t{subscribe_info}")
+        plan_id = params.get("plan_id", subscribe_info.plan_id)
+        package = params.get("package", subscribe_info.package)
+        coupon_code = params.get("coupon_code", "")
+        method = params.get("method", -1)
+        if method <= 0:
+            methods = get_payment_method(
+                domain=domain, cookies=cookies, authorization=authorization
+            )
+            if not methods:
+                method = 1
+            else:
+                method = random.choice(methods)
+
+        payload = {
+            "email": email,
+            "passwd": password,
+            "package": package,
+            "plan_id": plan_id,
+            "method": method,
+            "coupon_code": coupon_code,
+        }
+
+        renew = params.get("renew", True)
+        if renew and subscribe_info.reset_enable and subscribe_info.used_rate >= 0.8:
+            success = flow(
+                domain=domain,
+                params=payload,
+                reset=True,
+                cookies=cookies,
+                authorization=authorization,
+            )
+            print(
+                "reset {}, domain: {}".format("success" if success else "fail", domain)
+            )
+        else:
+            print(
+                f"skip reset traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.reset_enable}\tused-rate: {subscribe_info.used_rate}"
+            )
+        if renew and subscribe_info.renew_enable and subscribe_info.expired_days <= 5:
+            success = flow(
+                domain=domain,
+                params=payload,
+                reset=False,
+                cookies=cookies,
+                authorization=authorization,
+            )
+            print(
+                "renew {}, domain: {}".format("success" if success else "fail", domain)
+            )
+        else:
+            print(
+                f"skip renew traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.renew_enable}\texpired-days: {subscribe_info.expired_days}"
+            )
+
+        return subscribe_info.token
+    except:
+        traceback.print_exc()
+        return ""
