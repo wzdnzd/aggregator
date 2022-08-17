@@ -83,6 +83,10 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         if repositories:
             tasks.update(crawl_github_repo(repos=repositories))
 
+        pages = conf.get("pages", {})
+        if pages:
+            tasks.update(crawl_pages(pages=pages))
+
         if not tasks:
             print("cannot found any subscribe url from crawler")
             return []
@@ -120,13 +124,6 @@ def crawl_single_telegram(
     if not userid:
         return {}
 
-    pattern = None
-    try:
-        if exclude and exclude.strip() != "":
-            pattern = re.compile(exclude.strip())
-    except:
-        print(f"compile regex error, exclude: {exclude}")
-
     now = time.time() - 3600 * 8
     crawl_time = datetime.fromtimestamp(now).strftime("%Y-%m-%dT%H:%M:%SZ")
     url = f"https://telemetr.io/post-list-ajax/{userid}/with-date-panel?period={period}&date={crawl_time}"
@@ -138,7 +135,7 @@ def crawl_single_telegram(
         include=include,
         limits=limits,
         source=Origin.TELEGRAM.name,
-        exclude=pattern,
+        exclude=exclude,
     )
 
 
@@ -151,7 +148,7 @@ def crawl_telegram(users: dict, period: int, limits: int = 20) -> dict:
     params = []
     for k, v in users.items():
         include = v.get("include", "")
-        exclude = v.get("exclude", "")
+        exclude = v.get("exclude", "").strip()
         pts = v.get("push_to", [])
         params.append([k, period, pts, include, exclude, limits])
 
@@ -166,7 +163,7 @@ def crawl_telegram(users: dict, period: int, limits: int = 20) -> dict:
 
 
 def crawl_single_repo(
-    username: str, repo: str, push_to: list = [], limits: int = 5
+    username: str, repo: str, push_to: list = [], limits: int = 5, exclude: str = ""
 ) -> dict:
     if not username or not repo:
         print(f"cannot crawl from github, username: {username}\trepo: {repo}")
@@ -196,7 +193,10 @@ def crawl_single_repo(
                 patch = file.get("patch", "")
                 collections.update(
                     extract_subscribes(
-                        content=patch, push_to=push_to, source=Origin.REPO.name
+                        content=patch,
+                        push_to=push_to,
+                        source=Origin.REPO.name,
+                        exclude=exclude,
                     )
                 )
         return collections
@@ -217,10 +217,11 @@ def crawl_github_repo(repos: dict):
         repo_name = v.get("repo_name", "").strip()
         push_to = v.get("push_to", [])
         limits = max(v.get("commits", 2), 1)
+        exclude = v.get("exclude", "").strip()
 
         if not username or not repo_name or not push_to:
             continue
-        params.append([username, repo_name, push_to, limits])
+        params.append([username, repo_name, push_to, limits, exclude])
 
     subscribes = multi_thread_crawl(fun=crawl_single_repo, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -266,7 +267,7 @@ def crawl_google(
 
 
 def crawl_github_page(
-    page: int, cookie: str, push_to: list = [], exclude: re.Pattern = None
+    page: int, cookie: str, push_to: list = [], exclude: str = ""
 ) -> dict:
     if page <= 0 or not cookie:
         return {}
@@ -285,13 +286,6 @@ def crawl_github_page(
 
 
 def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict:
-    regex = None
-    try:
-        if exclude and exclude.strip() != "":
-            regex = re.compile(exclude.strip())
-    except:
-        print(f"compile regex error, exclude: {exclude}")
-
     cookie = os.environ.get("GH_COOKIE", "").strip()
     if not cookie:
         print("[GithubCrawl] cannot start crawl from github because cookie is missing")
@@ -299,7 +293,8 @@ def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict
 
     # 鉴于github搜索code不稳定，爬取两次
     pages = range(1, limits + 1) * 2
-    params = [[x, cookie, push_to, regex] for x in pages]
+    exclude = "" if not exclude else exclude.strip()
+    params = [[x, cookie, push_to, exclude] for x in pages]
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[GithubCrawl] start crawl from Github, time: {starttime}")
     subscribes = multi_thread_crawl(fun=crawl_github_page, params=params)
@@ -313,9 +308,9 @@ def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict
 
 def extract_subscribes(
     content: str,
-    exclude: re.Pattern = None,
     push_to: list = [],
     include: str = "",
+    exclude: str = "",
     limits: int = sys.maxsize,
     source: str = Origin.OWNED.name,
 ) -> dict:
@@ -323,27 +318,38 @@ def extract_subscribes(
         return {}
     try:
         limits, collections = max(1, limits), {}
-        # regex = "https?://\S+/api/v1/client/subscribe\?token=[a-zA-Z0-9]+|https?://\S+/link/[a-zA-Z0-9]+\?sub=\d"
-        # subscribes = re.findall(regex, content)
+        regex = "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu)=\d))"
 
-        pattern = "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu)=\d))"
         if include:
-            if not include.startswith("|"):
-                pattern = f"{pattern}|{include}"
-            else:
-                pattern = f"{pattern}{include}"
+            try:
+                if not include.startswith("|"):
+                    pattern = f"{regex}|{include}"
+                else:
+                    pattern = f"{regex}{include}"
 
-        subscribes = re.findall(pattern, content)
+                subscribes = re.findall(pattern, content)
+            except:
+                print(
+                    f"[ExtractError] maybe pattern 'include' exists some problems, include: {include}"
+                )
+                subscribes = re.findall(regex, content)
+        else:
+            subscribes = re.findall(regex, content)
+
         for s in subscribes:
-            if include and not re.match(
-                "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
-                s,
-            ):
-                continue
+            try:
+                if include and not re.match(
+                    "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
+                    s,
+                ):
+                    continue
 
-            if exclude and exclude.search(s):
-                # print(f"ignore url: {s} because matched exclude")
-                continue
+                if exclude and re.search(exclude, s):
+                    continue
+            except:
+                print(
+                    f"[ExtractError] maybe pattern 'include' or 'exclude' exists some problems, include: {include}\texclude: {exclude}"
+                )
 
             # 强制使用https协议
             s = s.replace("http://", "https://", 1).strip()
@@ -387,23 +393,6 @@ def naming_task(url):
     )
 
 
-def get_pages(chanel_id: str) -> int:
-    if not chanel_id or chanel_id.strip() == "":
-        return 0
-
-    url = f"https://telemetr.io/en/channels/{chanel_id}/posts"
-    content = utils.http_get(url=url)
-    before = 0
-    try:
-        regex = f"https://telemetr.io/en/channels/{chanel_id}/posts\?before=(\d+)"
-        groups = re.findall(regex, content)
-        before = int(groups[0]) + 100 if groups else before
-    except:
-        print(f"[CrawlError] cannot count page num, chanel: {chanel_id}")
-
-    return before
-
-
 def collect_airport_page(url: str) -> list:
     if not url:
         return []
@@ -423,18 +412,34 @@ def collect_airport_page(url: str) -> list:
         return []
 
 
-def collect_airport(chanel_id: int, group_name: str, thread_num: int = 50) -> list:
-    if not chanel_id or not group_name:
+def collect_airport(channel_id: int, group_name: str, thread_num: int = 50) -> list:
+    def get_pages(channel: str) -> int:
+        if not channel or channel.strip() == "":
+            return 0
+
+        url = f"https://telemetr.io/en/channels/{channel}/posts"
+        content = utils.http_get(url=url)
+        before = 0
+        try:
+            regex = f"https://telemetr.io/en/channels/{channel}/posts\?before=(\d+)"
+            groups = re.findall(regex, content)
+            before = int(groups[0]) + 100 if groups else before
+        except:
+            print(f"[CrawlError] cannot count page num, chanel: {channel}")
+
+        return before
+
+    if not channel_id or not group_name:
         return []
 
-    count = get_pages(chanel_id=f"{chanel_id}-{group_name}")
+    count = get_pages(channel=f"{channel_id}-{group_name}")
     if count == 0:
         return []
 
     pages = range(count, -1, -100)
 
     urls = [
-        f"https://telemetr.io/post-list-ajax/{chanel_id}?sort=-date&postType=all&period=365&before={x}"
+        f"https://telemetr.io/post-list-ajax/{channel_id}?sort=-date&postType=all&period=365&before={x}"
         for x in pages
     ]
 
@@ -487,3 +492,44 @@ def validate_domain(
 
     availables.append(url)
     semaphore.release()
+
+
+def crawl_single_page(url: str, push_to: list = [], exclude: str = "") -> dict:
+    if not url or not push_to:
+        print(f"cannot crawl from page: {url}")
+        return {}
+
+    content = utils.http_get(url=url)
+    if content == "":
+        return {}
+
+    return extract_subscribes(
+        content=content, push_to=push_to, exclude=exclude, source=Origin.TEMPORARY.name
+    )
+
+
+def crawl_pages(pages: dict):
+    if not pages:
+        return {}
+
+    params = []
+    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[PageCrawl] start crawl from Page, time: {starttime}")
+    for k, v in pages.items():
+        if not re.match(
+            "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
+            k,
+        ):
+            continue
+
+        push_to = v.get("push_to", [])
+        exclude = v.get("exclude", "").strip()
+
+        params.append([k, push_to, exclude])
+
+    subscribes = multi_thread_crawl(fun=crawl_single_page, params=params)
+    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(
+        f"[PageCrawl] finished crawl from Page, time: {endtime}, subscribes: {list(subscribes.keys())}"
+    )
+    return subscribes
