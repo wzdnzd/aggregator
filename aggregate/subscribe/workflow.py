@@ -43,6 +43,8 @@ def execute(task_conf: TaskConfig) -> list:
         include=task_conf.include,
     )
 
+    print(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
+
     # 套餐续期
     if task_conf.renew:
         token = renewal.add_traffic_flow(domain=obj.ref, params=task_conf.renew)
@@ -50,7 +52,6 @@ def execute(task_conf: TaskConfig) -> list:
             obj.registed = True
             obj.sub = obj.sub + token
 
-    print(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
     url, cookie = obj.get_subscribe(retry=task_conf.retry)
     return obj.parse(
         url,

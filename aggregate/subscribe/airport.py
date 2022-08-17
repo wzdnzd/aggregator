@@ -385,7 +385,7 @@ class AirPort:
             proxies = []
             unused_nodes = self.fetch_unused(cookie, rate)
             for item in nodes:
-                name = item.get("name")
+                name = item.get("name").upper()
                 if name in unused_nodes:
                     continue
 
@@ -400,7 +400,7 @@ class AirPort:
                         f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
                     )
 
-                name = re.sub(r"[\^\?\:\/]|\(.*\)", "", name)
+                name = re.sub(r"[\^\?\:\/]|\(.*\)|\[.*\]|\【.*\】", "", name)
                 try:
                     if self.rename:
                         if RENAME_SEPARATOR in self.rename:
@@ -418,6 +418,9 @@ class AirPort:
                     )
 
                 name = re.sub("\s+", " ", name).replace("_", "-").strip()
+                if not name:
+                    continue
+
                 item["name"] = name
 
                 # 方便标记已有节点，最多留999天
