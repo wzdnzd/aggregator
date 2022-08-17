@@ -84,7 +84,9 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
         if not disable and push_to:
             github_conf = params.get("github", {})
             github_conf["pages"] = max(pages, github_conf.get("pages", 3))
-            github_conf["exclude"] = "|".join([exclude, github_conf.get("exclude", "")])
+            github_conf["exclude"] = "|".join(
+                [github_conf.get("exclude", ""), exclude]
+            ).removeprefix("|")
             pts = github_conf.get("push_to", [])
             pts.extend(push_to)
             github_conf["push_to"] = list(set(pts))
@@ -98,6 +100,7 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
             repo_name = repo.get("repo_name", "").strip()
             push_to = list(set(repo.get("push_to", [])))
             commits = max(repo.get("commits", 3), 1)
+            exclude = repo.get("exclude", "").strip()
 
             if disable or not username or not repo_name:
                 continue
@@ -106,12 +109,37 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
             item["username"] = username
             item["repo_name"] = repo_name
             item["commits"] = max(commits, item.get("commits", 3))
+            item["exclude"] = "|".join([item.get("exclude", ""), exclude]).removeprefix(
+                "|"
+            )
             pts = item.get("push_to", [])
             pts.extend(push_to)
             item["push_to"] = list(set(push_to))
 
             repo_conf[key] = item
         params["repositories"] = repo_conf
+
+        pages = spiders.get("pages", [])
+        pages_conf = params.get("pages", {})
+        for page in pages:
+            disable = page.get("disable", False)
+            url = page.get("url", "")
+            if disable or not url:
+                continue
+
+            push_to = list(set(page.get("push_to", [])))
+            exclude = page.get("exclude", "").strip()
+
+            item = pages_conf.get(url, {})
+            item["exclude"] = "|".join([item.get("exclude", ""), exclude]).removeprefix(
+                "|"
+            )
+            pts = item.get("push_to", [])
+            pts.extend(push_to)
+            item["push_to"] = list(set(push_to))
+            pages_conf[url] = item
+
+        params["pages"] = pages_conf
 
     sites, delay = [], sys.maxsize
     params, push_conf, crawl_conf, update_conf = {}, {}, {}, {}
