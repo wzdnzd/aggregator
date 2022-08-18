@@ -349,7 +349,8 @@ def aggregate(args: argparse.Namespace):
                 ]
             )
 
-            print("clash start success")
+            print(f"clash start success, begin check proxies, num: {len(proxies)}")
+
             processes = []
             semaphore = multiprocessing.Semaphore(args.num)
             time.sleep(random.randint(3, 6))

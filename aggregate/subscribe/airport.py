@@ -17,10 +17,10 @@ import urllib.request
 
 import yaml
 
+import mailtm
 import renewal
 import subconverter
 import utils
-from mailtm import MailTm
 
 EMAILS_DOMAINS = [
     "@gmail.com",
@@ -157,6 +157,8 @@ class AirPort:
         if retry <= 0:
             return "", ""
 
+        if not password:
+            password = utils.random_chars(random.randint(8, 16), punctuation=True)
         params = {
             "email": email,
             "password": password,
@@ -192,6 +194,7 @@ class AirPort:
             subscribe = self.sub + token
             return subscribe, cookies
         except:
+            traceback.print_exc()
             return self.register(email, password, email_code, retry - 1)
 
     def fetch_unused(self, cookie: str, rate: float) -> list:
@@ -241,8 +244,8 @@ class AirPort:
             return self.register(email=email, password=password, retry=retry)
         else:
             try:
-                mailtm = MailTm()
-                account = mailtm.get_account()
+                mailbox = mailtm.create_instance()
+                account = mailbox.get_account()
                 if not account:
                     print(f"cannot create account, site: {self.ref}")
                     return "", ""
@@ -250,22 +253,29 @@ class AirPort:
                 message = None
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     starttime = time.time()
-                    future = executor.submit(account.monitor_account, 240)
-                    success = self.sen_email_verify(email=account.address, retry=3)
-                    if not success:
-                        executor.shutdown(wait=False)
-                        return "", ""
-                    message = future.result(timeout=180)
-                    print(
-                        f"email has been received, domain: {self.ref}\tcost: {int(time.time()- starttime)}s"
-                    )
+                    try:
+                        future = executor.submit(
+                            mailbox.monitor_account, account, 240, random.randint(1, 3)
+                        )
+                        success = self.sen_email_verify(email=account.address, retry=3)
+                        if not success:
+                            executor.shutdown(wait=False)
+                            return "", ""
+                        message = future.result(timeout=180)
+                        print(
+                            f"email has been received, domain: {self.ref}\tcost: {int(time.time()- starttime)}s"
+                        )
+                    except concurrent.futures.TimeoutError:
+                        print(
+                            f"receiving mail timeout, site: {self.ref}, address: {account.address}"
+                        )
 
                 if not message:
                     print(f"cannot receive any message, site: {self.ref}")
                     return "", ""
-                content = message.text
-                mask = "".join(re.findall("[0-9]{6}", content))
-                account.delete_account(retry=2)
+
+                mask = mailbox.extract_mask(message.text)
+                mailbox.delete_account(account=account)
                 if not mask:
                     print(f"cannot fetch mask, url: {self.ref}")
                     return "", ""
@@ -276,7 +286,6 @@ class AirPort:
                     retry=retry,
                 )
             except:
-                traceback.print_exc()
                 return "", ""
 
     def parse(
@@ -390,10 +399,10 @@ class AirPort:
                     continue
 
                 try:
-                    if self.include and not re.search(self.include, name):
+                    if self.include and not re.search(self.include, name, flags=re.I):
                         continue
                     else:
-                        if self.exclude and re.search(self.exclude, name):
+                        if self.exclude and re.search(self.exclude, name, flags=re.I):
                             continue
                 except:
                     print(
@@ -408,9 +417,9 @@ class AirPort:
                             old = words[0].strip()
                             new = words[1].strip()
                             if old:
-                                name = re.sub(old, new, name)
+                                name = re.sub(old, new, name, flags=re.I)
                         else:
-                            name = re.sub(self.rename, "", name)
+                            name = re.sub(self.rename, "", name, flags=re.I)
 
                 except:
                     print(

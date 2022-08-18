@@ -11,6 +11,7 @@ import ssl
 import string
 import subprocess
 import sys
+import gzip
 import urllib
 import urllib.parse
 import urllib.request
@@ -77,8 +78,12 @@ def http_get(
             request.set_proxy(host=host, type=protocal)
 
         response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        content = response.read()
         status_code = response.getcode()
-        content = str(response.read(), encoding="utf8")
+        try:
+            content = str(content, encoding="utf8")
+        except:
+            content = gzip.decompress(content).decode("utf8")
         if status_code != 200:
             print(f"request failed, status code: {status_code}\t message: {content}")
             return ""
