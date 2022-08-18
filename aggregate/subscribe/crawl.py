@@ -16,6 +16,7 @@ import time
 import typing
 from datetime import datetime
 from multiprocessing.managers import ListProxy
+from multiprocessing.synchronize import Semaphore
 
 import utils
 from airport import AirPort
@@ -367,23 +368,29 @@ def extract_subscribes(
 
 
 def validate_available(
-    url: str, params: dict, availables: ListProxy, semaphore: multiprocessing.Semaphore
+    url: str, params: dict, availables: ListProxy, semaphore: Semaphore
 ) -> None:
-    if not params or not params.get("push_to", None) or not params.get("origin", ""):
-        semaphore.release()
-        return
+    try:
+        if (
+            not params
+            or not params.get("push_to", None)
+            or not params.get("origin", "")
+        ):
+            return
 
-    if utils.http_get(url=url, retry=2) != "":
-        item = {
-            "name": naming_task(url),
-            "sub": url,
-            "push_to": params.get("push_to"),
-            "origin": params.get("origin"),
-            "debut": True,
-        }
-        availables.append(item)
+        if utils.http_get(url=url, retry=2) != "":
+            item = {
+                "name": naming_task(url),
+                "sub": url,
+                "push_to": params.get("push_to"),
+                "origin": params.get("origin"),
+                "debut": True,
+            }
 
-    semaphore.release()
+            availables.append(item)
+    finally:
+        if semaphore is not None and isinstance(semaphore, Semaphore):
+            semaphore.release()
 
 
 def naming_task(url):
@@ -476,22 +483,21 @@ def collect_airport(channel_id: int, group_name: str, thread_num: int = 50) -> l
         return domains
 
 
-def validate_domain(
-    url: str, availables: ListProxy, semaphore: multiprocessing.Semaphore
-) -> None:
-    if not url:
-        semaphore.release()
-        return
+def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> None:
+    try:
+        if not url:
+            return
 
-    need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
-        domain=url
-    )
-    if invite_force or recaptcha or (whitelist and need_verify):
-        semaphore.release()
-        return
+        need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
+            domain=url
+        )
+        if invite_force or recaptcha or (whitelist and need_verify):
+            return
 
-    availables.append(url)
-    semaphore.release()
+        availables.append(url)
+    finally:
+        if semaphore is not None and isinstance(semaphore, Semaphore):
+            semaphore.release()
 
 
 def crawl_single_page(url: str, push_to: list = [], exclude: str = "") -> dict:

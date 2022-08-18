@@ -5,7 +5,8 @@
 
 import itertools
 import json
-import multiprocessing
+
+# import multiprocessing
 import os
 import platform
 import ssl
@@ -15,6 +16,7 @@ import urllib
 import urllib.parse
 import urllib.request
 from multiprocessing.managers import DictProxy, ListProxy
+from multiprocessing.synchronize import Semaphore
 
 import yaml
 
@@ -239,7 +241,7 @@ def check(
     alive: ListProxy,
     proxy: dict,
     api_url: str,
-    semaphore: multiprocessing.Semaphore,
+    semaphore: Semaphore,
     timeout: int,
     test_url: str,
     delay: int,
@@ -278,8 +280,9 @@ def check(
                 validates[sub] = True
     except:
         pass
-
-    semaphore.release()
+    finally:
+        if semaphore is not None and isinstance(semaphore, Semaphore):
+            semaphore.release()
 
 
 def which_bin() -> tuple[str, str]:
