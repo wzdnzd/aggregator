@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Dict
 
 import utils
+from logger import logger
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -87,7 +88,7 @@ class TemporaryMail(object):
 
             return messages[0]
         except:
-            print(f"cannot get any message from address: {account.address}")
+            logger.error(f"cannot get any message from address: {account.address}")
 
             traceback.print_exc()
             return None
@@ -101,7 +102,7 @@ class TemporaryMail(object):
         try:
             return "".join(re.findall(regex, text))
         except:
-            print(f"[MaskExtractError] regex exists problems, regex: {regex}")
+            logger.error(f"[MaskExtractError] regex exists problems, regex: {regex}")
             return ""
 
     def generate_address(self, bits: int = 10) -> str:
@@ -109,7 +110,7 @@ class TemporaryMail(object):
         username = utils.random_chars(length=bits, punctuation=False).lower()
         email_domains = self.get_domains_list()
         if not email_domains:
-            print(
+            logger.error(
                 f"[MailTMError] cannot found any email domains from remote, domain: {self.api_address}"
             )
             return ""
@@ -185,7 +186,7 @@ class RootSh(TemporaryMail):
 
                 return None
             else:
-                print(
+                logger.error(
                     "[MailTMError] cannot create email account, domain: {}\tmessage: {}".format(
                         self.api_address, response.read().decode("UTF8")
                     )
@@ -246,7 +247,7 @@ class RootSh(TemporaryMail):
                             )
                         )
             else:
-                print(
+                logger.info(
                     f"[MailTMError] cannot get mail list from domain: {self.api_address}, email: {account.address}"
                 )
                 messages = []
@@ -271,7 +272,7 @@ class RootSh(TemporaryMail):
                 success = json.loads(response.read()).get("success", "false")
                 return success == "true"
             else:
-                print(f"[MailTMError] delete account {account.address} failed")
+                logger.info(f"[MailTMError] delete account {account.address} failed")
                 return False
         except:
             return False
@@ -336,7 +337,7 @@ class SnapMail(TemporaryMail):
 
             return messages
         except:
-            print(
+            logger.error(
                 f"[MailTMError] cannot get messages, domain: {self.api_address}, address: {account.address}"
             )
             return []
@@ -360,12 +361,12 @@ class SnapMail(TemporaryMail):
         #     status_code = response.getcode()
         #     return status_code == 204
         # except Exception:
-        #     print(
+        #     logger.error(
         #         f"[MailTMError] delete account failed, domain: {self.api_address}, address: {account.address}"
         #     )
         #     return False
 
-        print(
+        logger.info(
             f"[MailTMError] not support delete account, domain: {self.api_address}, address: {account.address}"
         )
         return False
@@ -424,7 +425,9 @@ class LinShiEmail(TemporaryMail):
             return []
 
     def delete_account(self, account: Account) -> bool:
-        print(f"[MailTMError] not support delete account, domain: {self.api_address}")
+        logger.info(
+            f"[MailTMError] not support delete account, domain: {self.api_address}"
+        )
         return True
 
 
@@ -483,7 +486,9 @@ class MailTM(TemporaryMail):
             endpoint="token", address=address, password=password, retry=retry
         )
         if not jwt:
-            print(f"[JWTError] generate jwt token failed, domain: {self.api_address}")
+            logger.error(
+                f"[JWTError] generate jwt token failed, domain: {self.api_address}"
+            )
             return
 
         self.auth_headers = {
@@ -503,7 +508,7 @@ class MailTM(TemporaryMail):
             endpoint="accounts", address=address, password=password, retry=retry
         )
         if not response or "id" not in response or "address" not in response:
-            print(
+            logger.error(
                 f"[MailTMError] failed to create temporary email, domain: {self.api_address}"
             )
             return None
@@ -556,7 +561,7 @@ class MailTM(TemporaryMail):
                     )
                 )
         except:
-            print(f"failed to list messages, email: {self.address}")
+            logger.error(f"failed to list messages, email: {self.address}")
         return messages
 
     def delete_account(self, account: Account) -> bool:
@@ -574,7 +579,7 @@ class MailTM(TemporaryMail):
             status_code = response.getcode()
             return status_code == 204
         except Exception:
-            print(
+            logger.info(
                 f"[MailTMError] delete account failed, domain: {self.api_address}, address: {account.address}"
             )
             return False

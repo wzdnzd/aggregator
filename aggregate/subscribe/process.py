@@ -23,6 +23,7 @@ import push
 import subconverter
 import utils
 import workflow
+from logger import logger
 from origin import Origin
 from workflow import TaskConfig
 
@@ -160,7 +161,7 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
 
             content = utils.http_get(url=url, headers=headers)
             if not content:
-                print(f"cannot fetch config from remote, url: {url}")
+                logger.error(f"cannot fetch config from remote, url: {url}")
             else:
                 parse_config(json.loads(content))
 
@@ -169,7 +170,7 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
             result = crawl.batch_crawl(conf=params)
             sites.extend(result)
     except:
-        print("occur error when load task config")
+        logger.error("occur error when load task config")
 
     return sites, push_conf, crawl_conf, update_conf, delay
 
@@ -232,7 +233,9 @@ def assign(
 
         for idx, push_name in enumerate(push_names):
             if not params.get(push_name, None):
-                print(f"cannot found push config, name=[{push_name}]\tsite=[{name}]")
+                logger.error(
+                    f"cannot found push config, name=[{push_name}]\tsite=[{name}]"
+                )
                 continue
 
             flag = True if idx == 0 else False
@@ -303,7 +306,7 @@ def aggregate(args: argparse.Namespace):
     push_configs = push.filter_push(push_configs)
     tasks, sites = assign(sites, 3, subconverter_bin, args.remain, push_configs)
     if not tasks:
-        print("cannot found any valid config, exit")
+        logger.error("cannot found any valid config, exit")
         sys.exit(0)
     with multiprocessing.Manager() as manager:
         subscribes = manager.dict()
@@ -311,10 +314,10 @@ def aggregate(args: argparse.Namespace):
         for k, v in tasks.items():
             v = workflow.dedup_task(v)
             if not v:
-                print(f"task is empty, group=[{k}]")
+                logger.error(f"task is empty, group=[{k}]")
                 continue
 
-            print(f"start generate subscribes information, group=[{k}]")
+            logger.info(f"start generate subscribes information, group=[{k}]")
             generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
             if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
                 os.remove(generate_conf)
@@ -328,7 +331,7 @@ def aggregate(args: argparse.Namespace):
 
             proxies = list(itertools.chain.from_iterable(results))
             if len(proxies) == 0:
-                print(f"exit because cannot fetch any proxy node, group=[{k}]")
+                logger.error(f"exit because cannot fetch any proxy node, group=[{k}]")
                 continue
 
             workspace = os.path.join(PATH, "clash")
@@ -338,7 +341,9 @@ def aggregate(args: argparse.Namespace):
 
             utils.chmod(binpath)
             alive = manager.list()
-            print(f"startup clash now, workspace: {workspace}, config: {filename}")
+            logger.info(
+                f"startup clash now, workspace: {workspace}, config: {filename}"
+            )
             process = subprocess.Popen(
                 [
                     binpath,
@@ -349,7 +354,9 @@ def aggregate(args: argparse.Namespace):
                 ]
             )
 
-            print(f"clash start success, begin check proxies, num: {len(proxies)}")
+            logger.info(
+                f"clash start success, begin check proxies, num: {len(proxies)}"
+            )
 
             processes = []
             semaphore = multiprocessing.Semaphore(args.num)
@@ -376,7 +383,7 @@ def aggregate(args: argparse.Namespace):
 
             time.sleep(random.randint(3, 6))
             if len(alive) <= 0:
-                print(f"cannot fetch any proxy, group=[{k}]")
+                logger.error(f"cannot fetch any proxy, group=[{k}]")
                 continue
 
             data = {"proxies": list(alive)}
@@ -396,7 +403,7 @@ def aggregate(args: argparse.Namespace):
                 generate_conf, artifact, source_file, dest_file, "mixed"
             )
             if not success:
-                print(f"cannot generate subconverter config file, group=[{k}]")
+                logger.error(f"cannot generate subconverter config file, group=[{k}]")
                 continue
 
             if subconverter.convert(binname=subconverter_bin, artifact=artifact):

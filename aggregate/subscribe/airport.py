@@ -10,7 +10,6 @@ import random
 import re
 import ssl
 import time
-import traceback
 import urllib
 import urllib.parse
 import urllib.request
@@ -21,6 +20,7 @@ import mailtm
 import renewal
 import subconverter
 import utils
+from logger import logger
 
 EMAILS_DOMAINS = [
     "@gmail.com",
@@ -82,7 +82,7 @@ class AirPort:
             self.registed = True
             self.send_email = ""
         else:
-            self.sub = f"{site}/api/v1/client/subscribe?token="
+            self.sub = ""
             self.fetch = f"{site}/api/v1/user/server/fetch"
             self.registed = False
             self.send_email = f"{site}/api/v1/passport/comm/sendEmailVerify"
@@ -108,7 +108,7 @@ class AirPort:
         url = f"{domain}/api/v1/guest/comm/config"
         content = utils.http_get(url=url, retry=2, proxy=proxy)
         if not content or not content.startswith("{") and content.endswith("}"):
-            print(f"[QueryError] cannot get register require, domain: {domain}")
+            logger.error(f"[QueryError] cannot get register require, domain: {domain}")
             return True, True, True, []
 
         try:
@@ -159,6 +159,7 @@ class AirPort:
 
         if not password:
             password = utils.random_chars(random.randint(8, 16), punctuation=True)
+
         params = {
             "email": email,
             "password": password,
@@ -178,30 +179,91 @@ class AirPort:
             if not response or response.getcode() != 200:
                 return "", ""
 
-            token = ""
             cookies = utils.extract_cookie(response.getheader("Set-Cookie"))
-            try:
-                token = json.loads(response.read())["data"]["token"]
-            except:
+            data = json.loads(response.read()).get("data", {})
+            token = data.get("token", "")
+            authorization = data.get("auth_data", "")
+
+            # 先判断是否存在免费套餐，如果存在则购买
+            self.order_plan(
+                email=email,
+                password=password,
+                cookies=cookies,
+                authorization=authorization,
+            )
+
+            if token:
+                self.sub = f"{self.ref}/api/v1/client/subscribe?token={token}"
+            else:
                 subscribe_info = renewal.get_subscribe_info(
-                    domain=self.ref, cookies=cookies
+                    domain=self.ref, cookies=cookies, authorization=authorization
                 )
                 if subscribe_info:
-                    token = subscribe_info.token
+                    self.sub = subscribe_info.sub_url
                 else:
-                    print(f"[RegisterError] cannot get token when register")
+                    logger.error(
+                        f"[RegisterError] cannot get token when register, domain: {self.ref}"
+                    )
 
-            subscribe = self.sub + token
-            return subscribe, cookies
+            return cookies, authorization
         except:
-            traceback.print_exc()
             return self.register(email, password, email_code, retry - 1)
 
-    def fetch_unused(self, cookie: str, rate: float) -> list:
-        if "" == cookie.strip() or "" == self.fetch.strip():
+    def order_plan(
+        self,
+        email: str,
+        password: str,
+        cookies: str = "",
+        authorization: str = "",
+        retry: int = 3,
+    ) -> bool:
+        plan = renewal.get_free_plan(
+            domain=self.ref, cookies=cookies, authorization=authorization, retry=retry
+        )
+
+        if not plan:
+            logger.error(f"not exists free plan, domain: {self.ref}")
+            return False
+        else:
+            logger.info(f"found free plan, domain: {self.ref}, plan: {plan}")
+
+        methods = renewal.get_payment_method(
+            domain=self.ref, cookies=cookies, authorization=authorization
+        )
+
+        method = random.choice(methods) if methods else 1
+        params = {
+            "email": email,
+            "passwd": password,
+            "package": plan.package,
+            "plan_id": plan.plan_id,
+            "method": method,
+            "coupon_code": "",
+        }
+
+        success = renewal.flow(
+            domain=self.ref,
+            params=params,
+            reset=False,
+            cookies=cookies,
+            authorization=authorization,
+        )
+
+        if success and (plan.renew or plan.reset):
+            logger.info(
+                f"[RegisterSuccess] register successed, domain: {self.ref}, address: {email}, passwd: {password}"
+            )
+
+        return success
+
+    def fetch_unused(self, cookies: str, auth: str = "", rate: float = 3.0) -> list:
+        if (not cookies and not auth) or "" == self.fetch.strip():
             return []
 
-        self.headers["Cookie"] = cookie
+        if cookies:
+            self.headers["Cookie"] = cookies.strip()
+        if auth:
+            self.headers["authorization"] = auth.strip()
         try:
             proxies = []
             request = urllib.request.Request(self.fetch, headers=self.headers)
@@ -220,7 +282,7 @@ class AirPort:
 
     def get_subscribe(self, retry: int) -> tuple[str, str]:
         if self.registed:
-            return self.sub, ""
+            return "", ""
 
         need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
             self.ref
@@ -247,7 +309,7 @@ class AirPort:
                 mailbox = mailtm.create_instance()
                 account = mailbox.get_account()
                 if not account:
-                    print(f"cannot create account, site: {self.ref}")
+                    logger.error(f"cannot create account, site: {self.ref}")
                     return "", ""
 
                 message = None
@@ -262,22 +324,22 @@ class AirPort:
                             executor.shutdown(wait=False)
                             return "", ""
                         message = future.result(timeout=180)
-                        print(
+                        logger.info(
                             f"email has been received, domain: {self.ref}\tcost: {int(time.time()- starttime)}s"
                         )
                     except concurrent.futures.TimeoutError:
-                        print(
+                        logger.error(
                             f"receiving mail timeout, site: {self.ref}, address: {account.address}"
                         )
 
                 if not message:
-                    print(f"cannot receive any message, site: {self.ref}")
+                    logger.error(f"cannot receive any message, site: {self.ref}")
                     return "", ""
 
                 mask = mailbox.extract_mask(message.text)
                 mailbox.delete_account(account=account)
                 if not mask:
-                    print(f"cannot fetch mask, url: {self.ref}")
+                    logger.error(f"cannot fetch mask, url: {self.ref}")
                     return "", ""
                 return self.register(
                     email=account.address,
@@ -290,65 +352,69 @@ class AirPort:
 
     def parse(
         self,
-        url: str,
         cookie: str,
+        auth: str,
         retry: int,
         rate: float,
         bin_name: str,
         tag: str,
     ) -> list:
-        if "" == url:
-            print(
+        if "" == self.sub:
+            logger.error(
                 f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}"
             )
             return []
 
-        # count = 1
-        # while count <= retry:
-        #     try:
-        #         request = urllib.request.Request(url=url, headers=self.headers)
-        #         response = urllib.request.urlopen(request, timeout=10, context=CTX)
-        #         text = str(response.read(), encoding="utf8")
-
-        #         # 读取附件内容
-        #         disposition = response.getheader("content-disposition", "")
-        #         text = ""
-        #         if disposition:
-        #             print(str(response.read(), encoding="utf8"))
-        #             regex = "(filename)=(\S+)"
-        #             content = re.findall(regex, disposition)
-        #             if content:
-        #                 attachment = os.path.join(
-        #                     os.path.abspath(os.path.dirname(__file__)),
-        #                     content[0][1],
-        #                 )
-        #                 if os.path.exists(attachment) or os.path.isfile(attachment):
-        #                     text = str(
-        #                         open(attachment, "r", encoding="utf8").read(),
-        #                         encoding="utf8",
-        #                     )
-        #                     os.remove(attachment)
-        #         else:
-        #             text = str(response.read(), encoding="utf8")
-
-        #         break
-        #     except:
-        #         text = ""
-
-        #     count += 1
-        if url.startswith(FILEPATH_PROTOCAL):
-            url = url[8:]
-            if not os.path.exists(url) or not os.path.isfile(url):
-                print(f"[ParseError] file: {url} not found")
+        if self.sub.startswith(FILEPATH_PROTOCAL):
+            self.sub = self.sub[8:]
+            if not os.path.exists(self.sub) or not os.path.isfile(self.sub):
+                logger.error(f"[ParseError] file: {self.sub} not found")
                 return []
 
-            with open(url, "r", encoding="UTF8") as f:
+            with open(self.sub, "r", encoding="UTF8") as f:
                 text = f.read()
         else:
-            text = utils.http_get(url=url, headers=self.headers, retry=retry).strip()
+            text = utils.http_get(
+                url=self.sub, headers=self.headers, retry=retry
+            ).strip()
+
+            # count = 1
+            # while count <= retry:
+            #     try:
+            #         request = urllib.request.Request(url=self.sub, headers=self.headers)
+            #         response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            #         text = str(response.read(), encoding="utf8")
+
+            #         # 读取附件内容
+            #         disposition = response.getheader("content-disposition", "")
+            #         text = ""
+            #         if disposition:
+            #             logger.error(str(response.read(), encoding="utf8"))
+            #             regex = "(filename)=(\S+)"
+            #             content = re.findall(regex, disposition)
+            #             if content:
+            #                 attachment = os.path.join(
+            #                     os.path.abspath(os.path.dirname(__file__)),
+            #                     content[0][1],
+            #                 )
+            #                 if os.path.exists(attachment) or os.path.isfile(attachment):
+            #                     text = str(
+            #                         open(attachment, "r", encoding="utf8").read(),
+            #                         encoding="utf8",
+            #                     )
+            #                     os.remove(attachment)
+            #         else:
+            #             text = str(response.read(), encoding="utf8")
+
+            #         break
+            #     except:
+            #         text = ""
+
+            #     count += 1
+
         # if "" == text.strip() or not re.match("^[0-9a-zA-Z=]*$", text):
         if "" == text or (text.startswith("{") and text.endswith("}")):
-            print(
+            logger.error(
                 f"[ParseError] cannot found any proxies because token is error, domain: {self.ref}"
             )
             return []
@@ -373,7 +439,7 @@ class AirPort:
                     "clash",
                 )
                 if not success:
-                    print("cannot generate subconverter config file")
+                    logger.error("cannot generate subconverter config file")
                     return []
 
                 time.sleep(1)
@@ -392,7 +458,7 @@ class AirPort:
                 nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
 
             proxies = []
-            unused_nodes = self.fetch_unused(cookie, rate)
+            unused_nodes = self.fetch_unused(cookie, auth, rate)
             for item in nodes:
                 name = item.get("name").upper()
                 if name in unused_nodes:
@@ -405,7 +471,7 @@ class AirPort:
                         if self.exclude and re.search(self.exclude, name, flags=re.I):
                             continue
                 except:
-                    print(
+                    logger.error(
                         f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
                     )
 
@@ -422,7 +488,7 @@ class AirPort:
                             name = re.sub(self.rename, "", name, flags=re.I)
 
                 except:
-                    print(
+                    logger.error(
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
                     )
 
@@ -451,10 +517,12 @@ class AirPort:
                         item["name"] = name
 
                 # 方便过滤无效订阅
-                item["sub"] = url
+                item["sub"] = self.sub
                 proxies.append(item)
 
             return proxies
         except:
-            print(f"[ParseError] occur error when parse data, url: {self.ref}")
+            logger.error(
+                f"[ParseError] occur error when parse data, domain: {self.ref}"
+            )
             return []

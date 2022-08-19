@@ -11,6 +11,8 @@ import urllib
 import urllib.parse
 import urllib.request
 
+from logger import logger
+
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
@@ -18,7 +20,7 @@ CTX.verify_mode = ssl.CERT_NONE
 
 def push_file(filepath: str, push_conf: dict, group: str = "", retry: int = 5) -> bool:
     if not os.path.exists(filepath) or not os.path.isfile(filepath):
-        print(f"[PushError] file {filepath} not found")
+        logger.error(f"[PushError] file {filepath} not found")
         return False
 
     content = open(filepath, "r", encoding="utf8").read()
@@ -27,7 +29,7 @@ def push_file(filepath: str, push_conf: dict, group: str = "", retry: int = 5) -
 
 def push_to(content: str, push_conf: dict, group: str = "", retry: int = 5) -> bool:
     if not validate(push_conf=push_conf):
-        print(f"[PushError] push config is invalidate")
+        logger.error(f"[PushError] push config is invalidate")
         return False
 
     folderid = push_conf.get("folderid", "")
@@ -44,12 +46,12 @@ def push_to(content: str, push_conf: dict, group: str = "", retry: int = 5) -> b
         )
         response = urllib.request.urlopen(request, timeout=15, context=CTX)
         if response.getcode() == 204:
-            print(
+            logger.info(
                 f"[PushSuccess] push subscribes information to remote successed, group=[{group}]"
             )
             return True
         else:
-            print(
+            logger.info(
                 "[PushError]: group=[{}], error message: \n{}".format(
                     group, response.read().decode("unicode_escape")
                 )
@@ -57,7 +59,7 @@ def push_to(content: str, push_conf: dict, group: str = "", retry: int = 5) -> b
             return False
 
     except Exception:
-        print(f"[PushError]: group=[{group}], error message:")
+        logger.error(f"[PushError]: group=[{group}], error message:")
         traceback.print_exc()
 
         retry -= 1
