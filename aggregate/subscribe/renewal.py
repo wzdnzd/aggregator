@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import utils
+from logger import logger
 
 warnings.filterwarnings("ignore")
 
@@ -36,6 +37,16 @@ CTX.verify_mode = ssl.CERT_NONE
 
 PATH = os.path.abspath(os.path.dirname(__file__))
 
+PACKAGES = [
+    "month_price",
+    "quarter_price",
+    "half_year_price",
+    "year_price",
+    "two_year_price",
+    "three_year_price",
+    "onetime_price",
+]
+
 
 @dataclass
 class SubscribeInfo:
@@ -45,7 +56,16 @@ class SubscribeInfo:
     used_rate: float
     expired_days: int
     package: str
-    token: str
+    sub_url: str
+
+
+@dataclass
+class Plan:
+    plan_id: int
+    package: str
+    renew: bool
+    reset: bool
+    trafficflow: float
 
 
 def get_cookies(
@@ -90,7 +110,7 @@ def generate_headers(
 
 def login(url: str, params: dict, headers: dict, retry: int = 3) -> tuple[str, str]:
     if not params:
-        print("[RenewalError] cannot login because parameters is empty")
+        logger.error("[RenewalError] cannot login because parameters is empty")
         return "", ""
 
     try:
@@ -105,20 +125,20 @@ def login(url: str, params: dict, headers: dict, retry: int = 3) -> tuple[str, s
                 data = json.loads(response.read().decode("UTF8")).get("data", {})
                 authorization = data.get("auth_data", "")
             except:
-                print(response.read().decode("UTF8"))
+                logger.error(response.read().decode("UTF8"))
         else:
-            print(response.read().decode("UTF8"))
+            logger.info(response.read().decode("UTF8"))
 
         return cookies, authorization
 
     except Exception as e:
-        print(str(e))
+        logger.error(e)
         retry -= 1
 
         if retry > 0:
             return login(url, params, headers, retry)
 
-        print("[LoginError] URL: {}".format(utils.extract_domain(url)))
+        logger.error("[LoginError] URL: {}".format(utils.extract_domain(url)))
         return "", ""
 
 
@@ -133,18 +153,18 @@ def order(url: str, params: dict, headers: dict, retry: int = 3) -> str:
             result = json.loads(response.read().decode("UTF8"))
             trade_no = result.get("data", None)
         else:
-            print(response.read().decode("UTF8"))
+            logger.error(response.read().decode("UTF8"))
 
         return trade_no
 
     except Exception as e:
-        print(str(e))
+        logger.error(e)
         retry -= 1
 
         if retry > 0:
             return order(url, params, headers, retry)
 
-        print("[OrderError] URL: {}".format(utils.extract_domain(url)))
+        logger.error("[OrderError] URL: {}".format(utils.extract_domain(url)))
 
 
 def fetch(url: str, headers: dict, retry: int = 3) -> str:
@@ -152,7 +172,7 @@ def fetch(url: str, headers: dict, retry: int = 3) -> str:
         request = urllib.request.Request(url, headers=headers, method="GET")
         response = urllib.request.urlopen(request, timeout=10, context=CTX)
         if response.getcode() != 200:
-            print(response.read().decode("UTF8"))
+            logger.info(response.read().decode("UTF8"))
             return None
 
         data = json.loads(response.read().decode("UTF8"))
@@ -164,13 +184,13 @@ def fetch(url: str, headers: dict, retry: int = 3) -> str:
         return None
 
     except Exception as e:
-        print(str(e))
+        logger.error(e)
         retry -= 1
 
         if retry > 0:
             return fetch(url, headers, retry)
 
-        print("[FetchError] URL: {}".format(utils.extract_domain(url)))
+        logger.error("[FetchError] URL: {}".format(utils.extract_domain(url)))
 
 
 def payment(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
@@ -184,18 +204,18 @@ def payment(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
             result = json.loads(response.read().decode("UTF8"))
             success = result.get("data", False)
         else:
-            print(response.read().decode("UTF8"))
+            logger.info(response.read().decode("UTF8"))
 
         return success
 
     except Exception as e:
-        print(str(e))
+        logger.error(e)
         retry -= 1
 
         if retry > 0:
             return payment(url, params, headers, retry)
 
-        print("[PaymentError] URL: {}".format(utils.extract_domain(url)))
+        logger.error("[PaymentError] URL: {}".format(utils.extract_domain(url)))
         return False
 
 
@@ -210,26 +230,26 @@ def checkout(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
             result = json.loads(response.read().decode("UTF8"))
             success = False if result.get("data", None) is None else True
         else:
-            print(response.read().decode("UTF8"))
+            logger.info(response.read().decode("UTF8"))
 
         return success
 
     except Exception as e:
-        print(str(e))
+        logger.error(e)
         retry -= 1
 
         if retry > 0:
             return checkout(url, params, headers, retry)
 
-        print("[CheckError] URL: {}".format(utils.extract_domain(url)))
+        logger.error("[CheckError] URL: {}".format(utils.extract_domain(url)))
         return False
 
 
 def get_payment_method(
     domain: str, cookies: str, authorization: str = "", retry: int = 3
 ) -> list:
-    if not domain or not cookies:
-        print(
+    if not domain or (not cookies and not authorization):
+        logger.error(
             f"query payment method error, cookies and authorization is empty, domain: {domain}"
         )
         return []
@@ -247,15 +267,75 @@ def get_payment_method(
         methods = [item.get("id") for item in data if item.get("id", -1) >= 0]
         return methods
     except:
-        print(f"cannot get payment method because response is empty, domain: {domain}")
+        logger.error(
+            f"cannot get payment method because response is empty, domain: {domain}"
+        )
         return []
+
+
+def get_free_plan(
+    domain: str, cookies: str, authorization: str = "", retry: int = 3
+) -> Plan:
+    if not domain or (not cookies and not authorization):
+        logger.error(
+            f"fetch free plans error, cookies and authorization is empty, domain: {domain}"
+        )
+        return None
+
+    url = domain + "/api/v1/user/plan/fetch"
+    headers = generate_headers(
+        domain=domain, cookies=cookies, authorization=authorization
+    )
+    content = utils.http_get(url=url, headers=headers, retry=retry)
+    if not content:
+        return None
+    try:
+        plans = []
+        data = json.loads(content).get("data", [])
+        for plan in data:
+            # 查找时间最长的免费套餐
+            package = ""
+            for p in PACKAGES:
+                price = plan.get(p, None)
+                if price is None or price > 0:
+                    continue
+                package = p
+
+            if not package:
+                continue
+
+            renew_enable = plan.get("renew", 0) == 1
+            reset_price = plan.get("reset_price", 1)
+            reset_enable = False if reset_price is None else reset_price <= 0
+            trafficflow = data.get("transfer_enable", 1)
+
+            plans.append(
+                Plan(
+                    plan_id=plan.get("id", -1),
+                    package=package,
+                    renew=renew_enable,
+                    reset=reset_enable,
+                    trafficflow=trafficflow,
+                )
+            )
+        if not plans:
+            return None
+
+        # 查找流量最多的免费套餐
+        sorted(plans, key=lambda x: x.trafficflow, reverse=True)
+        return plans[0]
+    except:
+        logger.error(
+            f"cannot fetch free plans because response is empty, domain: {domain}"
+        )
+        return None
 
 
 def get_subscribe_info(
     domain: str, cookies: str, authorization: str = "", retry: int = 3
 ) -> SubscribeInfo:
     if not domain or (not cookies and not authorization):
-        print(
+        logger.error(
             f"query subscribe information error, cookies and authorization is empty, domain: {domain}"
         )
         return None
@@ -275,7 +355,7 @@ def get_subscribe_info(
             return None
 
         plan_id = data.get("plan_id", 1)
-        token = data.get("token", "")
+        sub_url = data.get("subscribe_url", "").replace("\\", "")
         expired_at = datetime.fromtimestamp(data.get("expired_at", 1))
         today = datetime.fromtimestamp(time.time())
         expired_days = (expired_at - today).days
@@ -287,18 +367,9 @@ def get_subscribe_info(
         renew_enable = plan.get("renew", 0) == 1
         reset_price = plan.get("reset_price", 1)
         reset_enable = False if reset_price is None else reset_price <= 0
-        packages = [
-            "month_price",
-            "quarter_price",
-            "half_year_price",
-            "year_price",
-            "two_year_price",
-            "three_year_price",
-            "onetime_price",
-        ]
 
         package = ""
-        for p in packages:
+        for p in PACKAGES:
             price = plan.get(p, None)
             if price is not None and price <= 0:
                 package = p
@@ -311,10 +382,12 @@ def get_subscribe_info(
             used_rate=used_rate,
             expired_days=expired_days,
             package=package,
-            token=token,
+            sub_url=sub_url,
         )
     except:
-        print(f"cannot get payment method because response is empty, domain: {domain}")
+        logger.error(
+            f"cannot get payment method because response is empty, domain: {domain}"
+        )
         return None
 
 
@@ -371,7 +444,7 @@ def flow(
     else:
         package = params.get("package", "")
         if not package:
-            print("not support renewal")
+            logger.error("not support renewal")
             return False
 
     plan_id = params.get("plan_id", 1)
@@ -386,14 +459,14 @@ def flow(
             check_url, {"code": coupon, "plan_id": plan_id}, headers, retry
         )
         if not result:
-            print("failed to renewal because coupon is valid")
+            logger.info("failed to renewal because coupon is valid")
             return False
 
         payload["coupon_code"] = coupon
 
     trade_no = order(order_url, payload, headers, retry)
     if not trade_no:
-        print("renewal error because cannot order")
+        logger.info("renewal error because cannot order")
         return False
 
     payload = {"trade_no": trade_no, "method": method}
@@ -403,7 +476,7 @@ def flow(
 
 def add_traffic_flow(domain: str, params: dict) -> str:
     if not domain or not params:
-        print(f"[RenewalError] invalidate arguments")
+        logger.error(f"[RenewalError] invalidate arguments")
         return ""
     try:
         email = base64.b64decode(params.get("email", ""))
@@ -415,10 +488,9 @@ def add_traffic_flow(domain: str, params: dict) -> str:
             domain=domain, cookies=cookies, authorization=authorization
         )
         if not subscribe_info:
-            print(f"[RenewalError] cannot fetch subscribe information")
+            logger.info(f"[RenewalError] cannot fetch subscribe information")
             return ""
 
-        print(f"subscribe information: domain: {domain}\t{subscribe_info}")
         plan_id = params.get("plan_id", subscribe_info.plan_id)
         package = params.get("package", subscribe_info.package)
         coupon_code = params.get("coupon_code", "")
@@ -450,11 +522,11 @@ def add_traffic_flow(domain: str, params: dict) -> str:
                 cookies=cookies,
                 authorization=authorization,
             )
-            print(
+            logger.info(
                 "reset {}, domain: {}".format("success" if success else "fail", domain)
             )
         else:
-            print(
+            logger.info(
                 f"skip reset traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.reset_enable}\tused-rate: {subscribe_info.used_rate}"
             )
         if renew and subscribe_info.renew_enable and subscribe_info.expired_days <= 5:
@@ -465,15 +537,15 @@ def add_traffic_flow(domain: str, params: dict) -> str:
                 cookies=cookies,
                 authorization=authorization,
             )
-            print(
+            logger.info(
                 "renew {}, domain: {}".format("success" if success else "fail", domain)
             )
         else:
-            print(
+            logger.info(
                 f"skip renew traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.renew_enable}\texpired-days: {subscribe_info.expired_days}"
             )
 
-        return subscribe_info.token
+        return subscribe_info.sub_url
     except:
         traceback.print_exc()
         return ""

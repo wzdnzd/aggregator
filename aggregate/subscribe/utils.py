@@ -3,6 +3,7 @@
 # @Author  : wzdnzd
 # @Time    : 2022-07-15
 
+import gzip
 import os
 import platform
 import random
@@ -11,10 +12,11 @@ import ssl
 import string
 import subprocess
 import sys
-import gzip
 import urllib
 import urllib.parse
 import urllib.request
+
+from logger import logger
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -46,11 +48,11 @@ def http_get(
         "^(https?:\/\/(\S+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
         url,
     ):
-        print(f"invalid url: {url}")
+        logger.error(f"invalid url: {url}")
         return ""
 
     if retry <= 0:
-        print(f"achieves max retry, url={url}")
+        logger.error(f"achieves max retry, url={url}")
         return ""
 
     if not headers:
@@ -85,12 +87,14 @@ def http_get(
         except:
             content = gzip.decompress(content).decode("utf8")
         if status_code != 200:
-            print(f"request failed, status code: {status_code}\t message: {content}")
+            logger.info(
+                f"request failed, status code: {status_code}\t message: {content}"
+            )
             return ""
 
         return content
     except urllib.error.HTTPError as e:
-        print(f"request failed, url=[{url}], code: {e.code}")
+        logger.error(f"request failed, url=[{url}], code: {e.code}")
         message = str(e.read(), encoding="utf8")
         if e.code == 503 and "token" not in message:
             return http_get(
@@ -98,9 +102,10 @@ def http_get(
             )
         return ""
     except urllib.error.URLError as e:
-        print(f"request failed, url=[{url}], message: {e.reason}")
+        logger.error(f"request failed, url=[{url}], message: {e.reason}")
         return ""
-    except Exception:
+    except Exception as e:
+        logger.error(e)
         return http_get(
             url=url, headers=headers, params=params, retry=retry - 1, proxy=proxy
         )
@@ -139,7 +144,7 @@ def cmd(command: list) -> bool:
     if command is None or len(command) == 0:
         return False
 
-    print("command: {}".format(" ".join(command)))
+    logger.info("command: {}".format(" ".join(command)))
 
     p = subprocess.Popen(command)
     p.wait()
@@ -156,7 +161,7 @@ def chmod(binfile: str) -> None:
     elif operating_system.startswith("macOS") or operating_system.startswith("Linux"):
         cmd(["chmod", "+x", binfile])
     else:
-        print("Unsupported Platform")
+        logger.error("Unsupported Platform")
         sys.exit(0)
 
 
@@ -185,7 +190,7 @@ def encoding_url(url: str) -> str:
 
 def write_file(filename: str, lines: list) -> bool:
     if not filename or not lines:
-        print(f"filename or lines is empty, filename: {filename}")
+        logger.error(f"filename or lines is empty, filename: {filename}")
         return False
 
     try:

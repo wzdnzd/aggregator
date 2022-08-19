@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import push
 import renewal
 from airport import AirPort
+from logger import logger
 from origin import Origin
 
 
@@ -43,19 +44,19 @@ def execute(task_conf: TaskConfig) -> list:
         include=task_conf.include,
     )
 
-    print(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
+    logger.info(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
 
     # 套餐续期
     if task_conf.renew:
-        token = renewal.add_traffic_flow(domain=obj.ref, params=task_conf.renew)
-        if token and not obj.registed:
+        sub_url = renewal.add_traffic_flow(domain=obj.ref, params=task_conf.renew)
+        if sub_url and not obj.registed:
             obj.registed = True
-            obj.sub = obj.sub + token
+            obj.sub = sub_url
 
-    url, cookie = obj.get_subscribe(retry=task_conf.retry)
+    cookie, authorization = obj.get_subscribe(retry=task_conf.retry)
     return obj.parse(
-        url,
         cookie,
+        authorization,
         task_conf.retry,
         task_conf.rate,
         task_conf.bin_name,
@@ -78,7 +79,9 @@ def dedup_task(tasks: list) -> list:
     items = []
     for task in tasks:
         if not isinstance(task, TaskConfig):
-            print(f"[DedupError] need type 'TaskConfig' but got type '{type(task)}'")
+            logger.error(
+                f"[DedupError] need type 'TaskConfig' but got type '{type(task)}'"
+            )
             continue
 
         found = False
@@ -133,7 +136,7 @@ def merge_config(configs: list) -> list:
     items = []
     for conf in configs:
         if not isinstance(conf, dict):
-            print(f"[MergeError] need type 'dict' but got type '{type(conf)}'")
+            logger.error(f"[MergeError] need type 'dict' but got type '{type(conf)}'")
             continue
 
         sub = conf.get("sub", "")
@@ -175,16 +178,18 @@ def merge_config(configs: list) -> list:
 
 def refresh(config: dict, alives: dict, filepath: str = "") -> None:
     if not config:
-        print("[UpdateError] cannot update remote config because content is empty")
+        logger.error(
+            "[UpdateError] cannot update remote config because content is empty"
+        )
         return
 
     update_conf = config.get("update", {})
     if not update_conf.get("enable", False):
-        print("[UpdateError] skip update remote config because enable=[False]")
+        logger.info("[UpdateError] skip update remote config because enable=[False]")
         return
 
     if not push.validate(push_conf=update_conf):
-        print(f"[UpdateError] update config is invalidate")
+        logger.error(f"[UpdateError] update config is invalidate")
         return
 
     domains = merge_config(configs=config.get("domains", []))
@@ -215,7 +220,7 @@ def refresh(config: dict, alives: dict, filepath: str = "") -> None:
         domains = config.get("domains", [])
 
     if not domains:
-        print("[UpdateError] skip update remote config because domians is empty")
+        logger.error("[UpdateError] skip update remote config because domians is empty")
         return
 
     content = json.dumps(config)

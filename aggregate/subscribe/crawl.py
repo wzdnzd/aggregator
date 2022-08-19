@@ -20,6 +20,7 @@ from multiprocessing.synchronize import Semaphore
 
 import utils
 from airport import AirPort
+from logger import logger
 from origin import Origin
 
 SEPARATOR = "-"
@@ -89,7 +90,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             tasks.update(crawl_pages(pages=pages))
 
         if not tasks:
-            print("cannot found any subscribe url from crawler")
+            logger.error("cannot found any subscribe url from crawler")
             return []
 
         with multiprocessing.Manager() as manager:
@@ -110,7 +111,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             time.sleep(random.randint(1, 3))
             return list(availables)
     except:
-        print("crawl from web error")
+        logger.error("crawl from web error")
         return []
 
 
@@ -154,10 +155,10 @@ def crawl_telegram(users: dict, period: int, limits: int = 20) -> dict:
         params.append([k, period, pts, include, exclude, limits])
 
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[TelegramCrawl] start crawl from Telegram, time: {starttime}")
+    logger.info(f"[TelegramCrawl] start crawl from Telegram, time: {starttime}")
     subscribes = multi_thread_crawl(fun=crawl_single_telegram, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(
+    logger.info(
         f"[TelegramCrawl] finished crawl from Telegram, time: {endtime}, subscribes: {list(subscribes.keys())}"
     )
     return subscribes
@@ -167,7 +168,7 @@ def crawl_single_repo(
     username: str, repo: str, push_to: list = [], limits: int = 5, exclude: str = ""
 ) -> dict:
     if not username or not repo:
-        print(f"cannot crawl from github, username: {username}\trepo: {repo}")
+        logger.error(f"cannot crawl from github, username: {username}\trepo: {repo}")
         return {}
 
     # 列出repo所有文件名
@@ -202,7 +203,7 @@ def crawl_single_repo(
                 )
         return collections
     except:
-        print(f"crawl from github error, username: {username}\trepo: {repo}")
+        logger.error(f"crawl from github error, username: {username}\trepo: {repo}")
         return {}
 
 
@@ -212,7 +213,7 @@ def crawl_github_repo(repos: dict):
     params = []
 
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[RepoCrawl] start crawl from Repositorie, time: {starttime}")
+    logger.info(f"[RepoCrawl] start crawl from Repositorie, time: {starttime}")
     for _, v in repos.items():
         username = v.get("username", "").strip()
         repo_name = v.get("repo_name", "").strip()
@@ -226,7 +227,7 @@ def crawl_github_repo(repos: dict):
 
     subscribes = multi_thread_crawl(fun=crawl_single_repo, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(
+    logger.info(
         f"[RepoCrawl] finished crawl from Repositorie, time: {endtime}, subscribes: {list(subscribes.keys())}"
     )
     return subscribes
@@ -244,7 +245,7 @@ def crawl_google(
     }
 
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[GoogleCrawl] start crawl from Google, time: {starttime}")
+    logger.info(f"[GoogleCrawl] start crawl from Google, time: {starttime}")
     collections = {}
     for start in range(0, limits, num):
         params["start"] = start
@@ -261,7 +262,7 @@ def crawl_google(
         time.sleep(interval)
 
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(
+    logger.info(
         f"[GoogleCrawl] finished crawl from Google, time: {endtime}, subscribes: {list(collections.keys())}"
     )
     return collections
@@ -289,7 +290,9 @@ def crawl_github_page(
 def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict:
     cookie = os.environ.get("GH_COOKIE", "").strip()
     if not cookie:
-        print("[GithubCrawl] cannot start crawl from github because cookie is missing")
+        logger.error(
+            "[GithubCrawl] cannot start crawl from github because cookie is missing"
+        )
         return {}
 
     # 鉴于github搜索code不稳定，爬取两次
@@ -297,10 +300,10 @@ def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict
     exclude = "" if not exclude else exclude.strip()
     params = [[x, cookie, push_to, exclude] for x in pages]
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[GithubCrawl] start crawl from Github, time: {starttime}")
+    logger.info(f"[GithubCrawl] start crawl from Github, time: {starttime}")
     subscribes = multi_thread_crawl(fun=crawl_github_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(
+    logger.info(
         f"[GithubCrawl] finished crawl from Github, time: {endtime}, subscribes: {list(subscribes.keys())}"
     )
 
@@ -330,7 +333,7 @@ def extract_subscribes(
 
                 subscribes = re.findall(pattern, content)
             except:
-                print(
+                logger.error(
                     f"[ExtractError] maybe pattern 'include' exists some problems, include: {include}"
                 )
                 subscribes = re.findall(regex, content)
@@ -348,7 +351,7 @@ def extract_subscribes(
                 if exclude and re.search(exclude, s):
                     continue
             except:
-                print(
+                logger.error(
                     f"[ExtractError] maybe pattern 'include' or 'exclude' exists some problems, include: {include}\texclude: {exclude}"
                 )
 
@@ -363,7 +366,7 @@ def extract_subscribes(
 
         return collections
     except:
-        print("extract subscribe error")
+        logger.error("extract subscribe error")
         return {}
 
 
@@ -404,11 +407,11 @@ def collect_airport_page(url: str) -> list:
     if not url:
         return []
 
-    print(f"[AirPortCrawl] start collect airport, url: {url}")
+    logger.info(f"[AirPortCrawl] start collect airport, url: {url}")
 
     content = utils.http_get(url=url)
     if not content:
-        print(f"[CrawlError] cannot any content from url: {url}")
+        logger.error(f"[CrawlError] cannot any content from url: {url}")
         return []
 
     try:
@@ -432,7 +435,7 @@ def collect_airport(channel_id: int, group_name: str, thread_num: int = 50) -> l
             groups = re.findall(regex, content)
             before = int(groups[0]) + 100 if groups else before
         except:
-            print(f"[CrawlError] cannot count page num, chanel: {channel}")
+            logger.error(f"[CrawlError] cannot count page num, chanel: {channel}")
 
         return before
 
@@ -477,7 +480,7 @@ def collect_airport(channel_id: int, group_name: str, thread_num: int = 50) -> l
 
         domains = list(availables)
         if not domains:
-            print(
+            logger.error(
                 f"[CrawlError] cannot found any available domain, telegram group: {group_name}"
             )
         return domains
@@ -502,7 +505,7 @@ def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> No
 
 def crawl_single_page(url: str, push_to: list = [], exclude: str = "") -> dict:
     if not url or not push_to:
-        print(f"cannot crawl from page: {url}")
+        logger.error(f"cannot crawl from page: {url}")
         return {}
 
     content = utils.http_get(url=url)
@@ -520,7 +523,7 @@ def crawl_pages(pages: dict):
 
     params = []
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[PageCrawl] start crawl from Page, time: {starttime}")
+    logger.info(f"[PageCrawl] start crawl from Page, time: {starttime}")
     for k, v in pages.items():
         if not re.match(
             "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
@@ -535,7 +538,7 @@ def crawl_pages(pages: dict):
 
     subscribes = multi_thread_crawl(fun=crawl_single_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(
+    logger.info(
         f"[PageCrawl] finished crawl from Page, time: {endtime}, subscribes: {list(subscribes.keys())}"
     )
     return subscribes

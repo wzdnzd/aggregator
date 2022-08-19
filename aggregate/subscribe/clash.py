@@ -17,6 +17,7 @@ import urllib.parse
 import urllib.request
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
+from logger import logger
 
 import yaml
 
@@ -301,7 +302,7 @@ def which_bin() -> tuple[str, str]:
         clashname = "clash-windows.exe"
         subconverter = "subconverter-windows.exe"
     else:
-        print("Unsupported Platform")
+        logger.error("Unsupported Platform")
         sys.exit(1)
 
     return clashname, subconverter

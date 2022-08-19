@@ -4,14 +4,18 @@
  * @Description: 
  * Copyright (c) 2022 by wzdnzd, All Rights Reserved.
 -->
-# 机场自动签到脚本，支持多个机场签到
 
 > 说明: 
 > + `auto-checkin.py`用于基于SS-Panel搭建的机场签到，`renewal.py`用于基于V2Board搭建的机场订阅续期
 > + 支持`Python2` 和 `Python3`
 > + 目前不支持任何带有验证码（登陆或签到时需要输入验证码）功能的机场
+> + 对于本项目来说，签到是最不起眼的一个小功能
 
-## 使用方法
+## 免责申明
++ 本项目仅用作学习爬虫技术，请勿滥用。
++ 禁止使用该项目进行任何盈利活动，对一切非法使用所产生的后果，本人概不负责。
+
+## 自动签到使用方法（支持多个机场）
 ### 1. 利用Github Actions签到（推荐）
 + 点击右上角`Fork`克隆本项目
 + ~~修改项目为私有，具体方法见[Github更改仓库的可见性](https://docs.github.com/cn/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility#changing-a-repositorys-visibility)~~
@@ -27,7 +31,7 @@
 ### 2. 本地运行
 + 克隆代码库
  ```shell
-git clone https://github.com/wzdnzd/ssr-checkin.git
+git clone https://github.com/wzdnzd/aggregator.git
 ```
 + 安装依赖库
 ```shell
@@ -51,5 +55,5 @@ email：注册时使用的email
 
 password：密码
 ```
-+ `windows` 操作系统可通过 `任务计划程序` 添加到定时任务，详见[Windows系统中设置Python程序定时运行](https://www.itcodemonkey.com/article/6098.html)
-+ `Linux` 或 `MacOS` 可通过 `cron` 添加到定时任务（或登陆启动项），详见[利用Linux的crontab实现定时执行python任务](https://www.aisun.org/2018/07/linux+crontab+python/)
++ `windows` 操作系统可通过 `任务计划程序` 添加到定时任务，详见[Windows系统中设置Python程序定时运行](https://blog.csdn.net/CaiJin1217/article/details/81453940)
++ `Linux` 或 `MacOS` 可通过 `cron` 添加到定时任务（或登陆启动项），详见[利用Linux的crontab实现定时执行python任务](https://bbs.huaweicloud.com/blogs/333192)

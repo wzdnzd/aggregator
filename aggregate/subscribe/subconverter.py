@@ -7,6 +7,7 @@ import os
 from threading import Lock
 
 import utils
+from logger import logger
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -17,7 +18,7 @@ def generate_conf(
     filepath: str, name: str, source: str, dest: str, target: str
 ) -> None:
     if not filepath or not name or not source or not dest or not target:
-        print("invalidate arguments, so cannot execute subconverter")
+        logger.error("invalidate arguments, so cannot execute subconverter")
         return False
 
     try:
