@@ -29,6 +29,7 @@ class TaskConfig:
     rename: str = ""
     exclude: str = ""
     include: str = ""
+    liveness: bool = True
 
 
 def execute(task_conf: TaskConfig) -> list:
@@ -42,6 +43,7 @@ def execute(task_conf: TaskConfig) -> list:
         rename=task_conf.rename,
         exclude=task_conf.exclude,
         include=task_conf.include,
+        liveness=task_conf.liveness,
     )
 
     logger.info(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
@@ -62,6 +64,25 @@ def execute(task_conf: TaskConfig) -> list:
         task_conf.bin_name,
         task_conf.tag,
     )
+
+
+def liveness_fillter(proxies: list) -> tuple[list, list]:
+    if not list:
+        return [], []
+
+    checks, nochecks = [], []
+    for p in proxies:
+        if not isinstance(p, dict):
+            continue
+
+        liveness = p.pop("liveness", True)
+        if liveness:
+            checks.append(p)
+        else:
+            p.pop("sub", "")
+            nochecks.append(p)
+
+    return checks, nochecks
 
 
 def cleanup(process: subprocess.Popen, filepath: str, filenames: list = []) -> None:
