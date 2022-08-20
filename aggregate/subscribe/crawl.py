@@ -422,7 +422,9 @@ def collect_airport_page(url: str) -> list:
         return []
 
 
-def collect_airport(channel_id: int, group_name: str, thread_num: int = 50) -> list:
+def collect_airport(
+    channel_id: int, group_name: str, page_num: int, thread_num: int = 50
+) -> list:
     def get_pages(channel: str) -> int:
         if not channel or channel.strip() == "":
             return 0
@@ -442,15 +444,19 @@ def collect_airport(channel_id: int, group_name: str, thread_num: int = 50) -> l
     if not channel_id or not group_name:
         return []
 
+    logger.info(
+        f"[AirPortCollector] starting collect air port from telegram, pages: {page_num}"
+    )
     count = get_pages(channel=f"{channel_id}-{group_name}")
     if count == 0:
         return []
 
     pages = range(count, -1, -100)
+    page_num = min(max(page_num, 1), len(pages))
 
     urls = [
         f"https://telemetr.io/post-list-ajax/{channel_id}?sort=-date&postType=all&period=365&before={x}"
-        for x in pages
+        for x in pages[:page_num]
     ]
 
     cpu_count = multiprocessing.cpu_count()
@@ -479,10 +485,9 @@ def collect_airport(channel_id: int, group_name: str, thread_num: int = 50) -> l
             p.join()
 
         domains = list(availables)
-        if not domains:
-            logger.error(
-                f"[CrawlError] cannot found any available domain, telegram group: {group_name}"
-            )
+        logger.info(
+            f"[AirPortCollector] finished collect air port from telegram group: {group_name}, availables: {len(domain)}"
+        )
         return domains
 
 
