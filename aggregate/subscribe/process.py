@@ -209,6 +209,7 @@ def assign(
         rename = site.get("rename", "")
         exclude = site.get("exclude", "").strip()
         include = site.get("include", "").strip()
+        liveness = site.get("liveness", True)
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -264,6 +265,7 @@ def assign(
                         rename=rename,
                         exclude=exclude,
                         include=include,
+                        liveness=liveness,
                     )
                 )
 
@@ -339,54 +341,59 @@ def aggregate(args: argparse.Namespace):
             filename = "config.yaml"
             proxies = clash.generate_config(workspace, proxies, filename)
 
-            utils.chmod(binpath)
-            alive = manager.list()
-            logger.info(
-                f"startup clash now, workspace: {workspace}, config: {filename}"
-            )
-            process = subprocess.Popen(
-                [
-                    binpath,
-                    "-d",
-                    workspace,
-                    "-f",
-                    os.path.join(workspace, filename),
-                ]
-            )
-
-            logger.info(
-                f"clash start success, begin check proxies, num: {len(proxies)}"
-            )
-
-            processes = []
-            semaphore = multiprocessing.Semaphore(args.num)
-            time.sleep(random.randint(3, 6))
-            for proxy in proxies:
-                semaphore.acquire()
-                p = multiprocessing.Process(
-                    target=clash.check,
-                    args=(
-                        alive,
-                        proxy,
-                        clash.EXTERNAL_CONTROLLER,
-                        semaphore,
-                        args.timeout,
-                        args.url,
-                        delay,
-                        subscribes,
-                    ),
+            # 过滤出需要检查可用性的节点
+            checks, nochecks = workflow.liveness_fillter(proxies=proxies)
+            if checks:
+                utils.chmod(binpath)
+                availables = manager.list()
+                logger.info(
+                    f"startup clash now, workspace: {workspace}, config: {filename}"
                 )
-                p.start()
-                processes.append(p)
-            for p in processes:
-                p.join()
+                process = subprocess.Popen(
+                    [
+                        binpath,
+                        "-d",
+                        workspace,
+                        "-f",
+                        os.path.join(workspace, filename),
+                    ]
+                )
 
-            time.sleep(random.randint(3, 6))
-            if len(alive) <= 0:
+                logger.info(
+                    f"clash start success, begin check proxies, num: {len(checks)}"
+                )
+
+                processes = []
+                semaphore = multiprocessing.Semaphore(args.num)
+                time.sleep(random.randint(3, 5))
+
+                for proxy in checks:
+                    semaphore.acquire()
+                    p = multiprocessing.Process(
+                        target=clash.check,
+                        args=(
+                            availables,
+                            proxy,
+                            clash.EXTERNAL_CONTROLLER,
+                            semaphore,
+                            args.timeout,
+                            args.url,
+                            delay,
+                            subscribes,
+                        ),
+                    )
+                    p.start()
+                    processes.append(p)
+                for p in processes:
+                    p.join()
+
+                nochecks.extend(list(availables))
+
+            if len(nochecks) <= 0:
                 logger.error(f"cannot fetch any proxy, group=[{k}]")
                 continue
 
-            data = {"proxies": list(alive)}
+            data = {"proxies": nochecks}
             source_file = "config.yaml"
             filepath = os.path.join(PATH, "subconverter", source_file)
             with open(filepath, "w+", encoding="utf8") as f:

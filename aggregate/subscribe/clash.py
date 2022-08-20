@@ -239,7 +239,7 @@ def proxies_exists(proxy: dict, proxies: list) -> bool:
 
 
 def check(
-    alive: ListProxy,
+    availables: ListProxy,
     proxy: dict,
     api_url: str,
     semaphore: Semaphore,
@@ -276,7 +276,7 @@ def check(
         data = json.loads(response.read())
         if data.get("delay", -1) > 0 and data.get("delay", -1) <= delay:
             sub = proxy.pop("sub", "")
-            alive.append(proxy)
+            availables.append(proxy)
             if validates != None and sub:
                 validates[sub] = True
     except:

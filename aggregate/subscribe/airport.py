@@ -65,6 +65,7 @@ class AirPort:
         rename: str = "",
         exclude: str = "",
         include: str = "",
+        liveness: bool = True,
     ):
         if site.endswith("/"):
             site = site[: len(site) - 1]
@@ -92,6 +93,7 @@ class AirPort:
         self.rename = rename
         self.exclude = exclude
         self.include = include
+        self.liveness = liveness
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
             "Referer": self.ref,
@@ -518,6 +520,8 @@ class AirPort:
 
                 # 方便过滤无效订阅
                 item["sub"] = self.sub
+                item["liveness"] = self.liveness
+
                 proxies.append(item)
 
             return proxies
