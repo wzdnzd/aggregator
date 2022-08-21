@@ -462,22 +462,21 @@ class AirPort:
             proxies = []
             unused_nodes = self.fetch_unused(cookie, auth, rate)
             for item in nodes:
-                name = item.get("name").upper()
+                name = item.get("name")
                 if name in unused_nodes:
                     continue
 
                 try:
-                    if self.include and not re.search(self.include, name, flags=re.I):
+                    if self.include and not re.search(self.include, name, re.I):
                         continue
                     else:
-                        if self.exclude and re.search(self.exclude, name, flags=re.I):
+                        if self.exclude and re.search(self.exclude, name, re.I):
                             continue
                 except:
                     logger.error(
                         f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
                     )
 
-                name = re.sub(r"[\^\?\:\/]|\(.*\)|\[.*\]|\【.*\】", "", name)
                 try:
                     if self.rename:
                         if RENAME_SEPARATOR in self.rename:
@@ -485,20 +484,26 @@ class AirPort:
                             old = words[0].strip()
                             new = words[1].strip()
                             if old:
-                                name = re.sub(old, new, name, flags=re.I)
+                                name = re.sub(old, new, name, re.I)
                         else:
-                            name = re.sub(self.rename, "", name, flags=re.I)
+                            name = re.sub(self.rename, "", name, re.I)
 
                 except:
                     logger.error(
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
                     )
 
+                # name = re.sub(r"[\^\?\:\/,\%\?]|\(.*\)|\[.*\]|\【.*\】", "", name)
+                name = re.sub(
+                    r"\(.*\)|\[.*\]|\【.*\】|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
+                    " ",
+                    name,
+                )
                 name = re.sub("\s+", " ", name).replace("_", "-").strip()
                 if not name:
                     continue
 
-                item["name"] = name
+                item["name"] = name.upper()
 
                 # 方便标记已有节点，最多留999天
                 if "" != tag:
