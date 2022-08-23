@@ -9,12 +9,12 @@ import random
 import re
 import ssl
 import time
-import traceback
 import urllib
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Dict
+from http.client import HTTPMessage
+from typing import IO, Any, Dict
 
 import utils
 from logger import logger
@@ -89,8 +89,6 @@ class TemporaryMail(object):
             return messages[0]
         except:
             logger.error(f"cannot get any message from address: {account.address}")
-
-            traceback.print_exc()
             return None
 
     def delete_account(self, account: Account) -> bool:
@@ -382,6 +380,10 @@ class LinShiEmail(TemporaryMail):
             return []
 
         domians = re.findall('data-mailhost="@([a-zA-Z0-9\-_\.]+)"', content)
+        # 该邮箱域名无法接收邮箱，移除
+        if "idrrate.com" in domians:
+            domians.remove("idrrate.com")
+
         return domians
 
     def get_account(self, retry: int = 3) -> Account:
@@ -585,11 +587,117 @@ class MailTM(TemporaryMail):
             return False
 
 
+class MOAKT(TemporaryMail):
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def http_error_302(
+            self,
+            req: urllib.request.Request,
+            fp: IO[bytes],
+            code: int,
+            msg: str,
+            headers: HTTPMessage,
+        ) -> IO[bytes]:
+            return fp
+
+    def __init__(self) -> None:
+        self.api_address = "https://www.moakt.com/zh"
+        self.headers = {
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Origin": self.api_address,
+            "Referer": self.api_address,
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.81 Safari/537.36 Edg/104.0.1293.54",
+        }
+
+    def get_domains_list(self) -> list:
+        content = utils.http_get(url=self.api_address)
+        if not content:
+            return []
+
+        return re.findall(
+            '<option\s+value=".*">@([a-zA-Z0-9\.\-_]+)<\/option>', content
+        )
+
+    def _make_account_request(
+        self, username: str, domain: str, retry: int = 3
+    ) -> Account:
+        if retry <= 0:
+            return None
+
+        payload = {
+            "domain": domain,
+            "username": username,
+            "preferred_domain": domain,
+            "setemail": "创建",
+        }
+
+        data = bytes(json.dumps(payload), encoding="UTF8")
+        try:
+            # 禁止重定向
+            opener = urllib.request.build_opener(self.NoRedirect)
+            request = urllib.request.Request(
+                url=f"{self.api_address}/inbox",
+                data=data,
+                headers=self.headers,
+                method="POST",
+            )
+            response = opener.open(request, timeout=10)
+            if not response or response.getcode() not in [200, 302]:
+                return None
+
+            self.headers["Cookie"] = response.getheader("Set-Cookie")
+            return Account(address=f"{username}@{domain}")
+        except:
+            return self._make_account_request(
+                username=username, domain=domain, retry=retry - 1
+            )
+
+    def get_account(self, retry: int = 3) -> Account:
+        address = self.generate_address(bits=random.randint(6, 12))
+        if not address or retry <= 0:
+            return None
+
+        username, domain = address.split("@", maxsplit=1)
+        return self._make_account_request(username=username, domain=domain, retry=retry)
+
+    def get_messages(self, account: Account) -> list:
+        if not account:
+            return []
+
+        messages = []
+        content = utils.http_get(url=f"{self.api_address}/inbox", headers=self.headers)
+        if not content:
+            return messages
+
+        mails = re.findall('<a\s+href="/zh(/email/[a-z0-9\-]+)">', content)
+        if not mails:
+            return messages
+
+        for mail in mails:
+            url = f"{self.api_address}{mail}/content/"
+            content = utils.http_get(url=url, headers=self.headers)
+            if not content:
+                continue
+            messages.append(Message(text=content, html=content))
+        return messages
+
+    def delete_account(self, account: Account) -> bool:
+        if not account:
+            return False
+
+        utils.http_get(url=f"{self.api_address}/inbox/logout", headers=self.headers)
+        return True
+
+
 def create_instance() -> TemporaryMail:
-    num = random.randint(0, 2)
+    num = random.randint(0, 3)
     if num == 0:
         return SnapMail()
     elif num == 1:
         return LinShiEmail()
-    else:
+    elif num == 2:
         return MailTM()
+    else:
+        return MOAKT()
