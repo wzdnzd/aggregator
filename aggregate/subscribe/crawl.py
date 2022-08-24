@@ -49,10 +49,11 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     for r in results:
         for k, v in r.items():
             item = tasks.get(k, {})
-            item["origin"] = v.get("origin", item.get("origin", ""))
+            item["origin"] = v.pop("origin", item.get("origin", ""))
             pts = item.get("push_to", [])
-            pts.extend(v.get("push_to", []))
+            pts.extend(v.pop("push_to", []))
             item["push_to"] = list(set(pts))
+            item.update(v)
             tasks[k] = item
 
     return tasks
@@ -78,7 +79,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         telegram_spider = conf.get("telegram", {})
         if telegram_spider and telegram_spider.get("users", {}):
             users = telegram_spider.get("users")
-            pages = max(telegram_spider.get("pages", 7), 7)
+            pages = max(telegram_spider.get("pages", 1), 1)
             tasks.update(crawl_telegram(users=users, pages=pages))
 
         repositories = conf.get("repositories", {})
@@ -108,19 +109,26 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             for p in processes:
                 p.join()
 
-            time.sleep(random.randint(1, 3))
-            return list(availables)
+            datasets = list(availables)
+
+            subscribes = [x["sub"] for x in datasets]
+            logger.info(
+                f"crawl finished, found {len(subscribes)} subscribes: {subscribes}"
+            )
+
+            return datasets
     except:
         logger.error("crawl from web error")
         return []
 
 
-def generate_telegram_task(channel: str, params: dict, pages: int, limits: int):
-    include = params.get("include", "")
-    exclude = params.get("exclude", "").strip()
-    pts = params.get("push_to", [])
+def generate_telegram_task(channel: str, config: dict, pages: int, limits: int):
+    include = config.get("include", "")
+    exclude = config.get("exclude", "").strip()
+    pts = config.get("push_to", [])
+    params = config.get("config", {})
     if pages <= 1:
-        return [[f"https://t.me/s/{channel}", pts, include, exclude, limits]]
+        return [[f"https://t.me/s/{channel}", pts, include, exclude, limits, params]]
 
     count = get_telegram_pages(channel=channel)
     if count == 0:
@@ -129,13 +137,18 @@ def generate_telegram_task(channel: str, params: dict, pages: int, limits: int):
     arrays = range(count, -1, -100)
     pages = min(pages, len(arrays))
     return [
-        [f"https://t.me/s/{channel}?before={x}", pts, include, exclude, limits]
+        [f"https://t.me/s/{channel}?before={x}", pts, include, exclude, limits, params]
         for x in arrays[:pages]
     ]
 
 
 def crawl_telegram_page(
-    url: str, pts: list, include: str = "", exclude: str = "", limits: int = 25
+    url: str,
+    pts: list,
+    include: str = "",
+    exclude: str = "",
+    limits: int = 25,
+    config: dict = {},
 ) -> dict:
     if not url or not pts:
         return {}
@@ -152,6 +165,7 @@ def crawl_telegram_page(
         limits=limits,
         source=Origin.TELEGRAM.name,
         exclude=exclude,
+        config=config,
     )
 
 
@@ -326,7 +340,9 @@ def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict
     return subscribes
 
 
-def crawl_single_page(url: str, push_to: list = [], exclude: str = "") -> dict:
+def crawl_single_page(
+    url: str, push_to: list = [], exclude: str = "", config: dict = {}
+) -> dict:
     if not url or not push_to:
         logger.error(f"cannot crawl from page: {url}")
         return {}
@@ -336,7 +352,11 @@ def crawl_single_page(url: str, push_to: list = [], exclude: str = "") -> dict:
         return {}
 
     return extract_subscribes(
-        content=content, push_to=push_to, exclude=exclude, source=Origin.TEMPORARY.name
+        content=content,
+        push_to=push_to,
+        exclude=exclude,
+        source=Origin.TEMPORARY.name,
+        config=config,
     )
 
 
@@ -356,8 +376,9 @@ def crawl_pages(pages: dict):
 
         push_to = v.get("push_to", [])
         exclude = v.get("exclude", "").strip()
+        config = v.get("config", {})
 
-        params.append([k, push_to, exclude])
+        params.append([k, push_to, exclude, config])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -374,12 +395,13 @@ def extract_subscribes(
     exclude: str = "",
     limits: int = sys.maxsize,
     source: str = Origin.OWNED.name,
+    config: dict = {},
 ) -> dict:
     if not content:
         return {}
     try:
         limits, collections = max(1, limits), {}
-        regex = "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+        regex = "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
 
         if include:
             try:
@@ -397,10 +419,10 @@ def extract_subscribes(
         else:
             subscribes = re.findall(regex, content)
 
-        for s in subscribes:
+        for s in list(set(subscribes)):
             try:
                 if include and not re.match(
-                    "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
+                    "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+.*",
                     s,
                 ):
                     continue
@@ -417,7 +439,12 @@ def extract_subscribes(
 
             if "token=" in s:
                 s += "&flag=v2ray"
-            collections[s] = {"push_to": push_to, "origin": source}
+
+            params = {"push_to": push_to, "origin": source}
+            if config:
+                params.update(config)
+            collections[s] = params
+
             if len(collections) >= limits:
                 break
 
@@ -439,14 +466,8 @@ def validate_available(
             return
 
         if utils.http_get(url=url, retry=2) != "":
-            item = {
-                "name": naming_task(url),
-                "sub": url,
-                "push_to": params.get("push_to"),
-                "origin": params.get("origin"),
-                "debut": True,
-            }
-
+            item = {"name": naming_task(url), "sub": url, "debut": True}
+            item.update(params)
             availables.append(item)
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
@@ -488,7 +509,7 @@ def extract_airport_site(url: str) -> list:
         logger.error(f"[CrawlError] cannot any content from url: {url}")
         return []
     try:
-        regex = 'href="(https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?)"\s+target="_blank"\s+rel="noopener">'
+        regex = 'href="(https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/?)"\s+target="_blank"\s+rel="noopener">'
         groups = re.findall(regex, content)
         return list(set(groups)) if groups else []
     except:

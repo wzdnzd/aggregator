@@ -42,6 +42,7 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
         crawl_conf.update(spiders)
         telegram_conf = spiders.get("telegram", {})
         disable = telegram_conf.get("disable", False)
+        common_exclude = telegram_conf.get("exclude", "")
         users = telegram_conf.get("users", {})
         pages = max(telegram_conf.get("pages", 1), 1)
         if not disable and users:
@@ -50,10 +51,19 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
             telegram_conf["pages"] = max(telegram_conf.get("pages", 1), pages)
             for k, v in users.items():
                 include = v.get("include", "")
-                exclude = v.get("exclude", "")
+                exclude = v.get("exclude", "").strip()
+                exclude = (
+                    f"{exclude}|{common_exclude}".removeprefix("|")
+                    if common_exclude
+                    else exclude
+                )
                 pts = v.get("push_to", [])
-
                 user = enabled_users.get(k, {})
+
+                parse_conf = v.get("config", {})
+                parse_conf.update(user.get("config", {}))
+                user["config"] = parse_conf
+
                 user["include"] = "|".join(
                     [user.get("include", ""), include]
                 ).removeprefix("|")
@@ -132,6 +142,9 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
             exclude = page.get("exclude", "").strip()
 
             item = pages_conf.get(url, {})
+            parse_conf = page.get("config", {})
+            parse_conf.update(item.get("config", {}))
+            item["config"] = parse_conf
             item["exclude"] = "|".join([item.get("exclude", ""), exclude]).removeprefix(
                 "|"
             )
@@ -360,7 +373,7 @@ def aggregate(args: argparse.Namespace):
                 )
 
                 logger.info(
-                    f"clash start success, begin check proxies, num: {len(checks)}"
+                    f"clash start success, begin check proxies, count: {len(checks)}"
                 )
 
                 processes = []
@@ -392,6 +405,8 @@ def aggregate(args: argparse.Namespace):
             if len(nochecks) <= 0:
                 logger.error(f"cannot fetch any proxy, group=[{k}]")
                 continue
+
+            logger.info(f"proxies check finished, count: {len(nochecks)}\tgroup: {k}")
 
             data = {"proxies": nochecks}
             source_file = "config.yaml"
