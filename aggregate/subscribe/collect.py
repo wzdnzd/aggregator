@@ -45,8 +45,8 @@ def assign(
                 domains.append(line)
 
     if not domains or overwrite:
-        # channel_id 和 group_name 自行探索
-        urls = crawl.collect_airport(channel_id=0, group_name="", page_num=pages)
+        # 参数 "channel" 请自行探索
+        urls = crawl.collect_airport(channel="", page_num=pages)
         domains.extend(urls)
         overwrite = True
 

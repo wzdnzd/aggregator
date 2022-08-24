@@ -43,11 +43,11 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
         telegram_conf = spiders.get("telegram", {})
         disable = telegram_conf.get("disable", False)
         users = telegram_conf.get("users", {})
-        period = max(telegram_conf.get("period", 7), 7)
+        pages = max(telegram_conf.get("pages", 1), 1)
         if not disable and users:
             telegram_conf = params.get("telegram", {})
             enabled_users = telegram_conf.get("users", {})
-            telegram_conf["period"] = max(telegram_conf.get("period", 7), period)
+            telegram_conf["pages"] = max(telegram_conf.get("pages", 1), pages)
             for k, v in users.items():
                 include = v.get("include", "")
                 exclude = v.get("exclude", "")

@@ -26,13 +26,13 @@ from origin import Origin
 SEPARATOR = "-"
 
 
-def multi_thread_crawl(fun: typing.Callable, params: list) -> dict:
+def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     try:
         from collections.abc import Iterable
     except ImportError:
         from collections import Iterable
 
-    if not fun or not params:
+    if not func or not params:
         return {}
 
     cpu_count = multiprocessing.cpu_count()
@@ -40,9 +40,9 @@ def multi_thread_crawl(fun: typing.Callable, params: list) -> dict:
 
     pool = multiprocessing.Pool(num)
     if isinstance(params, Iterable):
-        results = pool.starmap(fun, params)
+        results = pool.starmap(func, params)
     else:
-        results = pool.map(fun, params)
+        results = pool.map(func, params)
     pool.close()
 
     tasks = {}
@@ -78,8 +78,8 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         telegram_spider = conf.get("telegram", {})
         if telegram_spider and telegram_spider.get("users", {}):
             users = telegram_spider.get("users")
-            period = max(telegram_spider.get("period", 7), 7)
-            tasks.update(crawl_telegram(users=users, period=period))
+            pages = max(telegram_spider.get("pages", 7), 7)
+            tasks.update(crawl_telegram(users=users, pages=pages))
 
         repositories = conf.get("repositories", {})
         if repositories:
@@ -115,25 +115,39 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         return []
 
 
-def crawl_single_telegram(
-    userid: str,
-    period: int,
-    push_to: list = [],
-    include: str = "",
-    exclude: str = "",
-    limits: int = 20,
+def generate_telegram_task(channel: str, params: dict, pages: int, limits: int):
+    include = params.get("include", "")
+    exclude = params.get("exclude", "").strip()
+    pts = params.get("push_to", [])
+    if pages <= 1:
+        return [[f"https://t.me/s/{channel}", pts, include, exclude, limits]]
+
+    count = get_telegram_pages(channel=channel)
+    if count == 0:
+        return []
+
+    arrays = range(count, -1, -100)
+    pages = min(pages, len(arrays))
+    return [
+        [f"https://t.me/s/{channel}?before={x}", pts, include, exclude, limits]
+        for x in arrays[:pages]
+    ]
+
+
+def crawl_telegram_page(
+    url: str, pts: list, include: str = "", exclude: str = "", limits: int = 25
 ) -> dict:
-    if not userid:
+    if not url or not pts:
         return {}
 
-    now = time.time() - 3600 * 8
-    crawl_time = datetime.fromtimestamp(now).strftime("%Y-%m-%dT%H:%M:%SZ")
-    url = f"https://telemetr.io/post-list-ajax/{userid}/with-date-panel?period={period}&date={crawl_time}"
-
+    limits = max(1, limits)
     content = utils.http_get(url=url)
+    if not content:
+        return {}
+
     return extract_subscribes(
         content=content,
-        push_to=push_to,
+        push_to=pts,
         include=include,
         limits=limits,
         source=Origin.TELEGRAM.name,
@@ -141,22 +155,24 @@ def crawl_single_telegram(
     )
 
 
-def crawl_telegram(users: dict, period: int, limits: int = 20) -> dict:
+def crawl_telegram(users: dict, pages: int = 1, limits: int = 25) -> dict:
     if not users:
         return {}
 
-    period = max(period, 7)
-    limits = max(1, limits)
-    params = []
-    for k, v in users.items():
-        include = v.get("include", "")
-        exclude = v.get("exclude", "").strip()
-        pts = v.get("push_to", [])
-        params.append([k, period, pts, include, exclude, limits])
-
+    pages, limits = max(pages, 1), max(1, limits)
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"[TelegramCrawl] start crawl from Telegram, time: {starttime}")
-    subscribes = multi_thread_crawl(fun=crawl_single_telegram, params=params)
+
+    params = [[k, v, pages, limits] for k, v in users.items()]
+    cpu_count = multiprocessing.cpu_count()
+    num = len(params) if len(params) <= cpu_count else cpu_count
+
+    pool = multiprocessing.Pool(num)
+    results = pool.starmap(generate_telegram_task, params)
+    pool.close()
+
+    tasks = list(itertools.chain.from_iterable(results))
+    subscribes = multi_thread_crawl(func=crawl_telegram_page, params=tasks)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(
         f"[TelegramCrawl] finished crawl from Telegram, time: {endtime}, subscribes: {list(subscribes.keys())}"
@@ -225,7 +241,7 @@ def crawl_github_repo(repos: dict):
             continue
         params.append([username, repo_name, push_to, limits, exclude])
 
-    subscribes = multi_thread_crawl(fun=crawl_single_repo, params=params)
+    subscribes = multi_thread_crawl(func=crawl_single_repo, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(
         f"[RepoCrawl] finished crawl from Repositorie, time: {endtime}, subscribes: {list(subscribes.keys())}"
@@ -301,12 +317,53 @@ def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict
     params = [[x, cookie, push_to, exclude] for x in pages]
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"[GithubCrawl] start crawl from Github, time: {starttime}")
-    subscribes = multi_thread_crawl(fun=crawl_github_page, params=params)
+    subscribes = multi_thread_crawl(func=crawl_github_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(
         f"[GithubCrawl] finished crawl from Github, time: {endtime}, subscribes: {list(subscribes.keys())}"
     )
 
+    return subscribes
+
+
+def crawl_single_page(url: str, push_to: list = [], exclude: str = "") -> dict:
+    if not url or not push_to:
+        logger.error(f"cannot crawl from page: {url}")
+        return {}
+
+    content = utils.http_get(url=url)
+    if content == "":
+        return {}
+
+    return extract_subscribes(
+        content=content, push_to=push_to, exclude=exclude, source=Origin.TEMPORARY.name
+    )
+
+
+def crawl_pages(pages: dict):
+    if not pages:
+        return {}
+
+    params = []
+    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"[PageCrawl] start crawl from Page, time: {starttime}")
+    for k, v in pages.items():
+        if not re.match(
+            "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
+            k,
+        ):
+            continue
+
+        push_to = v.get("push_to", [])
+        exclude = v.get("exclude", "").strip()
+
+        params.append([k, push_to, exclude])
+
+    subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
+    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(
+        f"[PageCrawl] finished crawl from Page, time: {endtime}, subscribes: {list(subscribes.keys())}"
+    )
     return subscribes
 
 
@@ -322,7 +379,7 @@ def extract_subscribes(
         return {}
     try:
         limits, collections = max(1, limits), {}
-        regex = "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu)=\d))"
+        regex = "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
 
         if include:
             try:
@@ -403,7 +460,24 @@ def naming_task(url):
     )
 
 
-def collect_airport_page(url: str) -> list:
+def get_telegram_pages(channel: str) -> int:
+    if not channel or channel.strip() == "":
+        return 0
+
+    url = f"https://t.me/s/{channel}"
+    content = utils.http_get(url=url)
+    before = 0
+    try:
+        regex = f'<link\s+rel="canonical"\s+href="/s/{channel}\?before=(\d+)">'
+        groups = re.findall(regex, content)
+        before = int(groups[0]) if groups else before
+    except:
+        logger.error(f"[CrawlError] cannot count page num, chanel: {channel}")
+
+    return before
+
+
+def extract_airport_site(url: str) -> list:
     if not url:
         return []
 
@@ -413,60 +487,51 @@ def collect_airport_page(url: str) -> list:
     if not content:
         logger.error(f"[CrawlError] cannot any content from url: {url}")
         return []
-
     try:
-        regex = '官网:.*"link\s+to\s+url"\>(https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+)\</a\>'
+        regex = 'href="(https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?)"\s+target="_blank"\s+rel="noopener">'
         groups = re.findall(regex, content)
         return list(set(groups)) if groups else []
     except:
         return []
 
 
-def collect_airport(
-    channel_id: int, group_name: str, page_num: int, thread_num: int = 50
-) -> list:
-    def get_pages(channel: str) -> int:
-        if not channel or channel.strip() == "":
-            return 0
-
-        url = f"https://telemetr.io/en/channels/{channel}/posts"
-        content = utils.http_get(url=url)
-        before = 0
-        try:
-            regex = f"https://telemetr.io/en/channels/{channel}/posts\?before=(\d+)"
-            groups = re.findall(regex, content)
-            before = int(groups[0]) + 100 if groups else before
-        except:
-            logger.error(f"[CrawlError] cannot count page num, chanel: {channel}")
-
-        return before
-
-    if not channel_id or not group_name:
+def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
+    """crawl from telegram channel"""
+    if not channel or not fun or not isinstance(fun, typing.Callable):
         return []
 
     logger.info(
-        f"[AirPortCollector] starting collect air port from telegram, pages: {page_num}"
+        f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}"
     )
-    count = get_pages(channel=f"{channel_id}-{group_name}")
-    if count == 0:
-        return []
 
-    pages = range(count, -1, -100)
-    page_num = min(max(page_num, 1), len(pages))
+    page_num = max(page_num, 1)
+    url = f"https://t.me/s/{channel}"
+    if page_num == 1:
+        return list(fun(url))
+    else:
+        count = get_telegram_pages(channel=channel)
+        if count == 0:
+            return []
 
-    urls = [
-        f"https://telemetr.io/post-list-ajax/{channel_id}?sort=-date&postType=all&period=365&before={x}"
-        for x in pages[:page_num]
-    ]
+        pages = range(count, -1, -100)
+        page_num = min(page_num, len(pages))
+        urls = [f"{url}?before={x}" for x in pages[:page_num]]
 
-    cpu_count = multiprocessing.cpu_count()
-    num = len(urls) if len(urls) <= cpu_count else cpu_count
+        cpu_count = multiprocessing.cpu_count()
+        num = len(urls) if len(urls) <= cpu_count else cpu_count
 
-    pool = multiprocessing.Pool(num)
-    results = pool.map(collect_airport_page, urls)
-    pool.close()
+        pool = multiprocessing.Pool(num)
+        results = pool.map(fun, urls)
+        pool.close()
 
-    domains = list(set(itertools.chain.from_iterable(results)))
+        return list(itertools.chain.from_iterable(results))
+
+
+def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
+    domains = crawl_channel(
+        channel=channel, page_num=page_num, fun=extract_airport_site
+    )
+
     if not domains:
         return []
 
@@ -474,7 +539,7 @@ def collect_airport(
         availables = manager.list()
         processes = []
         semaphore = multiprocessing.Semaphore(thread_num)
-        for domain in domains:
+        for domain in list(set(domains)):
             semaphore.acquire()
             p = multiprocessing.Process(
                 target=validate_domain, args=(domain, availables, semaphore)
@@ -486,7 +551,7 @@ def collect_airport(
 
         domains = list(availables)
         logger.info(
-            f"[AirPortCollector] finished collect air port from telegram group: {group_name}, availables: {len(domain)}"
+            f"[AirPortCollector] finished collect air port from telegram channel: {channel}, availables: {len(domain)}"
         )
         return domains
 
@@ -506,44 +571,3 @@ def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> No
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
             semaphore.release()
-
-
-def crawl_single_page(url: str, push_to: list = [], exclude: str = "") -> dict:
-    if not url or not push_to:
-        logger.error(f"cannot crawl from page: {url}")
-        return {}
-
-    content = utils.http_get(url=url)
-    if content == "":
-        return {}
-
-    return extract_subscribes(
-        content=content, push_to=push_to, exclude=exclude, source=Origin.TEMPORARY.name
-    )
-
-
-def crawl_pages(pages: dict):
-    if not pages:
-        return {}
-
-    params = []
-    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[PageCrawl] start crawl from Page, time: {starttime}")
-    for k, v in pages.items():
-        if not re.match(
-            "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
-            k,
-        ):
-            continue
-
-        push_to = v.get("push_to", [])
-        exclude = v.get("exclude", "").strip()
-
-        params.append([k, push_to, exclude])
-
-    subscribes = multi_thread_crawl(fun=crawl_single_page, params=params)
-    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(
-        f"[PageCrawl] finished crawl from Page, time: {endtime}, subscribes: {list(subscribes.keys())}"
-    )
-    return subscribes
