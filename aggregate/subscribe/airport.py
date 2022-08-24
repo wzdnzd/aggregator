@@ -472,6 +472,13 @@ class AirPort:
                     else:
                         if self.exclude and re.search(self.exclude, name, re.I):
                             continue
+
+                    # 过滤名字带网址的节点
+                    if re.search(
+                        "([a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}",
+                        name,
+                    ):
+                        continue
                 except:
                     logger.error(
                         f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
@@ -495,7 +502,7 @@ class AirPort:
 
                 # name = re.sub(r"[\^\?\:\/,\%\?]|\(.*\)|\[.*\]|\【.*\】", "", name)
                 name = re.sub(
-                    r"\(.*\)|\[.*\]|\【.*\】|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
+                    r"\(.*\)|\[.*\]|【.*】|{.*}|「.*」|<.*>|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
                     " ",
                     name,
                 )
