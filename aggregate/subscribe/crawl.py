@@ -166,6 +166,7 @@ def crawl_telegram_page(
         source=Origin.TELEGRAM.name,
         exclude=exclude,
         config=config,
+        reversed=True,
     )
 
 
@@ -396,6 +397,7 @@ def extract_subscribes(
     limits: int = sys.maxsize,
     source: str = Origin.OWNED.name,
     config: dict = {},
+    reversed: bool = False,
 ) -> dict:
     if not content:
         return {}
@@ -419,7 +421,13 @@ def extract_subscribes(
         else:
             subscribes = re.findall(regex, content)
 
-        for s in list(set(subscribes)):
+        # 去重会打乱原本按日期排序的特性一致无法优先选择离当前时间较近的元素
+        # subscribes = list(set(subscribes))
+
+        if reversed:
+            subscribes.reverse()
+
+        for s in subscribes:
             try:
                 if include and not re.match(
                     "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+.*",

@@ -98,7 +98,9 @@ class TemporaryMail(object):
         if not text or not regex:
             return ""
         try:
-            return "".join(re.findall(regex, text))
+            # return "".join(re.findall(regex, text))
+            masks = re.findall(regex, text)
+            return masks[0] if masks else ""
         except:
             logger.error(f"[MaskExtractError] regex exists problems, regex: {regex}")
             return ""

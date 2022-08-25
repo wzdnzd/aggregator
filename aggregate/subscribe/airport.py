@@ -183,8 +183,10 @@ class AirPort:
 
             cookies = utils.extract_cookie(response.getheader("Set-Cookie"))
             data = json.loads(response.read()).get("data", {})
-            token = data.get("token", "")
-            authorization = data.get("auth_data", "")
+            token, authorization = "", ""
+            if isinstance(data, dict):
+                token = data.get("token", "")
+                authorization = data.get("auth_data", "")
 
             # 先判断是否存在免费套餐，如果存在则购买
             self.order_plan(
@@ -338,7 +340,14 @@ class AirPort:
                     logger.error(f"cannot receive any message, site: {self.ref}")
                     return "", ""
 
-                mask = mailbox.extract_mask(message.text)
+                # 如果标准正则无法提取验证码则直接匹配数字
+                with open("content.html", "w+", encoding="UTF8") as f:
+                    f.write(message.text)
+                    f.flush()
+
+                mask = mailbox.extract_mask(message.text) or mailbox.extract_mask(
+                    message.text, "\s+([0-9]{6})"
+                )
                 mailbox.delete_account(account=account)
                 if not mask:
                     logger.error(f"cannot fetch mask, url: {self.ref}")
@@ -500,9 +509,9 @@ class AirPort:
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
                     )
 
-                # name = re.sub(r"[\^\?\:\/,\%\?]|\(.*\)|\[.*\]|\【.*\】", "", name)
+                # name = re.sub(r"\[[^\[]*\]|\([^\(]*\)|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」", "", name)
                 name = re.sub(
-                    r"\(.*\)|\[.*\]|【.*】|{.*}|「.*」|<.*>|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
+                    r"\[[^\[]*\]|\([^\(]*\)|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
                     " ",
                     name,
                 )
