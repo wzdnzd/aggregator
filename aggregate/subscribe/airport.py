@@ -8,8 +8,8 @@ import json
 import os
 import random
 import re
-import ssl
 import time
+import traceback
 import urllib
 import urllib.parse
 import urllib.request
@@ -36,10 +36,6 @@ EMAILS_DOMAINS = [
 ]
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-
-CTX = ssl.create_default_context()
-CTX.check_hostname = False
-CTX.verify_mode = ssl.CERT_NONE
 
 # 判断是否为base64编码
 BASE64_PATTERN = re.compile(
@@ -145,7 +141,7 @@ class AirPort:
             request = urllib.request.Request(
                 self.send_email, data=data, headers=headers, method="POST"
             )
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if not response or response.getcode() != 200:
                 return False
 
@@ -177,7 +173,7 @@ class AirPort:
             request = urllib.request.Request(
                 self.reg, data=data, headers=headers, method="POST"
             )
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if not response or response.getcode() != 200:
                 return "", ""
 
@@ -271,7 +267,7 @@ class AirPort:
         try:
             proxies = []
             request = urllib.request.Request(self.fetch, headers=self.headers)
-            response = urllib.request.urlopen(request, timeout=5, context=CTX)
+            response = urllib.request.urlopen(request, timeout=5, context=utils.CTX)
             if response.getcode() != 200:
                 return proxies
 
@@ -393,7 +389,7 @@ class AirPort:
             # while count <= retry:
             #     try:
             #         request = urllib.request.Request(url=self.sub, headers=self.headers)
-            #         response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            #         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             #         text = str(response.read(), encoding="utf8")
 
             #         # 读取附件内容
@@ -460,13 +456,28 @@ class AirPort:
                     return []
 
                 with open(clash_file, "r", encoding="utf8") as reader:
-                    config = yaml.load(reader, Loader=yaml.SafeLoader)
+                    try:
+                        config = yaml.load(reader, Loader=yaml.SafeLoader)
+                    except yaml.constructor.ConstructorError:
+                        reader.seek(0, 0)
+                        yaml.add_multi_constructor(
+                            "str",
+                            lambda loader, suffix, node: None,
+                            Loader=yaml.SafeLoader,
+                        )
+                        config = yaml.load(reader, Loader=yaml.SafeLoader)
                     nodes = config.get("proxies", [])
 
                 # 已经读取，可以删除
                 os.remove(clash_file)
             else:
-                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
+                try:
+                    nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
+                except yaml.constructor.ConstructorError:
+                    yaml.add_multi_constructor(
+                        "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
+                    )
+                    nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
 
             proxies = []
             unused_nodes = self.fetch_unused(cookie, auth, rate)
@@ -547,6 +558,7 @@ class AirPort:
 
             return proxies
         except:
+            traceback.print_exc()
             logger.error(
                 f"[ParseError] occur error when parse data, domain: {self.ref}"
             )

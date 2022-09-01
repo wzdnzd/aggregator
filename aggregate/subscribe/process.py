@@ -40,6 +40,13 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
 
         spiders = config.get("spiders", {})
         crawl_conf.update(spiders)
+
+        # global exclude
+        exclude = spiders.get("exclude", "")
+        params["exclude"] = "|".join([params.get("exclude", ""), exclude]).removeprefix(
+            "|"
+        )
+
         telegram_conf = spiders.get("telegram", {})
         disable = telegram_conf.get("disable", False)
         common_exclude = telegram_conf.get("exclude", "")
@@ -81,17 +88,21 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
         google_conf = spiders.get("google", {})
         disable = google_conf.get("disable", False)
         push_to = list(set(google_conf.get("push_to", [])))
+        exclude = google_conf.get("exclude", "")
         if not disable and push_to:
-            pts = params.get("google", [])
+            item = params.get("google", {})
+            pts = item.get("push_to", [])
             pts.extend(push_to)
-            params["google"] = list(set(pts))
+            exclude = "|".join([item.get("exclude", ""), exclude]).removeprefix("|")
+            item["push_to"] = list(set(pts))
+            item["exclude"] = exclude
+            params["google"] = item
 
         github_conf = spiders.get("github", {})
         disable = github_conf.get("disable", False)
         push_to = list(set(github_conf.get("push_to", [])))
         pages = github_conf.get("pages", 3)
         exclude = github_conf.get("exclude", "")
-
         if not disable and push_to:
             github_conf = params.get("github", {})
             github_conf["pages"] = max(pages, github_conf.get("pages", 3))

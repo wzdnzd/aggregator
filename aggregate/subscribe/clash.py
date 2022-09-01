@@ -9,7 +9,6 @@ import json
 # import multiprocessing
 import os
 import platform
-import ssl
 import string
 import sys
 import urllib
@@ -17,13 +16,11 @@ import urllib.parse
 import urllib.request
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
-from logger import logger
 
 import yaml
 
-CTX = ssl.create_default_context()
-CTX.check_hostname = False
-CTX.verify_mode = ssl.CERT_NONE
+import utils
+from logger import logger
 
 EXTERNAL_CONTROLLER = "127.0.0.1:9090"
 
@@ -119,6 +116,7 @@ def filter_proxies(proxies: list) -> dict:
     sorted(proxies, key=lambda p: p.get("name", ""))
     for item in proxies:
         try:
+            authentication = "password"
             item["port"] = int(item["port"])
             if item["type"] == "ss":
                 if item["cipher"] not in ss_supported_ciphers:
@@ -131,6 +129,7 @@ def filter_proxies(proxies: list) -> dict:
                 if item["protocol"] not in ssr_supported_protocol:
                     continue
             elif item["type"] == "vmess":
+                authentication = "uuid"
                 if "udp" in item and item["udp"] not in [False, True]:
                     continue
                 if "tls" in item and item["tls"] not in [False, True]:
@@ -151,6 +150,7 @@ def filter_proxies(proxies: list) -> dict:
                 ]:
                     continue
             elif item["type"] == "snell":
+                authentication = "psk"
                 if "udp" in item and item["udp"] not in [False, True]:
                     continue
                 if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
@@ -159,9 +159,11 @@ def filter_proxies(proxies: list) -> dict:
                 ]:
                     continue
             elif item["type"] == "http":
+                authentication = "userpass"
                 if "tls" in item and item["tls"] not in [False, True]:
                     continue
             elif item["type"] == "socks5":
+                authentication = "userpass"
                 if "tls" in item and item["tls"] not in [False, True]:
                     continue
                 if "udp" in item and item["udp"] not in [False, True]:
@@ -174,7 +176,7 @@ def filter_proxies(proxies: list) -> dict:
             else:
                 continue
 
-            if proxies_exists(item, config["proxies"]):
+            if not item[authentication] or proxies_exists(item, config["proxies"]):
                 continue
 
             config["proxies"].append(item)
@@ -255,7 +257,7 @@ def check(
 
     try:
         request = urllib.request.Request(url=base_url + test_url)
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         data = json.loads(response.read())
         if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
             return
@@ -264,7 +266,7 @@ def check(
             url=base_url
             + "https://www.youtube.com/s/player/23010b46/player_ias.vflset/en_US/remote.js"
         )
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         data = json.loads(response.read())
         if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
             return
@@ -272,7 +274,7 @@ def check(
         request = urllib.request.Request(
             url=base_url + "https://cachefly.cachefly.net/10mb.test"
         )
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         data = json.loads(response.read())
         if data.get("delay", -1) > 0 and data.get("delay", -1) <= delay:
             sub = proxy.pop("sub", "")

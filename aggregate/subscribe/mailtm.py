@@ -14,14 +14,10 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from http.client import HTTPMessage
-from typing import IO, Any, Dict
+from typing import IO, Dict
 
 import utils
 from logger import logger
-
-CTX = ssl.create_default_context()
-CTX.check_hostname = False
-CTX.verify_mode = ssl.CERT_NONE
 
 
 @dataclass
@@ -139,7 +135,9 @@ class RootSh(TemporaryMail):
                 request = urllib.request.Request(
                     url=self.api_address, headers=self.headers
                 )
-                response = urllib.request.urlopen(request, timeout=10, context=CTX)
+                response = urllib.request.urlopen(
+                    request, timeout=10, context=utils.CTX
+                )
                 content = response.read()
                 self.headers["Cookie"] = response.getheader("Set-Cookie")
                 try:
@@ -178,7 +176,7 @@ class RootSh(TemporaryMail):
                 url, data=data, headers=self.headers, method="POST"
             )
 
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if response.getcode() == 200:
                 success = json.loads(response.read()).get("success", "false")
                 if success == "true":
@@ -214,7 +212,7 @@ class RootSh(TemporaryMail):
                 url, data=data, headers=self.headers, method="POST"
             )
 
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if response.getcode() == 200:
                 data = json.loads(response.read())
                 success = data.get("success", "false")
@@ -267,7 +265,7 @@ class RootSh(TemporaryMail):
                 url, data=data, headers=self.headers, method="POST"
             )
 
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if response.getcode() == 200:
                 success = json.loads(response.read()).get("success", "false")
                 return success == "true"
@@ -357,7 +355,7 @@ class SnapMail(TemporaryMail):
 
         # try:
         #     request = urllib.request.Request(url=url, headers=headers, method="DELETE")
-        #     response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        #     response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         #     status_code = response.getcode()
         #     return status_code == 204
         # except Exception:
@@ -475,7 +473,7 @@ class MailTM(TemporaryMail):
                 headers=headers,
                 method="POST",
             )
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if not response or response.getcode() not in [200, 201]:
                 return {}
 
@@ -579,7 +577,7 @@ class MailTM(TemporaryMail):
                 headers=self.auth_headers,
                 method="DELETE",
             )
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             status_code = response.getcode()
             return status_code == 204
         except Exception:
@@ -694,12 +692,20 @@ class MOAKT(TemporaryMail):
 
 
 def create_instance() -> TemporaryMail:
-    num = random.randint(0, 3)
+    # num = random.randint(0, 3)
+    # if num == 0:
+    #     return SnapMail()
+    # elif num == 1:
+    #     return LinShiEmail()
+    # elif num == 2:
+    #     return MailTM()
+    # else:
+    #     return MOAKT()
+
+    num = random.randint(0, 2)
     if num == 0:
         return SnapMail()
     elif num == 1:
-        return LinShiEmail()
-    elif num == 2:
         return MailTM()
     else:
         return MOAKT()

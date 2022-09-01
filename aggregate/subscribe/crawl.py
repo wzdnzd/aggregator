@@ -14,12 +14,15 @@ import string
 import sys
 import time
 import typing
+import urllib
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Semaphore
 
 import utils
-from airport import AirPort
+import airport
 from logger import logger
 from origin import Origin
 
@@ -65,9 +68,11 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
     try:
         tasks = {}
-        google_spider = conf.get("google", [])
+        google_spider = conf.get("google", {})
         if google_spider:
-            tasks.update(crawl_google(qdr=7, push_to=google_spider))
+            push_to = google_spider.get("push_to", [])
+            exclude = google_spider.get("exclude", "")
+            tasks.update(crawl_google(qdr=7, push_to=google_spider, exclude=exclude))
 
         github_spider = conf.get("github", {})
         if github_spider and github_spider.get("push_to", []):
@@ -94,6 +99,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             logger.error("cannot found any subscribe url from crawler")
             return []
 
+        exclude = conf.get("exclude", "")
         with multiprocessing.Manager() as manager:
             availables = manager.list()
             processes = []
@@ -102,7 +108,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             for k, v in tasks.items():
                 semaphore.acquire()
                 p = multiprocessing.Process(
-                    target=validate_available, args=(k, v, availables, semaphore)
+                    target=validate, args=(k, v, availables, semaphore, exclude)
                 )
                 p.start()
                 processes.append(p)
@@ -170,7 +176,7 @@ def crawl_telegram_page(
     )
 
 
-def crawl_telegram(users: dict, pages: int = 1, limits: int = 25) -> dict:
+def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
     if not users:
         return {}
 
@@ -265,7 +271,11 @@ def crawl_github_repo(repos: dict):
 
 
 def crawl_google(
-    qdr: int = 10, push_to: list = [], limits: int = 100, interval: int = 0
+    qdr: int = 10,
+    push_to: list = [],
+    exclude: str = "",
+    limits: int = 100,
+    interval: int = 0,
 ) -> dict:
     url = f"https://www.google.com/search?tbs=qdr:d{max(qdr, 1)}"
     num, limits = 100, max(1, limits)
@@ -287,8 +297,12 @@ def crawl_google(
             s = re.sub('<em(?:\s+)?class="qkunPe">|</em>|\s+', "", s).replace(
                 "http://", "https://", 1
             )
-            s += "&flag=v2ray"
-            collections[s] = {"push_to": push_to, "origin": Origin.GOOGLE.name}
+            try:
+                if exclude and re.search(exclude, s):
+                    continue
+                collections[s] = {"push_to": push_to, "origin": Origin.GOOGLE.name}
+            except:
+                continue
 
         time.sleep(interval)
 
@@ -444,10 +458,6 @@ def extract_subscribes(
 
             # 强制使用https协议
             s = s.replace("http://", "https://", 1).strip()
-
-            if "token=" in s:
-                s += "&flag=v2ray"
-
             params = {"push_to": push_to, "origin": source}
             if config:
                 params.update(config)
@@ -462,24 +472,96 @@ def extract_subscribes(
         return {}
 
 
-def validate_available(
-    url: str, params: dict, availables: ListProxy, semaphore: Semaphore
+def validate(
+    url: str,
+    params: dict,
+    availables: ListProxy,
+    semaphore: Semaphore,
+    exclude: str = "",
 ) -> None:
     try:
         if (
             not params
             or not params.get("push_to", None)
             or not params.get("origin", "")
+            or (exclude and re.search(exclude, url))
         ):
             return
 
-        if utils.http_get(url=url, retry=2) != "":
+        if is_available(url=url, retry=2, remain=5, spare_time=12):
+            if "token=" in url:
+                url += "&flag=v2ray"
+
             item = {"name": naming_task(url), "sub": url, "debut": True}
             item.update(params)
             availables.append(item)
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
             semaphore.release()
+
+
+def is_available(
+    url: str, retry: int = 2, remain: int = 0, spare_time: int = 0
+) -> bool:
+    """
+    url: subscription link
+    retry: number of retries
+    remain: minimum remaining traffic flow
+    spare_time: minimum remaining time
+    """
+    if not url or retry <= 0:
+        return False
+
+    remain, spare_time = max(0, remain), max(spare_time, 0)
+    try:
+        headers = {"User-Agent": "ClashforWindows"}
+        request = urllib.request.Request(url=url, headers=headers)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+        if response.getcode() != 200:
+            return False
+
+        # 根据订阅信息判断是否有效
+        try:
+            subscription = response.getheader("subscription-userinfo")
+            if subscription:
+                infos = subscription.split(";")
+                upload, download, total, expire = 0, 0, 0, None
+                for info in infos:
+                    words = info.split("=", maxsplit=1)
+                    if len(words) <= 1:
+                        continue
+
+                    if "upload" == words[0].strip():
+                        upload = eval(words[1])
+                    elif "download" == words[0].strip():
+                        download = eval(words[1])
+                    elif "total" == words[0].strip():
+                        total = eval(words[1])
+                    elif "expire" == words[0].strip():
+                        expire = eval(words[1])
+
+                # 剩余流量大于 ${remain} GB 并且未过期则返回 True，否则返回 False
+                return total - (upload + download) > remain * pow(1024, 3) and (
+                    expire is None or expire - time.time() > spare_time * 3600
+                )
+        except:
+            pass
+
+        content = str(response.read(), encoding="utf8")
+        if airport.BASE64_PATTERN.match(content):
+            return True
+        return re.search("proxies:", content) is not None
+    except urllib.error.HTTPError as e:
+        message = str(e.read(), encoding="utf8")
+        if e.code == 503 and "token" not in message:
+            return is_available(
+                url=url, retry=retry - 1, remain=remain, spare_time=spare_time
+            )
+        return False
+    except Exception as e:
+        return is_available(
+            url=url, retry=retry - 1, remain=remain, spare_time=spare_time
+        )
 
 
 def naming_task(url):
@@ -590,9 +672,12 @@ def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> No
         if not url:
             return
 
-        need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
-            domain=url
-        )
+        (
+            need_verify,
+            invite_force,
+            recaptcha,
+            whitelist,
+        ) = airport.AirPort.get_register_require(domain=url)
         if invite_force or recaptcha or (whitelist and need_verify):
             return
 

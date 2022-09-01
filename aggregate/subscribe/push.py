@@ -5,17 +5,13 @@
 
 import json
 import os
-import ssl
 import traceback
 import urllib
 import urllib.parse
 import urllib.request
 
+import utils
 from logger import logger
-
-CTX = ssl.create_default_context()
-CTX.check_hostname = False
-CTX.verify_mode = ssl.CERT_NONE
 
 
 def push_file(filepath: str, push_conf: dict, group: str = "", retry: int = 5) -> bool:
@@ -44,7 +40,7 @@ def push_to(content: str, push_conf: dict, group: str = "", retry: int = 5) -> b
         request = urllib.request.Request(
             url, data=data, headers=headers, method="PATCH"
         )
-        response = urllib.request.urlopen(request, timeout=15, context=CTX)
+        response = urllib.request.urlopen(request, timeout=15, context=utils.CTX)
         if response.getcode() == 204:
             logger.info(
                 f"[PushSuccess] push subscribes information to remote successed, group=[{group}]"

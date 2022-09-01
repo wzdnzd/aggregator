@@ -8,7 +8,6 @@ import json
 import os
 import random
 import re
-import ssl
 import time
 import traceback
 import urllib
@@ -30,10 +29,6 @@ HEADER = {
     "content-language": "zh-CN",
     "content-type": "application/x-www-form-urlencoded",
 }
-
-CTX = ssl.create_default_context()
-CTX.check_hostname = False
-CTX.verify_mode = ssl.CERT_NONE
 
 PATH = os.path.abspath(os.path.dirname(__file__))
 
@@ -117,7 +112,7 @@ def login(url: str, params: dict, headers: dict, retry: int = 3) -> tuple[str, s
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         cookies, authorization = "", ""
         if response.getcode() == 200:
             cookies = response.getheader("Set-Cookie")
@@ -147,7 +142,7 @@ def order(url: str, params: dict, headers: dict, retry: int = 3) -> str:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         trade_no = None
         if response.getcode() == 200:
             result = json.loads(response.read().decode("UTF8"))
@@ -170,7 +165,7 @@ def order(url: str, params: dict, headers: dict, retry: int = 3) -> str:
 def fetch(url: str, headers: dict, retry: int = 3) -> str:
     try:
         request = urllib.request.Request(url, headers=headers, method="GET")
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() != 200:
             logger.info(response.read().decode("UTF8"))
             return None
@@ -198,7 +193,7 @@ def payment(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         success = False
         if response.getcode() == 200:
             result = json.loads(response.read().decode("UTF8"))
@@ -224,7 +219,7 @@ def checkout(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         success = False
         if response.getcode() == 200:
             result = json.loads(response.read().decode("UTF8"))
