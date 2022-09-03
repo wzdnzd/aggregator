@@ -21,6 +21,7 @@ from multiprocessing.synchronize import Semaphore
 
 import yaml
 
+import utils
 from logger import logger
 
 CTX = ssl.create_default_context()
@@ -267,28 +268,28 @@ def check(
         f"http://{api_url}/proxies/{proxy_name}/delay?timeout={str(timeout)}&url="
     )
 
+    # 失败重试间隔：30ms ~ 200ms
+    interval = random.randint(30, 200) / 1000
+    targets = [
+        test_url,
+        "https://www.youtube.com/s/player/23010b46/player_ias.vflset/en_US/remote.js",
+    ]
+    if strict:
+        targets.append(random.choice(DOWNLOAD_URL))
     try:
-        request = urllib.request.Request(url=base_url + test_url)
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
-        data = json.loads(response.read())
-        if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
-            return
-
-        request = urllib.request.Request(
-            url=base_url
-            + "https://www.youtube.com/s/player/23010b46/player_ias.vflset/en_US/remote.js"
-        )
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
-        data = json.loads(response.read())
-        if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
-            return
-
         alive = True
-        if strict:
-            request = urllib.request.Request(url=base_url + random.choice(DOWNLOAD_URL))
-            response = urllib.request.urlopen(request, timeout=10, context=CTX)
-            data = json.loads(response.read())
-            alive = data.get("delay", -1) > 0 and data.get("delay", -1) <= delay
+        for target in targets:
+            target = urllib.parse.quote(target)
+            url = f"{base_url}{target}"
+            content = utils.http_get(url=url, retry=2, interval=interval)
+            try:
+                data = json.loads(content)
+            except:
+                data = {}
+
+            if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
+                alive = False
+                break
 
         if alive:
             sub = proxy.pop("sub", "")

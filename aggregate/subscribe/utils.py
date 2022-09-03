@@ -12,6 +12,7 @@ import ssl
 import string
 import subprocess
 import sys
+import time
 import urllib
 import urllib.parse
 import urllib.request
@@ -21,6 +22,8 @@ from logger import logger
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
+
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36 Edg/105.0.1343.27"
 
 
 def random_chars(length: int, punctuation: bool = False) -> str:
@@ -43,6 +46,7 @@ def http_get(
     params: dict = None,
     retry: int = 3,
     proxy: str = "",
+    interval: float = 0,
 ) -> str:
     if not re.match(
         "^(https?:\/\/(\S+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
@@ -52,15 +56,16 @@ def http_get(
         return ""
 
     if retry <= 0:
-        logger.error(f"achieves max retry, url={url}")
+        logger.debug(f"achieves max retry, url={url}")
         return ""
 
     if not headers:
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
+            "User-Agent": USER_AGENT,
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
         }
 
+    interval = max(0, interval)
     try:
         url = encoding_url(url=url)
         if params and isinstance(params, dict):
@@ -87,27 +92,39 @@ def http_get(
         except:
             content = gzip.decompress(content).decode("utf8")
         if status_code != 200:
-            logger.info(
+            logger.debug(
                 f"request failed, status code: {status_code}\t message: {content}"
             )
             return ""
 
         return content
     except urllib.error.HTTPError as e:
-        logger.error(f"request failed, url=[{url}], code: {e.code}")
+        logger.debug(f"request failed, url=[{url}], code: {e.code}")
         message = str(e.read(), encoding="utf8")
         if e.code == 503 and "token" not in message:
+            time.sleep(interval)
             return http_get(
-                url=url, headers=headers, params=params, retry=retry - 1, proxy=proxy
+                url=url,
+                headers=headers,
+                params=params,
+                retry=retry - 1,
+                proxy=proxy,
+                interval=interval,
             )
         return ""
     except urllib.error.URLError as e:
-        logger.error(f"request failed, url=[{url}], message: {e.reason}")
+        logger.debug(f"request failed, url=[{url}], message: {e.reason}")
         return ""
     except Exception as e:
         logger.error(e)
+        time.sleep(interval)
         return http_get(
-            url=url, headers=headers, params=params, retry=retry - 1, proxy=proxy
+            url=url,
+            headers=headers,
+            params=params,
+            retry=retry - 1,
+            proxy=proxy,
+            interval=interval,
         )
 
 
