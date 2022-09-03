@@ -90,10 +90,7 @@ class AirPort:
         self.exclude = exclude
         self.include = include
         self.liveness = liveness
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.5060.114 Safari/537.36 Edg/103.0.1264.62",
-            "Referer": self.ref,
-        }
+        self.headers = {"User-Agent": utils.USER_AGENT, "Referer": self.ref}
 
     @staticmethod
     def get_register_require(
@@ -471,6 +468,11 @@ class AirPort:
                 # 已经读取，可以删除
                 os.remove(clash_file)
             else:
+                if not re.search("proxies:", text):
+                    logger.error(
+                        f"[ParseError] fetch proxies error, domain: {self.ref}"
+                    )
+                    return []
                 try:
                     nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
                 except yaml.constructor.ConstructorError:

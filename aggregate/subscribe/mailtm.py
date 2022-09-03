@@ -124,7 +124,7 @@ class RootSh(TemporaryMail):
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
             "Accept-Encoding": "gzip, deflate, br",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.81 Safari/537.36 Edg/104.0.1293.54",
+            "User-Agent": utils.USER_AGENT,
         }
 
     def get_domains_list(self) -> list:
@@ -230,7 +230,7 @@ class RootSh(TemporaryMail):
                         headers = {
                             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
                             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.81 Safari/537.36 Edg/104.0.1293.54",
+                            "User-Agent": utils.USER_AGENT,
                         }
 
                         content = utils.http_get(url=url, headers=headers)
@@ -350,7 +350,7 @@ class SnapMail(TemporaryMail):
         #     "Accept-Encoding": "gzip, deflate, br",
         #     "Origin": self.api_address,
         #     "Referer": self.api_address + "/",
-        #     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.81 Safari/537.36 Edg/104.0.1293.54",
+        #     "User-Agent": utils.USER_AGENT,
         # }
 
         # try:
@@ -608,7 +608,7 @@ class MOAKT(TemporaryMail):
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
             "Origin": self.api_address,
             "Referer": self.api_address,
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.81 Safari/537.36 Edg/104.0.1293.54",
+            "User-Agent": utils.USER_AGENT,
         }
 
     def get_domains_list(self) -> list:

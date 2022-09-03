@@ -23,7 +23,7 @@ from logger import logger
 warnings.filterwarnings("ignore")
 
 HEADER = {
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39",
+    "user-agent": utils.USER_AGENT,
     "accept": "*/*",
     "accept-language": "zh-CN,zh;q=0.9",
     "content-language": "zh-CN",
@@ -76,11 +76,7 @@ def get_cookies(
         "password": password,
     }
 
-    headers = {
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39",
-        "referer": domain,
-    }
-
+    headers = {"user-agent": utils.USER_AGENT, "referer": domain}
     text, authorization = login(login_url, user_info, headers, retry)
     return utils.extract_cookie(text), authorization
 
@@ -89,9 +85,7 @@ def generate_headers(
     domain: str, cookies: str, authorization: str, headers: dict = None
 ) -> dict:
     if not headers:
-        headers = {
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36 Edg/100.0.1185.39"
-        }
+        headers = {"user-agent": utils.USER_AGENT}
 
     if domain:
         headers["referer"] = domain
