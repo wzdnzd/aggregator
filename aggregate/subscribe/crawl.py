@@ -72,7 +72,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         if google_spider:
             push_to = google_spider.get("push_to", [])
             exclude = google_spider.get("exclude", "")
-            tasks.update(crawl_google(qdr=7, push_to=google_spider, exclude=exclude))
+            tasks.update(crawl_google(qdr=7, push_to=push_to, exclude=exclude))
 
         github_spider = conf.get("github", {})
         if github_spider and github_spider.get("push_to", []):

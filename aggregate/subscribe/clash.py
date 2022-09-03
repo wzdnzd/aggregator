@@ -9,6 +9,8 @@ import json
 # import multiprocessing
 import os
 import platform
+import random
+import ssl
 import string
 import sys
 import urllib
@@ -19,8 +21,17 @@ from multiprocessing.synchronize import Semaphore
 
 import yaml
 
-import utils
 from logger import logger
+
+CTX = ssl.create_default_context()
+CTX.check_hostname = False
+CTX.verify_mode = ssl.CERT_NONE
+
+DOWNLOAD_URL = [
+    "https://github.com/2dust/v2rayN/releases/latest/download/v2rayN.zip",
+    "https://cachefly.cachefly.net/10mb.test",
+    "http://speedtest-sgp1.digitalocean.com/10mb.test",
+]
 
 EXTERNAL_CONTROLLER = "127.0.0.1:9090"
 
@@ -249,6 +260,7 @@ def check(
     test_url: str,
     delay: int,
     validates: DictProxy,
+    strict: bool = False,
 ) -> None:
     proxy_name = urllib.parse.quote(proxy.get("name", ""))
     base_url = (
@@ -257,7 +269,7 @@ def check(
 
     try:
         request = urllib.request.Request(url=base_url + test_url)
-        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         data = json.loads(response.read())
         if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
             return
@@ -266,17 +278,19 @@ def check(
             url=base_url
             + "https://www.youtube.com/s/player/23010b46/player_ias.vflset/en_US/remote.js"
         )
-        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         data = json.loads(response.read())
         if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
             return
 
-        request = urllib.request.Request(
-            url=base_url + "https://cachefly.cachefly.net/10mb.test"
-        )
-        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
-        data = json.loads(response.read())
-        if data.get("delay", -1) > 0 and data.get("delay", -1) <= delay:
+        alive = True
+        if strict:
+            request = urllib.request.Request(url=base_url + random.choice(DOWNLOAD_URL))
+            response = urllib.request.urlopen(request, timeout=10, context=CTX)
+            data = json.loads(response.read())
+            alive = data.get("delay", -1) > 0 and data.get("delay", -1) <= delay
+
+        if alive:
             sub = proxy.pop("sub", "")
             availables.append(proxy)
             if validates != None and sub:
