@@ -204,7 +204,8 @@ def assign(
     retry: int,
     bin_name: str,
     remain: bool,
-    params: dict = {},
+    pushtool: push.PushTo,
+    push_conf: dict = {},
 ) -> tuple[dict, list]:
     jobs, arrays = {}, []
     retry = max(1, retry)
@@ -257,7 +258,7 @@ def assign(
             continue
 
         for idx, push_name in enumerate(push_names):
-            if not params.get(push_name, None):
+            if not push_conf.get(push_name, None):
                 logger.error(
                     f"cannot found push config, name=[{push_name}]\tsite=[{name}]"
                 )
@@ -295,16 +296,18 @@ def assign(
 
             jobs[push_name] = tasks
 
-    if remain and params:
-        for k, v in params.items():
+    if remain and push_conf:
+        for k, v in push_conf.items():
             tasks = jobs.get(k, [])
             folderid = v.get("folderid", "").strip()
             fileid = v.get("fileid", "").strip()
             username = v.get("username", "").strip()
-            if not folderid or not fileid or not username:
+            subscribes = pushtool.raw_url(
+                fileid=fileid, folderid=folderid, username=username
+            )
+            if not subscribes:
                 continue
 
-            subscribes = f"https://paste.gg/p/{username}/{folderid}/files/{fileid}/raw"
             tasks.append(
                 TaskConfig(
                     name="remains",
@@ -324,13 +327,21 @@ def aggregate(args: argparse.Namespace):
     if not args:
         return
 
+    pushtool = push.get_instance(push_type=1)
     clash_bin, subconverter_bin = clash.which_bin()
 
     sites, push_configs, crawl_conf, update_conf, delay = load_configs(
         file=args.file, url=args.server
     )
-    push_configs = push.filter_push(push_configs)
-    tasks, sites = assign(sites, 3, subconverter_bin, args.remain, push_configs)
+    push_configs = pushtool.filter_push(push_configs)
+    tasks, sites = assign(
+        sites=sites,
+        retry=3,
+        bin_name=subconverter_bin,
+        remain=args.remain,
+        pushtool=pushtool,
+        push_conf=push_configs,
+    )
     if not tasks:
         logger.error("cannot found any valid config, exit")
         sys.exit(0)
@@ -440,9 +451,9 @@ def aggregate(args: argparse.Namespace):
                 continue
 
             if subconverter.convert(binname=subconverter_bin, artifact=artifact):
-                # 推送到https://paste.gg
+                # 推送到远端
                 filepath = os.path.join(PATH, "subconverter", dest_file)
-                push.push_file(filepath, push_configs.get(k, {}), k)
+                pushtool.push_file(filepath, push_configs.get(k, {}), k)
 
             # 关闭clash
             workflow.cleanup(
@@ -458,7 +469,9 @@ def aggregate(args: argparse.Namespace):
             "update": update_conf,
         }
 
-        workflow.refresh(config=config, alives=dict(subscribes), filepath="")
+        workflow.refresh(
+            config=config, push=pushtool, alives=dict(subscribes), filepath=""
+        )
 
 
 if __name__ == "__main__":

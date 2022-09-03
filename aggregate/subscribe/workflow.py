@@ -8,11 +8,11 @@ import os
 import subprocess
 from dataclasses import dataclass
 
-import push
 import renewal
 from airport import AirPort
 from logger import logger
 from origin import Origin
+from push import PushTo
 
 
 @dataclass
@@ -197,8 +197,8 @@ def merge_config(configs: list) -> list:
     return items
 
 
-def refresh(config: dict, alives: dict, filepath: str = "") -> None:
-    if not config:
+def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> None:
+    if not config or not push:
         logger.error(
             "[UpdateError] cannot update remote config because content is empty"
         )
