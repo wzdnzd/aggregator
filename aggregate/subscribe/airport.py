@@ -46,7 +46,7 @@ BASE64_PATTERN = re.compile(
 RENAME_SEPARATOR = "#@&#@"
 
 # 标记数字位数
-SUFFIX_BITS = 2
+# SUFFIX_BITS = 2
 
 # 本地路径协议标识
 FILEPATH_PROTOCAL = "file:///"
@@ -534,23 +534,25 @@ class AirPort:
 
                 item["name"] = name.upper()
 
-                # 方便标记已有节点，最多留999天
-                if "" != tag:
-                    if not re.match(f".*-{tag}\d+$", item["name"]):
-                        item["name"] = "{}-{}".format(
-                            item.get("name"), tag + "1".zfill(SUFFIX_BITS)
-                        )
-                    else:
-                        words = item["name"].rsplit(f"-{tag}")
-                        if not words[1].isdigit():
-                            continue
-                        num = int(words[1]) + 1
-                        if num > pow(10, SUFFIX_BITS) - 1:
-                            continue
+                if "" != tag.strip():
+                    item["name"] = tag.strip().upper() + "-" + item["name"]
 
-                        num = str(num).zfill(SUFFIX_BITS)
-                        name = words[0] + f"-{tag}{num}"
-                        item["name"] = name
+                    # 方便标记已有节点，最多留999天
+                    # if not re.match(f".*-{tag}\d+$", item["name"]):
+                    #     item["name"] = "{}-{}".format(
+                    #         item.get("name"), tag + "1".zfill(SUFFIX_BITS)
+                    #     )
+                    # else:
+                    #     words = item["name"].rsplit(f"-{tag}")
+                    #     if not words[1].isdigit():
+                    #         continue
+                    #     num = int(words[1]) + 1
+                    #     if num > pow(10, SUFFIX_BITS) - 1:
+                    #         continue
+
+                    #     num = str(num).zfill(SUFFIX_BITS)
+                    #     name = words[0] + f"-{tag}{num}"
+                    #     item["name"] = name
 
                 # 方便过滤无效订阅
                 item["sub"] = self.sub

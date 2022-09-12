@@ -312,7 +312,6 @@ def assign(
                     retry=retry,
                     rate=rate,
                     bin_name=bin_name,
-                    tag="R",
                 )
             )
             jobs[k] = tasks
@@ -427,36 +426,43 @@ def aggregate(args: argparse.Namespace):
             logger.info(f"proxies check finished, count: {len(nochecks)}\tgroup: {k}")
 
             data = {"proxies": nochecks}
-            source_file = "config.yaml"
-            filepath = os.path.join(PATH, "subconverter", source_file)
-            with open(filepath, "w+", encoding="utf8") as f:
-                yaml.dump(data, f, allow_unicode=True)
+            push_conf = push_configs.get(k, {})
+            if push_conf.get("target") in ["v2ray", "mixed"]:
+                source_file = "config.yaml"
+                filepath = os.path.join(PATH, "subconverter", source_file)
+                with open(filepath, "w+", encoding="utf8") as f:
+                    yaml.dump(data, f, allow_unicode=True)
 
-            # 转换成通用订阅模式
-            dest_file = "subscribe.txt"
-            artifact = "convert"
+                # 转换成通用订阅模式
+                dest_file = "subscribe.txt"
+                artifact = "convert"
 
-            if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-                os.remove(generate_conf)
+                if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+                    os.remove(generate_conf)
 
-            success = subconverter.generate_conf(
-                generate_conf, artifact, source_file, dest_file, "mixed"
-            )
-            if not success:
-                logger.error(f"cannot generate subconverter config file, group=[{k}]")
-                continue
+                success = subconverter.generate_conf(
+                    generate_conf, artifact, source_file, dest_file, "mixed"
+                )
+                if not success:
+                    logger.error(
+                        f"cannot generate subconverter config file, group=[{k}]"
+                    )
+                    continue
 
-            if subconverter.convert(binname=subconverter_bin, artifact=artifact):
-                # 推送到远端
-                filepath = os.path.join(PATH, "subconverter", dest_file)
-                pushtool.push_file(filepath, push_configs.get(k, {}), k)
-
-            # 关闭clash
-            workflow.cleanup(
-                process,
-                os.path.join(PATH, "subconverter"),
-                [source_file, dest_file, "generate.ini"],
-            )
+                if subconverter.convert(binname=subconverter_bin, artifact=artifact):
+                    # 推送到远端
+                    filepath = os.path.join(PATH, "subconverter", dest_file)
+                    pushtool.push_file(filepath=filepath, push_conf=push_conf, group=k)
+                # 关闭clash
+                workflow.cleanup(
+                    process,
+                    os.path.join(PATH, "subconverter"),
+                    [source_file, dest_file, "generate.ini"],
+                )
+            else:
+                content = yaml.dump(data=data, allow_unicode=True)
+                pushtool.push_to(content=content, push_conf=push_conf, group=k)
+                workflow.cleanup(process)
 
         config = {
             "domains": sites,

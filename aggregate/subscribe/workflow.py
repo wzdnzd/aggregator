@@ -85,13 +85,18 @@ def liveness_fillter(proxies: list) -> tuple[list, list]:
     return checks, nochecks
 
 
-def cleanup(process: subprocess.Popen, filepath: str, filenames: list = []) -> None:
+def cleanup(
+    process: subprocess.Popen, filepath: str = "", filenames: list = []
+) -> None:
+    process.terminate()
+
+    if not filepath or not filenames:
+        return
+
     for name in filenames:
         filename = os.path.join(filepath, name)
         if os.path.exists(filename):
             os.remove(filename)
-
-    process.terminate()
 
 
 def dedup_task(tasks: list) -> list:
