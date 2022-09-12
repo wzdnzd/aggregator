@@ -103,29 +103,9 @@ def filter_proxies(proxies: list) -> dict:
         "rules": ["MATCH,🌐 Proxy"],
     }
 
-    # 防止多个代理节点名字相同导致clash配置错误
-    groups = {}
-    for key, group in itertools.groupby(proxies, key=lambda p: p.get("name", "")):
-        items = groups.get(key, [])
-        items.extend(list(group))
-        groups[key] = items
-
-    proxies.clear()
-    for _, items in groups.items():
-        size = len(items)
-        if size <= 1:
-            proxies.extend(items)
-            continue
-        for i in range(size):
-            item = items[i]
-            mode = i % 26
-            factor = i // 26 + 1
-            letter = string.ascii_uppercase[mode]
-            item["name"] = "{}-{}{}".format(item.get("name"), factor, letter)
-            proxies.append(item)
-
     # 按名字排序方便在节点相同时优先保留名字靠前的
     sorted(proxies, key=lambda p: p.get("name", ""))
+    unique_proxies = []
     for item in proxies:
         try:
             authentication = "password"
@@ -188,14 +168,49 @@ def filter_proxies(proxies: list) -> dict:
             else:
                 continue
 
-            if not item[authentication] or proxies_exists(item, config["proxies"]):
+            if not item[authentication] or proxies_exists(item, unique_proxies):
                 continue
 
-            config["proxies"].append(item)
-            config["proxy-groups"][0]["proxies"].append(item["name"])
-            config["proxy-groups"][1]["proxies"].append(item["name"])
+            unique_proxies.append(item)
         except:
             continue
+
+    # 防止多个代理节点名字相同导致clash配置错误
+    groups, unique_names = {}, set()
+    for key, group in itertools.groupby(
+        unique_proxies, key=lambda p: p.get("name", "")
+    ):
+        items = groups.get(key, [])
+        items.extend(list(group))
+        groups[key] = items
+        if len(items) <= 1:
+            unique_names.add(key)
+
+    proxies.clear()
+    for _, items in groups.items():
+        size = len(items)
+        if size <= 1:
+            proxies.extend(items)
+            continue
+        for i in range(size):
+            item = items[i]
+            mode = i % 26
+            factor = i // 26 + 1
+            letter = string.ascii_uppercase[mode]
+            name = "{}-{}{}".format(item.get("name"), factor, letter)
+            while name in unique_names:
+                mode = (mode + 1) % 26
+                factor = factor + mode // 26
+                letter = string.ascii_uppercase[mode]
+                name = "{}-{}{}".format(item.get("name"), factor, letter)
+
+            item["name"] = name
+            unique_names.add(name)
+            proxies.append(item)
+
+    config["proxies"] += proxies
+    config["proxy-groups"][0]["proxies"] += list(unique_names)
+    config["proxy-groups"][1]["proxies"] += list(unique_names)
 
     return config
 
@@ -242,11 +257,6 @@ def proxies_exists(proxy: dict, proxies: list) -> bool:
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             for p in proxies
-        )
-
-    if not duplicate:
-        duplicate = any(
-            p.get("name", "").lower() == proxy.get("name", "").lower() for p in proxies
         )
 
     return duplicate

@@ -96,7 +96,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             tasks.update(crawl_pages(pages=pages))
 
         if not tasks:
-            logger.error("cannot found any subscribe url from crawler")
+            logger.debug("cannot found any subscribe url from crawler")
             return []
 
         exclude = conf.get("exclude", "")
