@@ -528,7 +528,11 @@ class AirPort:
                     " ",
                     name,
                 )
-                name = re.sub("\s+", " ", name).replace("_", "-").strip()
+                name = (
+                    re.sub("\s+", " ", name)
+                    .replace("_", "-")
+                    .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
+                )
                 if not name:
                     continue
 

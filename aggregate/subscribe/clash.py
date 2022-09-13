@@ -183,14 +183,15 @@ def filter_proxies(proxies: list) -> dict:
         items = groups.get(key, [])
         items.extend(list(group))
         groups[key] = items
-        if len(items) <= 1:
-            unique_names.add(key)
 
+    # 优先保留不重复的节点的名字
+    unique_proxies = sorted(groups.values(), key=lambda x: len(x))
     proxies.clear()
-    for _, items in groups.items():
+    for items in unique_proxies:
         size = len(items)
         if size <= 1:
             proxies.extend(items)
+            unique_names.add(items[0].get("name"))
             continue
         for i in range(size):
             item = items[i]
@@ -205,8 +206,8 @@ def filter_proxies(proxies: list) -> dict:
                 name = "{}-{}{}".format(item.get("name"), factor, letter)
 
             item["name"] = name
-            unique_names.add(name)
             proxies.append(item)
+            unique_names.add(name)
 
     config["proxies"] += proxies
     config["proxy-groups"][0]["proxies"] += list(unique_names)
