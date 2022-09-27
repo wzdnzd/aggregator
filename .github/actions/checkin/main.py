@@ -5,7 +5,6 @@
 # @Time    : 2018-04-25
 
 import re
-import sys
 import warnings
 import urllib
 import urllib.request
@@ -34,7 +33,7 @@ CTX.verify_mode = ssl.CERT_NONE
 PATH = os.path.abspath(os.path.dirname(__file__))
 
 
-def extract_domain(url):
+def extract_domain(url) -> str:
     if not url or not re.match(
         "^(https?:\/\/(([a-zA-Z0-9]+-?)+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$", url
     ):
@@ -51,34 +50,36 @@ def extract_domain(url):
     return url[:end]
 
 
-def login(url, params, headers, retry):
+def login(url, params, headers, retry) -> str:
     try:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
 
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         print(response.read().decode("unicode_escape"))
 
         if response.getcode() == 200:
             return response.getheader("Set-Cookie")
+
+        return ""
 
     except Exception as e:
         print(str(e))
         retry -= 1
 
         if retry > 0:
-            login(url, params, headers, retry)
+            return login(url, params, headers, retry)
 
         print("[LoginError] URL: {}".format(extract_domain(url)))
         return ""
 
 
-def checkin(url, headers, retry):
+def checkin(url, headers, retry) -> None:
     try:
         request = urllib.request.Request(url, headers=headers, method="POST")
 
-        response = urllib.request.urlopen(request, context=CTX)
+        response = urllib.request.urlopen(request, timeout=10, context=CTX)
         data = response.read().decode("unicode_escape")
         print(
             "[CheckInFinished] URL: {}\t\tResult:{}".format(extract_domain(url), data)
@@ -94,7 +95,7 @@ def checkin(url, headers, retry):
         print("[CheckInError] URL: {}".format(extract_domain(url)))
 
 
-def get_cookie(text):
+def get_cookie(text) -> str:
     regex = "(__cfduid|uid|email|key|ip|expire_in)=(.+?);"
     if not text:
         return ""
@@ -105,37 +106,15 @@ def get_cookie(text):
     return cookie
 
 
-def config_load(filename):
+def config_load(filename) -> dict:
     if not os.path.exists(filename) or os.path.isdir(filename):
-        return
+        return None
 
     config = open(filename, "r").read()
     return json.loads(config)
 
 
-def getconf_from_env():
-    domains = os.environ.get("AP_DOMAINS", "").strip().split("||")
-    emails = os.environ.get("AP_EMAILS", "").strip().split("||")
-    passwords = os.environ.get("AP_PASSWORDS", "").strip().split("||")
-
-    if not domains or not emails or not passwords:
-        print(
-            "invalidate config, environment variables are missing or blank, must include AP_DOMAINS, AP_EMAILS and AP_PASSWORDS and cannot be empty"
-        )
-        return []
-
-    if len(domains) != len(emails) or len(emails) != len(passwords):
-        print("[Warning] the number of emails and passwords do not match")
-
-    configs = []
-    for _, item in enumerate(zip(domains, emails, passwords)):
-        conf = {"domain": item[0], "param": {"email": item[1], "passwd": item[2]}}
-        configs.append(conf)
-
-    return configs
-
-
-def flow(domain, params, headers):
+def flow(domain, params, headers) -> bool:
     domain = extract_domain(domain.strip())
     if not domain:
         print("cannot checkin because domain is invalidate")
@@ -161,19 +140,16 @@ def flow(domain, params, headers):
     headers["cookie"] = cookie
 
     checkin(checkin_url, headers, 3)
+    return True
 
 
-def wrapper(args):
-    flow(args.get("domain", ""), args.get("param", {}), HEADER)
+def wrapper(args) -> bool:
+    return flow(args.get("domain", ""), args.get("param", {}), HEADER)
 
 
-def main():
-    # config = config_load(os.path.join(PATH, "config.json"))
-    # params = config.get("domains", [])
-    params = getconf_from_env()
-    if not params:
-        print("skip checkin because config is missing, please check it and try again")
-        sys.exit(0)
+def main() -> None:
+    config = config_load(os.path.join(PATH, "config.json"))
+    params = config.get("domains", [])
 
     cpu_count = multiprocessing.cpu_count()
     num = len(params) if len(params) <= cpu_count else cpu_count
