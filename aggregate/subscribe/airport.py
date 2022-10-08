@@ -103,7 +103,7 @@ class AirPort:
         url = f"{domain}/api/v1/guest/comm/config"
         content = utils.http_get(url=url, retry=2, proxy=proxy)
         if not content or not content.startswith("{") and content.endswith("}"):
-            logger.error(f"[QueryError] cannot get register require, domain: {domain}")
+            logger.debug(f"[QueryError] cannot get register require, domain: {domain}")
             return True, True, True, []
 
         try:
@@ -334,10 +334,6 @@ class AirPort:
                     return "", ""
 
                 # 如果标准正则无法提取验证码则直接匹配数字
-                with open("content.html", "w+", encoding="UTF8") as f:
-                    f.write(message.text)
-                    f.flush()
-
                 mask = mailbox.extract_mask(message.text) or mailbox.extract_mask(
                     message.text, "\s+([0-9]{6})"
                 )
@@ -418,8 +414,23 @@ class AirPort:
 
         # if "" == text.strip() or not re.match("^[0-9a-zA-Z=]*$", text):
         if "" == text or (text.startswith("{") and text.endswith("}")):
+            token = ""
+            try:
+                parse_result = urllib.parse.urlparse(url=self.sub)
+                if "token=" in parse_result.query:
+                    token = "".join(
+                        re.findall("token=([a-zA-Z0-9]+)", parse_result.query)
+                    )
+                else:
+                    token = parse_result.path.split("/")[-1]
+
+                if len(token) >= 6:
+                    token = token[:3] + "***" + token[-3:]
+            except:
+                logger.debug(f"subscribe url: {self.sub}")
+
             logger.error(
-                f"[ParseError] cannot found any proxies because token is error, domain: {self.ref}"
+                f"[ParseError] cannot found any proxies, token: {token}, domain: {self.ref}"
             )
             return []
 
@@ -494,13 +505,6 @@ class AirPort:
                     else:
                         if self.exclude and re.search(self.exclude, name, re.I):
                             continue
-
-                    # 过滤名字带网址的节点
-                    if re.search(
-                        "([a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}",
-                        name,
-                    ):
-                        continue
                 except:
                     logger.error(
                         f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
@@ -517,6 +521,9 @@ class AirPort:
                         else:
                             name = re.sub(self.rename, "", name, re.I)
 
+                    # 重命名带网址的节点
+                    regex = "(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
+                    name = re.sub(regex, "", name)
                 except:
                     logger.error(
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"

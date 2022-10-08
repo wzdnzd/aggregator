@@ -100,7 +100,10 @@ def http_get(
         return content
     except urllib.error.HTTPError as e:
         logger.debug(f"request failed, url=[{url}], code: {e.code}")
-        message = str(e.read(), encoding="utf8")
+        try:
+            message = str(e.read(), encoding="utf8")
+        except UnicodeDecodeError:
+            message = str(e.read(), encoding="utf8")
         if e.code == 503 and "token" not in message:
             time.sleep(interval)
             return http_get(
