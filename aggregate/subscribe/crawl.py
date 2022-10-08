@@ -611,10 +611,6 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
     if not channel or not fun or not isinstance(fun, typing.Callable):
         return []
 
-    logger.info(
-        f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}"
-    )
-
     page_num = max(page_num, 1)
     url = f"https://t.me/s/{channel}"
     if page_num == 1:
@@ -624,10 +620,13 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
         if count == 0:
             return []
 
-        pages = range(count, -1, -100)
+        pages = range(count, -1, -20)
         page_num = min(page_num, len(pages))
-        urls = [f"{url}?before={x}" for x in pages[:page_num]]
+        logger.info(
+            f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}"
+        )
 
+        urls = [f"{url}?before={x}" for x in pages[:page_num]]
         cpu_count = multiprocessing.cpu_count()
         num = len(urls) if len(urls) <= cpu_count else cpu_count
 

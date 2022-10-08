@@ -270,7 +270,7 @@ def assign(
                 if accounts:
                     renew.update(accounts[i])
                     renew.update(renews)
-                    renew["renew"] = flag
+                    renew["enable"] = flag
 
                 tasks.append(
                     TaskConfig(

@@ -345,7 +345,10 @@ def get_subscribe_info(
 
         plan_id = data.get("plan_id", 1)
         sub_url = data.get("subscribe_url", "").replace("\\", "")
-        expired_at = datetime.fromtimestamp(data.get("expired_at", 1))
+        timestamp = data.get("expired_at", 1)
+        # 如果为空, 则默认到2999/12/31 23:59:59
+        timestamp = 32503651199 if not timestamp else timestamp
+        expired_at = datetime.fromtimestamp(timestamp)
         today = datetime.fromtimestamp(time.time())
         expired_days = (expired_at - today).days
         used = data.get("d", 0)
@@ -375,7 +378,7 @@ def get_subscribe_info(
         )
     except:
         logger.error(
-            f"cannot get payment method because response is empty, domain: {domain}"
+            f"cannot get subscribe information, domain: {domain}, response: {content}"
         )
         return None
 
@@ -473,15 +476,15 @@ def add_traffic_flow(domain: str, params: dict) -> str:
         cookies, authorization = get_cookies(
             domain=domain, username=email, password=password
         )
-        subscribe_info = get_subscribe_info(
+        subscribe = get_subscribe_info(
             domain=domain, cookies=cookies, authorization=authorization
         )
-        if not subscribe_info:
+        if not subscribe:
             logger.info(f"[RenewalError] cannot fetch subscribe information")
             return ""
 
-        plan_id = params.get("plan_id", subscribe_info.plan_id)
-        package = params.get("package", subscribe_info.package)
+        plan_id = params.get("plan_id", subscribe.plan_id)
+        package = params.get("package", subscribe.package)
         coupon_code = params.get("coupon_code", "")
         method = params.get("method", -1)
         if method <= 0:
@@ -502,8 +505,8 @@ def add_traffic_flow(domain: str, params: dict) -> str:
             "coupon_code": coupon_code,
         }
 
-        renew = params.get("renew", True)
-        if renew and subscribe_info.reset_enable and subscribe_info.used_rate >= 0.8:
+        renew = params.get("enable", True)
+        if renew and subscribe.reset_enable and subscribe.used_rate >= 0.8:
             success = flow(
                 domain=domain,
                 params=payload,
@@ -516,9 +519,16 @@ def add_traffic_flow(domain: str, params: dict) -> str:
             )
         else:
             logger.info(
-                f"skip reset traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.reset_enable}\tused-rate: {subscribe_info.used_rate}"
+                f"skip reset traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe.reset_enable}\tused-rate: {subscribe.used_rate}"
             )
-        if renew and subscribe_info.renew_enable and subscribe_info.expired_days <= 5:
+        if (
+            renew
+            and subscribe.renew_enable
+            and (
+                subscribe.expired_days <= 5
+                or (not subscribe.reset_enable and subscribe.used_rate >= 0.8)
+            )
+        ):
             success = flow(
                 domain=domain,
                 params=payload,
@@ -531,10 +541,10 @@ def add_traffic_flow(domain: str, params: dict) -> str:
             )
         else:
             logger.info(
-                f"skip renew traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe_info.renew_enable}\texpired-days: {subscribe_info.expired_days}"
+                f"skip renew traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe.renew_enable}\texpired-days: {subscribe.expired_days}"
             )
 
-        return subscribe_info.sub_url
+        return subscribe.sub_url
     except:
         traceback.print_exc()
         return ""
