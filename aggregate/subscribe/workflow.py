@@ -56,7 +56,7 @@ def execute(task_conf: TaskConfig) -> list:
             obj.sub = sub_url
 
     cookie, authorization = obj.get_subscribe(retry=task_conf.retry)
-    return obj.parse(
+    proxies = obj.parse(
         cookie,
         authorization,
         task_conf.retry,
@@ -64,6 +64,12 @@ def execute(task_conf: TaskConfig) -> list:
         task_conf.bin_name,
         task_conf.tag,
     )
+
+    logger.info(
+        f"finished fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]\tcount=[{len(proxies)}]"
+    )
+
+    return proxies
 
 
 def liveness_fillter(proxies: list) -> tuple[list, list]:

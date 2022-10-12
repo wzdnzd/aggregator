@@ -200,8 +200,9 @@ def filter_proxies(proxies: list) -> dict:
             letter = string.ascii_uppercase[mode]
             name = "{}-{}{}".format(item.get("name"), factor, letter)
             while name in unique_names:
-                mode = (mode + 1) % 26
+                mode += 1
                 factor = factor + mode // 26
+                mode = mode % 26
                 letter = string.ascii_uppercase[mode]
                 name = "{}-{}{}".format(item.get("name"), factor, letter)
 

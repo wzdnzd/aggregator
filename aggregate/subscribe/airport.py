@@ -459,6 +459,10 @@ class AirPort:
 
                 time.sleep(1)
                 success = subconverter.convert(binname=bin_name, artifact=artifact)
+                logger.info(
+                    f"subconverter completed, artifact: [{artifact}]\tsuccess=[{success}]"
+                )
+
                 os.remove(v2ray_file)
                 if not success:
                     return []
