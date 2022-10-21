@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import datetime
+import importlib
 import itertools
 import json
 import multiprocessing
@@ -13,6 +14,7 @@ import re
 import string
 import sys
 import time
+import traceback
 import typing
 import urllib
 import urllib.parse
@@ -21,8 +23,8 @@ from datetime import datetime
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Semaphore
 
-import utils
 import airport
+import utils
 from logger import logger
 from origin import Origin
 
@@ -95,9 +97,16 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         if pages:
             tasks.update(crawl_pages(pages=pages))
 
+        scripts = conf.get("scripts", {})
+        datasets = []
+        if scripts:
+            datasets = batch_call(scripts)
+
         if not tasks:
-            logger.debug("cannot found any subscribe url from crawler")
-            return []
+            logger.info(
+                "cannot found any subscribe from Google/Telegram/Github and Page with crawler"
+            )
+            return datasets
 
         exclude = conf.get("exclude", "")
         with multiprocessing.Manager() as manager:
@@ -115,14 +124,10 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             for p in processes:
                 p.join()
 
-            datasets = list(availables)
+            datasets.extend(list(availables))
 
-            subscribes = [x["sub"] for x in datasets]
-            logger.info(
-                f"crawl finished, found {len(subscribes)} subscribes: {subscribes}"
-            )
-
-            return datasets
+        logger.info(f"crawl finished, found {len(datasets)} subscribes")
+        return datasets
     except:
         logger.error("crawl from web error")
         return []
@@ -684,3 +689,90 @@ def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> No
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
             semaphore.release()
+
+
+def batch_call(tasks: dict) -> list:
+    if not tasks:
+        return []
+
+    try:
+        thread_num = max(min(len(tasks), 50), 1)
+        with multiprocessing.Manager() as manager:
+            availables = manager.list()
+            processes = []
+            semaphore = multiprocessing.Semaphore(thread_num)
+            time.sleep(random.randint(1, 3))
+            for k, v in tasks.items():
+                semaphore.acquire()
+                p = multiprocessing.Process(
+                    target=call, args=(k, v, availables, semaphore)
+                )
+                p.start()
+                processes.append(p)
+            for p in processes:
+                p.join()
+
+            return list(availables)
+    except:
+        traceback.print_exc()
+        return []
+
+
+def call(
+    script: str, params: dict, availables: ListProxy, semaphore: Semaphore
+) -> None:
+    try:
+        if not script:
+            return
+
+        subscribes = execute_script(script=script, params=params)
+        if subscribes and type(subscribes) == list:
+            availables.extend(subscribes)
+    finally:
+        if semaphore is not None and isinstance(semaphore, Semaphore):
+            semaphore.release()
+
+
+def execute_script(script: str, params: dict = {}) -> list:
+    try:
+        # format: a.b.c#function or a-b.c#_function or a#function and so on
+        regex = r"^([a-zA-Z0-9_]+|([0-9a-zA-Z_]+([a-zA-Z0-9_\-]+)?\.)+)[a-zA-Z0-9_\-]+#[a-zA-Z_]+[0-9a-zA-Z_]+$"
+        if not re.match(regex, script):
+            logger.info(
+                f"[ScriptError] script execute error because script: {script} is invalidate"
+            )
+            return []
+
+        path, func_name = script.split("#", maxsplit=1)
+        path = f"scripts.{path}"
+        module = importlib.import_module(path)
+        if not hasattr(module, func_name):
+            logger.error(f"script: {path} not exists function {func_name}")
+            return []
+
+        func = getattr(module, func_name)
+
+        starttime = time.time()
+        logger.info(f"start execute script: scripts.{script}")
+
+        subscribes = func(params)
+        if type(subscribes) != list:
+            logger.error(
+                f"[ScriptError] return value error, need a list, but got a {type(subscribes)}"
+            )
+            return []
+
+        endtime = time.time()
+        logger.info(
+            "finished execute script: scripts.{}, cost: {:.3}s".format(
+                script, endtime - starttime
+            )
+        )
+
+        subscribes = [s for s in subscribes if type(s) == dict and s.get("push_to", [])]
+        return subscribes
+    except:
+        logger.error(
+            f"[ScriptError] occur error run script: {script}, message: \n{traceback.format_exc()}"
+        )
+        return []
