@@ -126,8 +126,9 @@ class PushToPaste(PushTo):
         return status_code == 204
 
     def _error_handler(self, group: str = "") -> None:
-        logger.error(f"[PushError]: group=[{group}], name: {self.name}, error message:")
-        traceback.print_exc()
+        logger.error(
+            f"[PushError]: group=[{group}], name: {self.name}, error message: \n{traceback.format_exc()}"
+        )
 
     def filter_push(self, push_conf: dict) -> dict:
         configs = {}

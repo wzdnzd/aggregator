@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import time
+from copy import deepcopy
 
 import yaml
 
@@ -30,150 +31,103 @@ from workflow import TaskConfig
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
-def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
+def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
     def parse_config(config: dict) -> None:
         sites.extend(config.get("domains", []))
         push_conf.update(config.get("push", {}))
         update_conf.update(config.get("update", {}))
+        crawl_conf.update(config.get("crawl", {}))
+
         nonlocal delay
         delay = min(delay, max(config.get("delay", sys.maxsize), 50))
 
-        spiders = config.get("spiders", {})
-        crawl_conf.update(spiders)
-
         # global exclude
-        exclude = spiders.get("exclude", "")
-        params["exclude"] = "|".join([params.get("exclude", ""), exclude]).removeprefix(
-            "|"
-        )
+        params["exclude"] = crawl_conf.get("exclude", "")
+        spiders = deepcopy(crawl_conf)
 
+        # spider's config for telegram
         telegram_conf = spiders.get("telegram", {})
-        disable = telegram_conf.get("disable", False)
-        common_exclude = telegram_conf.get("exclude", "")
-        users = telegram_conf.get("users", {})
-        pages = max(telegram_conf.get("pages", 1), 1)
-        if not disable and users:
-            telegram_conf = params.get("telegram", {})
-            enabled_users = telegram_conf.get("users", {})
-            telegram_conf["pages"] = max(telegram_conf.get("pages", 1), pages)
+        users = telegram_conf.pop("users", {})
+        telegram_conf["pages"] = max(telegram_conf.get("pages", 1), 1)
+        if telegram_conf.pop("enable", True) and users:
+            enabled_users, common_exclude = {}, telegram_conf.pop("exclude", "")
             for k, v in users.items():
-                include = v.get("include", "")
                 exclude = v.get("exclude", "").strip()
-                exclude = (
+                v["exclude"] = (
                     f"{exclude}|{common_exclude}".removeprefix("|")
                     if common_exclude
                     else exclude
                 )
-                pts = v.get("push_to", [])
-                user = enabled_users.get(k, {})
+                v["push_to"] = list(set(v.get("push_to", [])))
 
-                parse_conf = v.get("config", {})
-                parse_conf.update(user.get("config", {}))
-                user["config"] = parse_conf
-
-                user["include"] = "|".join(
-                    [user.get("include", ""), include]
-                ).removeprefix("|")
-                user["exclude"] = "|".join(
-                    [user.get("exclude", ""), exclude]
-                ).removeprefix("|")
-                array = user.get("push_to", [])
-                array.extend(pts)
-                user["push_to"] = list(set(array))
-
-                enabled_users[k] = user
+                enabled_users[k] = v
             telegram_conf["users"] = enabled_users
             params["telegram"] = telegram_conf
 
+        # spider's config for google
         google_conf = spiders.get("google", {})
-        disable = google_conf.get("disable", False)
         push_to = list(set(google_conf.get("push_to", [])))
-        exclude = google_conf.get("exclude", "")
-        if not disable and push_to:
-            item = params.get("google", {})
-            pts = item.get("push_to", [])
-            pts.extend(push_to)
-            exclude = "|".join([item.get("exclude", ""), exclude]).removeprefix("|")
-            item["push_to"] = list(set(pts))
-            item["exclude"] = exclude
-            params["google"] = item
+        if google_conf.pop("enable", True) and push_to:
+            google_conf["push_to"] = push_to
+            params["google"] = google_conf
 
+        # spider's config for github
         github_conf = spiders.get("github", {})
-        disable = github_conf.get("disable", False)
         push_to = list(set(github_conf.get("push_to", [])))
-        pages = github_conf.get("pages", 3)
-        exclude = github_conf.get("exclude", "")
-        if not disable and push_to:
-            github_conf = params.get("github", {})
-            github_conf["pages"] = max(pages, github_conf.get("pages", 3))
-            github_conf["exclude"] = "|".join(
-                [github_conf.get("exclude", ""), exclude]
-            ).removeprefix("|")
-            pts = github_conf.get("push_to", [])
-            pts.extend(push_to)
-            github_conf["push_to"] = list(set(pts))
+        if github_conf.pop("enable", True) and push_to:
+            github_conf["pages"] = max(github_conf.get("pages", 3), 3)
+            github_conf["push_to"] = push_to
             params["github"] = github_conf
 
-        repositories = spiders.get("repositories", [])
-        repo_conf = params.get("repositories", {})
-        for repo in repositories:
-            disable = repo.get("disable", False)
+        # spider's config for github's repositories
+        repo_conf, repositories = spiders.get("repositories", []), {}
+        for repo in repo_conf:
+            enable = repo.pop("enable", True)
             username = repo.get("username", "").strip()
             repo_name = repo.get("repo_name", "").strip()
-            push_to = list(set(repo.get("push_to", [])))
-            commits = max(repo.get("commits", 3), 1)
-            exclude = repo.get("exclude", "").strip()
-
-            if disable or not username or not repo_name:
+            if not enable or not username or not repo_name:
                 continue
+
             key = "/".join([username, repo_name])
-            item = repo_conf.get(key, {})
-            item["username"] = username
-            item["repo_name"] = repo_name
-            item["commits"] = max(commits, item.get("commits", 3))
-            item["exclude"] = "|".join([item.get("exclude", ""), exclude]).removeprefix(
-                "|"
-            )
-            pts = item.get("push_to", [])
-            pts.extend(push_to)
-            item["push_to"] = list(set(push_to))
+            push_to = list(set(repo.get("push_to", [])))
+            repo["username"] = username
+            repo["repo_name"] = repo_name
+            repo["commits"] = max(repo.get("commits", 3), 1)
+            repo["push_to"] = push_to
 
-            repo_conf[key] = item
-        params["repositories"] = repo_conf
+            repositories[key] = repo
+        params["repositories"] = repositories
 
-        pages = spiders.get("pages", [])
-        pages_conf = params.get("pages", {})
-        for page in pages:
-            disable = page.get("disable", False)
+        # spider's config for specified page
+        pages_conf, pages = spiders.get("pages", []), {}
+        for page in pages_conf:
+            enable = page.pop("enable", True)
             url = page.get("url", "")
-            if disable or not url:
+            push_to = list(set(page.get("push_to", [])))
+            if not enable or not url or not push_to:
                 continue
 
-            push_to = list(set(page.get("push_to", [])))
-            exclude = page.get("exclude", "").strip()
+            page["push_to"] = push_to
+            pages[url] = page
 
-            item = pages_conf.get(url, {})
-            parse_conf = page.get("config", {})
-            parse_conf.update(item.get("config", {}))
-            item["config"] = parse_conf
-            item["exclude"] = "|".join([item.get("exclude", ""), exclude]).removeprefix(
-                "|"
-            )
-            pts = item.get("push_to", [])
-            pts.extend(push_to)
-            item["push_to"] = list(set(push_to))
-            pages_conf[url] = item
+        params["pages"] = pages
 
-        params["pages"] = pages_conf
+        # spider's config for scripts
+        scripts_conf, scripts = spiders.get("scripts", []), {}
+
+        for script in scripts_conf:
+            enable = script.pop("enable", True)
+            path = script.pop("script", "").strip()
+            if not enable or not path:
+                continue
+
+            scripts[path] = script.get("params", {})
+        params["scripts"] = scripts
 
     sites, delay = [], sys.maxsize
     params, push_conf, crawl_conf, update_conf = {}, {}, {}, {}
 
     try:
-        if os.path.exists(file) and os.path.isfile(file):
-            config = json.loads(open(file, "r", encoding="utf8").read())
-            parse_config(config)
-
         if re.match(
             "^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
             url,
@@ -184,6 +138,9 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
                 logger.error(f"cannot fetch config from remote, url: {url}")
             else:
                 parse_config(json.loads(content))
+        elif os.path.exists(url) and os.path.isfile(url):
+            config = json.loads(open(url, "r", encoding="utf8").read())
+            parse_config(config)
 
         # 从telegram抓取订阅信息
         if params:
@@ -246,7 +203,7 @@ def assign(
         num = len(accounts) if accounts else num
 
         if (
-            site.get("disable", False)
+            not site.get("enable", True)
             or "" == name
             or ("" == domain and not subscribes)
             or num <= 0
@@ -325,9 +282,7 @@ def aggregate(args: argparse.Namespace):
     pushtool = push.get_instance(push_type=1)
     clash_bin, subconverter_bin = clash.which_bin()
 
-    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
-        file=args.file, url=args.server
-    )
+    sites, push_configs, crawl_conf, update_conf, delay = load_configs(url=args.server)
     push_configs = pushtool.filter_push(push_configs)
     tasks, sites = assign(
         sites=sites,
@@ -504,15 +459,6 @@ if __name__ == "__main__":
         required=False,
         default="https://www.google.com/generate_204",
         help="test url",
-    )
-
-    parser.add_argument(
-        "-f",
-        "--file",
-        type=str,
-        required=False,
-        default=os.path.join(PATH, "subscribe", "config", "config.json"),
-        help="local config file",
     )
 
     parser.add_argument(
