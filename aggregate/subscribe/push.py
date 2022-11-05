@@ -9,6 +9,8 @@ import traceback
 import urllib
 import urllib.parse
 import urllib.request
+from enum import Enum
+from http.client import HTTPResponse
 
 import utils
 from logger import logger
@@ -18,6 +20,7 @@ class PushTo(object):
     def __init__(self, token: str = "") -> None:
         self.api_address = ""
         self.name = ""
+        self.method = "PUT"
         self.token = "" if not token or not isinstance(token, str) else token
 
     def push_file(
@@ -38,29 +41,6 @@ class PushTo(object):
     def push_to(
         self, content: str, push_conf: dict, group: str = "", retry: int = 5
     ) -> bool:
-        raise NotImplementedError
-
-    def validate(self, push_conf: dict) -> bool:
-        raise NotImplementedError
-
-    def filter_push(self, push_conf: dict) -> dict:
-        raise NotImplementedError
-
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
-        raise NotImplementedError
-
-
-class PushToPaste(PushTo):
-    """https://paste.gg"""
-
-    def __init__(self, token: str) -> None:
-        super().__init__(token=token)
-        self.api_address = "https://api.paste.gg/v1/pastes"
-        self.name = "paste.gg"
-
-    def push_to(
-        self, content: str, push_conf: dict, group: str = "", retry: int = 5
-    ) -> bool:
         if not self.validate(push_conf=push_conf):
             logger.error(f"[PushError] push config is invalidate, domain: {self.name}")
             return False
@@ -71,10 +51,10 @@ class PushToPaste(PushTo):
 
         try:
             request = urllib.request.Request(
-                url, data=data, headers=headers, method="PATCH"
+                url=url, data=data, headers=headers, method=self.method
             )
             response = urllib.request.urlopen(request, timeout=15, context=utils.CTX)
-            if self._is_success(response.getcode()):
+            if self._is_success(response):
                 logger.info(
                     f"[PushSuccess] push subscribes information to {self.name} successed, group=[{group}]"
                 )
@@ -95,6 +75,36 @@ class PushToPaste(PushTo):
                 return self.push_to(content, push_conf, group, retry)
 
             return False
+
+    def _is_success(self, response: HTTPResponse) -> bool:
+        return response and response.getcode() == 200
+
+    def _generate_payload(self, content: str, push_conf: dict) -> tuple[str, str, dict]:
+        raise NotImplementedError
+
+    def _error_handler(self, group: str = "") -> None:
+        logger.error(
+            f"[PushError]: group=[{group}], name: {self.name}, error message: \n{traceback.format_exc()}"
+        )
+
+    def validate(self, push_conf: dict) -> bool:
+        raise NotImplementedError
+
+    def filter_push(self, push_conf: dict) -> dict:
+        raise NotImplementedError
+
+    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+        raise NotImplementedError
+
+
+class PushToPaste(PushTo):
+    """https://paste.gg"""
+
+    def __init__(self, token: str) -> None:
+        super().__init__(token=token)
+        self.api_address = "https://api.paste.gg/v1/pastes"
+        self.name = "paste.gg"
+        self.method = "PATCH"
 
     def validate(self, push_conf: dict) -> bool:
         if not push_conf:
@@ -122,8 +132,8 @@ class PushToPaste(PushTo):
 
         return url, data, headers
 
-    def _is_success(self, status_code: int) -> bool:
-        return status_code == 204
+    def _is_success(self, response: HTTPResponse) -> bool:
+        return response and response.getcode() == 204
 
     def _error_handler(self, group: str = "") -> None:
         logger.error(
@@ -157,48 +167,15 @@ class PushToFarsEE(PushTo):
         super().__init__()
         self.name = "fars.ee"
         self.api_address = "https://fars.ee"
+        self.method = "PUT"
 
-    def push_to(
-        self, content: str, push_conf: dict, group: str = "", retry: int = 5
-    ) -> bool:
-        if not self.validate(push_conf=push_conf):
-            logger.error(f"[PushError] push config is invalidate, name: {self.name}")
-            return False
-
-        if retry <= 0:
-            logger.error(f"[PushError] achieve max retry, name: {self.name}")
-            return False
-
+    def _generate_payload(self, content: str, push_conf: dict) -> tuple[str, str, dict]:
         uuid = push_conf.get("uuid", "")
         headers = {"Content-Type": "application/json"}
         data = json.dumps({"content": content, "private": 1}).encode("UTF8")
         url = f"{self.api_address}/{uuid}"
 
-        try:
-            request = urllib.request.Request(
-                url, data=data, headers=headers, method="PUT"
-            )
-            response = urllib.request.urlopen(request, timeout=15, context=utils.CTX)
-            if response.getcode() == 200:
-                logger.info(
-                    f"[PushSuccess] push subscribes information to {self.name} successed, group=[{group}]"
-                )
-                return True
-            else:
-                logger.info(
-                    "[PushError]: group=[{}], name: {}, error message: \n{}".format(
-                        group, self.name, response.read().decode("unicode_escape")
-                    )
-                )
-                return False
-
-        except Exception:
-            logger.error(
-                f"[PushError]: group=[{group}], name: {self.name}, error message:"
-            )
-            traceback.print_exc()
-
-            return self.push_to(content, push_conf, group, retry - 1)
+        return url, data, headers
 
     def validate(self, push_conf: dict) -> bool:
         return push_conf is not None and push_conf.get("uuid", "")
@@ -219,14 +196,9 @@ class PushToDrift(PushTo):
     """waitting for public api"""
 
     def __init__(self, token: str) -> None:
-        super().__init__()
+        super().__init__(token=token)
         self.name = "drift.lol"
         self.api_address = "https://www.drift.lol"
-
-    def push_to(
-        self, content: str, push_conf: dict, group: str = "", retry: int = 5
-    ) -> bool:
-        return super().push_to(content, push_conf, group, retry)
 
     def validate(self, push_conf: dict) -> bool:
         return super().validate(push_conf)
@@ -236,6 +208,9 @@ class PushToDrift(PushTo):
 
     def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
         return super().raw_url(fileid, folderid, username)
+
+    def _generate_payload(self, content: str, push_conf: dict) -> tuple[str, str, dict]:
+        return super()._generate_payload(content, push_conf)
 
 
 class PushToDevbin(PushToPaste):
@@ -274,8 +249,8 @@ class PushToDevbin(PushToPaste):
 
         return url, data, headers
 
-    def _is_success(self, status_code: int) -> bool:
-        return status_code == 201
+    def _is_success(self, response: HTTPResponse) -> bool:
+        return response and response.getcode() == 201
 
     def _error_handler(self, group: str = "") -> None:
         super()._error_handler(group)
@@ -290,14 +265,73 @@ class PushToDevbin(PushToPaste):
         return f"https://devbin.dev/Raw/{fileid}"
 
 
+class PushToPastefy(PushToDevbin):
+    """https://pastefy.ga"""
+
+    def __init__(self, token: str) -> None:
+        super().__init__(token)
+        self.name = "pastefy.ga"
+        self.api_address = "https://pastefy.ga/api/v2/paste"
+        self.method = "PUT"
+
+    def _generate_payload(self, content: str, push_conf: dict) -> tuple[str, str, dict]:
+        fileid = push_conf.get("fileid", "")
+
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        data = json.dumps({"content": content}).encode("UTF8")
+        url = f"{self.api_address}/{fileid}"
+
+        return url, data, headers
+
+    def _is_success(self, response: HTTPResponse) -> bool:
+        if not response or response.getcode() != 200:
+            return False
+
+        try:
+            return json.loads(response.read()).get("success", "false")
+        except:
+            return False
+
+    def _error_handler(self, group: str = "") -> None:
+        logger.error(
+            f"[PushError]: group=[{group}], name: {self.name}, error message: \n{traceback.format_exc()}"
+        )
+
+    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+        if not fileid:
+            return ""
+
+        return f"https://pastefy.ga/{fileid}/raw"
+
+
+PUSHTYPE = Enum("PUSHTYPE", ("devbin.dev", "pastefy.ga", "paste.gg"))
+
+
 def get_instance(push_type: int = 1) -> PushTo:
+    def confirm_pushtype() -> int:
+        domian = utils.extract_domain(
+            url=os.environ.get("SUBSCRIBE_CONF", "").strip(), include_protocal=False
+        )
+        for item in PUSHTYPE:
+            if domian == item.name:
+                return item.value
+
+        return max(push_type, 1) if push_type <= len(PUSHTYPE) else 1
+
     token = os.environ.get("PUSH_TOKEN", "").strip()
     if not token:
         raise ValueError(
             f"[PushError] not found 'PUSH_TOKEN' in environment variables, please check it and try again"
         )
 
+    push_type = confirm_pushtype()
     if push_type == 1:
         return PushToDevbin(token=token)
+    elif push_type == 2:
+        return PushToPastefy(token=token)
 
     return PushToPaste(token=token)
