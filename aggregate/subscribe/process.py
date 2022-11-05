@@ -466,7 +466,7 @@ if __name__ == "__main__":
         "--server",
         type=str,
         required=False,
-        default="",
+        default=os.environ.get("SUBSCRIBE_CONF", "").strip(),
         help="remote config file",
     )
 

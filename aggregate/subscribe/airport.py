@@ -94,17 +94,17 @@ class AirPort:
 
     @staticmethod
     def get_register_require(
-        domain: str, proxy: str = ""
+        domain: str, proxy: str = "", default: bool = True
     ) -> tuple[bool, bool, bool, list]:
         domain = utils.extract_domain(url=domain, include_protocal=True)
         if not domain:
-            return True, True, True, []
+            return default, default, default, []
 
         url = f"{domain}/api/v1/guest/comm/config"
         content = utils.http_get(url=url, retry=2, proxy=proxy)
         if not content or not content.startswith("{") and content.endswith("}"):
-            logger.debug(f"[QueryError] cannot get register require, domain: {domain}")
-            return True, True, True, []
+            logger.info(f"[QueryError] cannot get register require, domain: {domain}")
+            return default, default, default, []
 
         try:
             data = json.loads(content).get("data", {})
@@ -123,7 +123,7 @@ class AirPort:
 
             return need_verify, invite_force, recaptcha, whitelist
         except:
-            return True, True, True, []
+            return default, default, default, []
 
     def sen_email_verify(self, email: str, retry: int = 3) -> bool:
         if not email.strip() or retry <= 0:
@@ -150,6 +150,7 @@ class AirPort:
         self, email: str, password: str, email_code: str = None, retry: int = 3
     ) -> tuple[str, str]:
         if retry <= 0:
+            logger.info(f"achieved max retry when register, domain: {self.ref}")
             return "", ""
 
         if not password:
@@ -171,7 +172,11 @@ class AirPort:
                 self.reg, data=data, headers=headers, method="POST"
             )
             response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
-            if not response or response.getcode() != 200:
+            code = 400 if not response else response.getcode()
+            if code != 200:
+                logger.error(
+                    f"[RegisterError] request error when register, domain: {self.ref}, code={code}"
+                )
                 return "", ""
 
             cookies = utils.extract_cookie(response.getheader("Set-Cookie"))
@@ -282,7 +287,7 @@ class AirPort:
             return "", ""
 
         need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
-            self.ref
+            domain=self.ref, default=False
         )
         # 需要邀请码或者强制验证
         if invite_force or recaptcha or (whitelist and need_verify):
@@ -496,6 +501,10 @@ class AirPort:
                     )
                     nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
 
+            if not nodes:
+                logger.info(f"cannot found any proxy, domain: {self.ref}")
+                return []
+
             proxies = []
             unused_nodes = self.fetch_unused(cookie, auth, rate)
             for item in nodes:
@@ -516,6 +525,7 @@ class AirPort:
 
                 try:
                     if self.rename:
+                        # re对group的引用方法: https://stackoverflow.com/questions/7191209/re-sub-replace-with-matched-content
                         if RENAME_SEPARATOR in self.rename:
                             words = self.rename.split(RENAME_SEPARATOR, maxsplit=1)
                             old = words[0].strip()
@@ -544,6 +554,7 @@ class AirPort:
                     .replace("_", "-")
                     .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
                 )
+                name = re.sub("-+", "-", name)
                 if not name:
                     continue
 

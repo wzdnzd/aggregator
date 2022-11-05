@@ -7,7 +7,6 @@ import gzip
 import json
 import random
 import re
-import ssl
 import time
 import urllib
 import urllib.parse
