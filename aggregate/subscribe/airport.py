@@ -13,14 +13,15 @@ import traceback
 import urllib
 import urllib.parse
 import urllib.request
-
-import yaml
+from dataclasses import dataclass, field
 
 import mailtm
 import renewal
-import subconverter
 import utils
+import yaml
 from logger import logger
+
+import subconverter
 
 EMAILS_DOMAINS = [
     "@gmail.com",
@@ -50,6 +51,21 @@ RENAME_SEPARATOR = "#@&#@"
 
 # 本地路径协议标识
 FILEPATH_PROTOCAL = "file:///"
+
+
+@dataclass
+class RegisterRequire:
+    # 是否需要验证邮箱
+    verify: bool
+
+    # 是否需要邀请码
+    invite: bool
+
+    # 是否包含验证码
+    recaptcha: bool
+
+    # 邮箱域名白名单
+    whitelist: list = field(default_factory=list)
 
 
 class AirPort:
@@ -91,20 +107,23 @@ class AirPort:
         self.include = include
         self.liveness = liveness
         self.headers = {"User-Agent": utils.USER_AGENT, "Referer": self.ref}
+        self.username = ""
+        self.password = ""
+        self.available = True
 
     @staticmethod
     def get_register_require(
         domain: str, proxy: str = "", default: bool = True
-    ) -> tuple[bool, bool, bool, list]:
+    ) -> RegisterRequire:
         domain = utils.extract_domain(url=domain, include_protocal=True)
         if not domain:
-            return default, default, default, []
+            return RegisterRequire(verify=default, invite=default, recaptcha=default)
 
         url = f"{domain}/api/v1/guest/comm/config"
         content = utils.http_get(url=url, retry=2, proxy=proxy)
         if not content or not content.startswith("{") and content.endswith("}"):
             logger.info(f"[QueryError] cannot get register require, domain: {domain}")
-            return default, default, default, []
+            return RegisterRequire(verify=default, invite=default, recaptcha=default)
 
         try:
             data = json.loads(content).get("data", {})
@@ -121,9 +140,15 @@ class AirPort:
             if whitelist is None or not isinstance(whitelist, Iterable):
                 whitelist = []
 
-            return need_verify, invite_force, recaptcha, whitelist
+            return RegisterRequire(
+                verify=need_verify,
+                invite=invite_force,
+                recaptcha=recaptcha,
+                whitelist=whitelist,
+            )
+
         except:
-            return default, default, default, []
+            return RegisterRequire(verify=default, invite=default, recaptcha=default)
 
     def sen_email_verify(self, email: str, retry: int = 3) -> bool:
         if not email.strip() or retry <= 0:
@@ -179,6 +204,9 @@ class AirPort:
                 )
                 return "", ""
 
+            self.username = email
+            self.password = password
+
             cookies = utils.extract_cookie(response.getheader("Set-Cookie"))
             data = json.loads(response.read()).get("data", {})
             token, authorization = "", ""
@@ -224,7 +252,7 @@ class AirPort:
         )
 
         if not plan:
-            logger.error(f"not exists free plan, domain: {self.ref}")
+            logger.info(f"not exists free plan, domain: {self.ref}")
             return False
         else:
             logger.info(f"found free plan, domain: {self.ref}, plan: {plan}")
@@ -282,24 +310,28 @@ class AirPort:
         except:
             return []
 
-    def get_subscribe(self, retry: int) -> tuple[str, str]:
+    def get_subscribe(self, retry: int, rr: RegisterRequire = None) -> tuple[str, str]:
         if self.registed:
             return "", ""
 
-        need_verify, invite_force, recaptcha, whitelist = AirPort.get_register_require(
-            domain=self.ref, default=False
+        rr = (
+            rr
+            if rr is not None
+            else self.get_register_require(domain=self.ref, default=False)
         )
+
         # 需要邀请码或者强制验证
-        if invite_force or recaptcha or (whitelist and need_verify):
+        if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify):
+            self.available = False
             return "", ""
 
-        if not need_verify:
+        if not rr.verify:
             email = utils.random_chars(length=random.randint(6, 10), punctuation=False)
             password = utils.random_chars(
                 length=random.randint(8, 16), punctuation=True
             )
 
-            email_suffixs = whitelist if whitelist else EMAILS_DOMAINS
+            email_suffixs = rr.whitelist if rr.whitelist else EMAILS_DOMAINS
             email_domain = random.choice(email_suffixs)
             if not email_domain:
                 return "", ""
