@@ -103,7 +103,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             datasets = batch_call(scripts)
 
         if not tasks:
-            logger.info(
+            logger.debug(
                 "cannot found any subscribe from Google/Telegram/Github and Page with crawler"
             )
             return datasets
@@ -506,7 +506,7 @@ def validate(
 
 
 def is_available(
-    url: str, retry: int = 2, remain: int = 0, spare_time: int = 0
+    url: str, retry: int = 2, remain: float = 0, spare_time: float = 0
 ) -> bool:
     """
     url: subscription link
@@ -676,13 +676,8 @@ def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> No
         if not url:
             return
 
-        (
-            need_verify,
-            invite_force,
-            recaptcha,
-            whitelist,
-        ) = airport.AirPort.get_register_require(domain=url)
-        if invite_force or recaptcha or (whitelist and need_verify):
+        rr = airport.AirPort.get_register_require(domain=url)
+        if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify):
             return
 
         availables.append(url)
