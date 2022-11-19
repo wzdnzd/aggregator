@@ -226,3 +226,21 @@ def write_file(filename: str, lines: list) -> bool:
         return True
     except:
         return False
+
+
+def isb64encode(content: str) -> bool:
+    if not content:
+        return False
+
+    # 判断是否为base64编码
+    regex = (
+        "^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$"
+    )
+
+    # 不是标准base64编码的情况，padding
+    b64flag = re.match(regex, content)
+    if not b64flag and len(content) % 4 != 0:
+        content += "=" * (4 - len(content) % 4)
+        b64flag = re.match(regex, content)
+
+    return b64flag

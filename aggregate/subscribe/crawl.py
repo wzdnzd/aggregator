@@ -553,7 +553,7 @@ def is_available(
             pass
 
         content = str(response.read(), encoding="utf8")
-        if airport.BASE64_PATTERN.match(content):
+        if utils.isb64encode(content):
             return True
         return re.search("proxies:", content) is not None
     except urllib.error.HTTPError as e:
