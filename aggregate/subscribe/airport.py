@@ -38,11 +38,6 @@ EMAILS_DOMAINS = [
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
-# 判断是否为base64编码
-BASE64_PATTERN = re.compile(
-    "^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$"
-)
-
 # 重命名分隔符
 RENAME_SEPARATOR = "#@&#@"
 
@@ -472,7 +467,7 @@ class AirPort:
             return []
 
         try:
-            if BASE64_PATTERN.match(text):
+            if utils.isb64encode(text):
                 chars = utils.random_chars(length=3, punctuation=False)
                 artifact = f"{self.name}-{chars}"
                 v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
