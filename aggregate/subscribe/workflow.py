@@ -30,6 +30,7 @@ class TaskConfig:
     exclude: str = ""
     include: str = ""
     liveness: bool = True
+    allow_insecure: bool = False
 
 
 def execute(task_conf: TaskConfig) -> list:
@@ -63,6 +64,7 @@ def execute(task_conf: TaskConfig) -> list:
         task_conf.rate,
         task_conf.bin_name,
         task_conf.tag,
+        task_conf.allow_insecure,
     )
 
     logger.info(
@@ -217,7 +219,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> Non
 
     update_conf = config.get("update", {})
     if not update_conf.get("enable", False):
-        logger.info("[UpdateError] skip update remote config because enable=[False]")
+        logger.debug("[UpdateError] skip update remote config because enable=[False]")
         return
 
     if not push.validate(push_conf=update_conf):
