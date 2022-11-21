@@ -390,6 +390,7 @@ class AirPort:
         rate: float,
         bin_name: str,
         tag: str,
+        allow_insecure: bool = False,
     ) -> list:
         if "" == self.sub:
             logger.error(
@@ -610,6 +611,9 @@ class AirPort:
                 # 方便过滤无效订阅
                 item["sub"] = self.sub
                 item["liveness"] = self.liveness
+
+                if allow_insecure:
+                    item["skip-cert-verify"] = allow_insecure
 
                 proxies.append(item)
 

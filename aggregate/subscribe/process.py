@@ -188,6 +188,7 @@ def assign(
         exclude = site.get("exclude", "").strip()
         include = site.get("include", "").strip()
         liveness = site.get("liveness", True)
+        allow_insecure = site.get("insecure", False)
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -244,6 +245,7 @@ def assign(
                         exclude=exclude,
                         include=include,
                         liveness=liveness,
+                        allow_insecure=allow_insecure,
                     )
                 )
 
@@ -258,7 +260,7 @@ def assign(
             subscribes = pushtool.raw_url(
                 fileid=fileid, folderid=folderid, username=username
             )
-            if not subscribes:
+            if not tasks or not subscribes:
                 continue
 
             tasks.append(
@@ -279,7 +281,7 @@ def aggregate(args: argparse.Namespace):
     if not args:
         return
 
-    pushtool = push.get_instance(push_type=1)
+    pushtool = push.get_instance()
     clash_bin, subconverter_bin = clash.which_bin()
 
     sites, push_configs, crawl_conf, update_conf, delay = load_configs(url=args.server)
