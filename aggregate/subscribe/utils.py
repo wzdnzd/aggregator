@@ -244,3 +244,7 @@ def isb64encode(content: str) -> bool:
         b64flag = re.match(regex, content)
 
     return b64flag
+
+
+def isblank(text: str) -> bool:
+    return not text or type(text) != str or not text.strip()
