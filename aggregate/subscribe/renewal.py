@@ -52,6 +52,7 @@ class SubscribeInfo:
     expired_days: int
     package: str
     sub_url: str
+    reset_day: int
 
 
 @dataclass
@@ -262,6 +263,155 @@ def get_payment_method(
         return []
 
 
+def unclosed_ticket(domain: str, headers: dict) -> tuple[int, int, str]:
+    if utils.isblank(domain) or not headers:
+        logger.info(
+            f"[TicketError] cannot fetch tickets because invalidate arguments, domain: {domain}"
+        )
+        return -1, -1, ""
+
+    url = f"{domain}/api/v1/user/ticket/fetch"
+    content = utils.http_get(url=url, headers=headers)
+    try:
+        tickets = json.loads(content).get("data", [])
+        tid, timestamp, subject = -1, -1, ""
+        for ticket in tickets:
+            status = ticket.get("status", 0)
+            if status == 0:
+                tid = ticket.get("id", -1)
+                timestamp = ticket.get("updated_at", -1)
+                subject = ticket.get("subject", "")
+                break
+
+        return tid, timestamp, subject
+    except:
+        logger.error(
+            f"[TicketError] failed fetch last ticket, domain: {domain}, content: {content}"
+        )
+        return -1, -1, ""
+
+
+def close_ticket(domain: str, tid: int, headers: dict, retry: int = 3) -> bool:
+    if utils.isblank(domain) or tid < 0 or not headers or retry <= 0:
+        logger.info(
+            f"[TicketError] cannot close ticket because invalidate arguments, domain: {domain}, tid: {tid}"
+        )
+
+    url = domain + "/api/v1/user/ticket/close"
+    params = {"id": tid}
+
+    try:
+        data = urllib.parse.urlencode(params).encode(encoding="UTF8")
+        request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+        if response.getcode() == 200:
+            content = response.read().decode("UTF8")
+            try:
+                return json.loads(content).get("data", False)
+            except:
+                logger.error(
+                    f"[TicketError] failed submit ticket, domain: {domain}, message: {content}"
+                )
+
+        return False
+
+    except Exception as e:
+        logger.error(e)
+        return close_ticket(domain=domain, tid=tid, headers=headers, retry=retry - 1)
+
+
+def submit_ticket(
+    domain: str,
+    cookies: str,
+    ticket: dict,
+    authorization: str = "",
+    retry: int = 3,
+) -> bool:
+    if retry <= 0:
+        logger.error(
+            f"[TicketError] achieved max retry when submit ticket, domain: {domain}"
+        )
+        return False
+
+    if utils.isblank(domain) or (
+        utils.isblank(cookies) and utils.isblank(authorization)
+    ):
+        logger.error(
+            f"[TicketError] submit ticket error, cookies and authorization is empty, domain: {domain}"
+        )
+        return False
+
+    if not ticket or type(ticket) != dict:
+        logger.info(
+            f"[TicketError] skip submit ticket because subject or message is empty, domain: {domain}"
+        )
+        return False
+
+    subject = ticket.get("subject", "")
+    message = ticket.get("message", "")
+    level = ticket.get("level", 1)
+    level = level if level in [0, 1, 2] else 1
+
+    if utils.isblank(subject) or utils.isblank(message):
+        logger.info(
+            f"[TicketError] skip submit ticket because subject or message is empty, domain: {domain}"
+        )
+        return False
+
+    headers = generate_headers(
+        domain=domain, cookies=cookies, authorization=authorization
+    )
+
+    # check last unclosed ticket
+    tid, timestamp, title = unclosed_ticket(domain=domain, headers=headers)
+    if tid > 0 and timestamp > 0:
+        # do not submit ticket if there are unclosed tickets in the last three days
+        if time.time() - timestamp < 259200000:
+            date = datetime.fromtimestamp(timestamp)
+            logger.info(
+                f"[TicketInfo] don't submit a ticket because found an unclosed ticket in the last three days, domain: {domain}, tid: {tid}, subject: {title}, time: {date}"
+            )
+            return False
+
+        logger.info(
+            f"[TicketInfo] found a unclosed ticket, domain: {domain}, tid: {tid}, subject: {title}, try close it now"
+        )
+        success = close_ticket(domain=domain, tid=tid, headers=headers)
+        if not success:
+            logger.error(
+                f"[TicketError] cannot submit a ticket because found an unclosed ticket but cannot close it, domain: {domain}, tid: {tid}, subject: {title}"
+            )
+            return False
+
+    url = domain + "/api/v1/user/ticket/save"
+    params = {"subject": subject, "level": level, "message": message}
+
+    try:
+        data = urllib.parse.urlencode(params).encode(encoding="UTF8")
+        request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+        if response.getcode() == 200:
+            content = response.read().decode("UTF8")
+            try:
+                return json.loads(content).get("data", False)
+            except:
+                logger.error(
+                    f"[TicketError] failed submit ticket, domain: {domain}, message: {content}"
+                )
+
+        return False
+
+    except Exception as e:
+        logger.error(e)
+        return submit_ticket(
+            domain=domain,
+            cookies=cookies,
+            ticket=ticket,
+            authorization=authorization,
+            retry=retry - 1,
+        )
+
+
 def get_free_plan(
     domain: str, cookies: str, authorization: str = "", retry: int = 3
 ) -> Plan:
@@ -351,6 +501,8 @@ def get_subscribe_info(
         expired_at = datetime.fromtimestamp(timestamp)
         today = datetime.fromtimestamp(time.time())
         expired_days = (expired_at - today).days
+        reset_day = data.get("reset_day", 365)
+        reset_day = 365 if (reset_day is None or reset_day < 0) else reset_day
         used = data.get("d", 0)
         trafficflow = data.get("transfer_enable", 1)
         used_rate = round(used / trafficflow, 2)
@@ -375,6 +527,7 @@ def get_subscribe_info(
             expired_days=expired_days,
             package=package,
             sub_url=sub_url,
+            reset_day=reset_day,
         )
     except:
         logger.error(
@@ -521,6 +674,10 @@ def add_traffic_flow(domain: str, params: dict) -> str:
             logger.info(
                 f"skip reset traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe.reset_enable}\tused-rate: {subscribe.used_rate}"
             )
+
+        subscribe.renew_enable = subscribe.renew_enable and (
+            not utils.isblank(package) or not utils.isblank(coupon_code)
+        )
         if (
             renew
             and subscribe.renew_enable
@@ -543,6 +700,27 @@ def add_traffic_flow(domain: str, params: dict) -> str:
             logger.info(
                 f"skip renew traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe.renew_enable}\texpired-days: {subscribe.expired_days}"
             )
+
+        # 提交工单重置流量
+        ticket = params.get("ticket", {})
+        if ticket and type(ticket) == dict:
+            enable = ticket.pop("enable", True)
+            autoreset = ticket.pop("autoreset", False)
+            # 过期时间 <= 5 或者 流量使用例 >= 0.8 或者 重置日期 <= 1 且不会自动重置时提交工单
+            if enable and (
+                (subscribe.expired_days <= 5 or subscribe.used_rate >= 0.8)
+                or (not autoreset and subscribe.reset_day <= 1)
+            ):
+                success = submit_ticket(
+                    domain=domain,
+                    cookies=cookies,
+                    ticket=ticket,
+                    authorization=authorization,
+                )
+
+                logger.info(
+                    f"ticket submit {'successed' if success else 'failed'}, domain: {domain}"
+                )
 
         return subscribe.sub_url
     except:
