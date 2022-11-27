@@ -18,6 +18,7 @@ import urllib
 import urllib.parse
 import urllib.request
 import warnings
+from copy import deepcopy
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Semaphore
 
@@ -122,7 +123,7 @@ def parse_v2ray(node: dict, uuid: str) -> dict:
         "type": "vmess",
         "uuid": uuid,
         "cipher": "auto",
-        "skip-cert-verify": False,
+        "skip-cert-verify": True,
     }
 
     server = node.get("server")
@@ -201,7 +202,7 @@ def parse_ssr(node: dict, user: dict) -> dict:
                 for arr in arrays:
                     sl = arr.split("#")
                     if port == int(sl[0]):
-                        port = int[sl[1]]
+                        port = int(sl[1])
                         break
 
     if user.get("obfs", "") == "tls1.2_ticket_auth_compatible":
@@ -282,18 +283,15 @@ def register(url: str, params: dict, retry: int) -> bool:
             kv = json.loads(content)
             if "ret" in kv and kv["ret"] == 1:
                 return True
-            else:
-                print("[RegisterError]: {}".format(content.decode("unicode_escape")))
-                return False
 
-        else:
-            print(
-                "[RegisterError]: {}".format(response.read().decode("unicode_escape"))
+        print(
+            "[ScanerRegisterError] domain: {}, message: {}".format(
+                url, response.read().decode("unicode_escape")
             )
-            return False
-
+        )
+        return False
     except Exception as e:
-        print("[RegisterError]: {}".format(str(e)))
+        print("[ScanerRegisterError] domain: {}, message: {}".format(url, str(e)))
 
         retry -= 1
         return register(url, params, retry) if retry > 0 else False
@@ -332,33 +330,40 @@ def get_cookie(text) -> str:
     return cookie
 
 
-def fetch_nodes(domain: str, email: str, passwd: str) -> bytes:
-    try:
-        login_url = domain + "/auth/login"
-        HEADER["origin"] = domain
-        HEADER["referer"] = login_url
+def fetch_nodes(
+    domain: str, email: str, passwd: str, headers: dict = None, retry: int = 3
+) -> bytes:
+    headers = deepcopy(HEADER) if not headers else headers
+    login_url = domain + "/auth/login"
+    headers["origin"] = domain
+    headers["referer"] = login_url
+    user_info = {"email": email, "passwd": passwd}
 
-        user_info = {"email": email, "passwd": passwd}
+    text = login(login_url, user_info, headers, 3)
+    cookie = get_cookie(text)
+    if not text or len(cookie) <= 0:
+        return None
 
-        text = login(login_url, user_info, HEADER, 3)
-        cookie = get_cookie(text)
-        if not text or len(cookie) <= 0:
-            raise ValueError("cannot fetch nodes info because login failed")
+    headers["cookie"] = cookie
+    content = None
+    while retry > 0 and not content:
+        retry -= 1
+        try:
+            request = urllib.request.Request(domain + "/getnodelist", headers=headers)
+            response = urllib.request.urlopen(request, timeout=30, context=CTX)
+            if response.getcode() == 200:
+                content = response.read()
+                break
+            else:
+                print(
+                    "[ScanerFetchError] domain: {}, message: {}".format(
+                        domain, response.read().decode("unicode_escape")
+                    )
+                )
+        except Exception as e:
+            print("[ScanerFetchError] domain: {}, message: {}".format(domain, str(e)))
 
-        HEADER.pop("origin")
-        HEADER.pop("referer")
-        HEADER["cookie"] = cookie
-
-        request = urllib.request.Request(domain + "/getnodelist", headers=HEADER)
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
-        if response.getcode() == 200:
-            return response.read()
-        else:
-            print("[FetchError]: {}".format(response.read().decode("unicode_escape")))
-    except Exception as e:
-        print("[FetchError]: {}".format(str(e)))
-
-    return None
+    return content
 
 
 def check(domain: str) -> bool:
@@ -408,14 +413,13 @@ def scan(domain: str, file: str, args: argparse.Namespace) -> None:
 
         # 注册失败后不立即返回 因为可能已经注册过
         if not register(register_url, params, 3):
-            print("register failed, domain: {}".format(domain))
+            print("[ScanerError] register failed, domain: {}".format(domain))
 
     # 获取机场所有节点信息
     content = fetch_nodes(domain, args.email, args.passwd)
     filepath = os.path.join(args.path, "{}.json".format(domain.split("/")[2]))
     nodes = convert(content, filepath, args.keep, args.type)
     if not nodes:
-        print("cannot found any proxy node, domain: {}".format(domain))
         return
 
     proxies = {"proxies": nodes}
@@ -585,7 +589,7 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
         if count == 0:
             return []
 
-        pages = range(count, -1, -100)
+        pages = range(count, -1, -20)
         page_num = min(page_num, len(pages))
         urls = [f"{url}?before={x}" for x in pages[:page_num]]
 
@@ -671,7 +675,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-a", "--address", type=str, required=False, default="", help="airport domain"
+        "-a",
+        "--address",
+        type=str,
+        required=False,
+        default="",
+        help="airport domain",
     )
 
     parser.add_argument(
@@ -725,11 +734,24 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-c", "--config", type=str, required=False, default="", help="clash config path"
+        "-c",
+        "--config",
+        type=str,
+        required=False,
+        default="",
+        help="clash config path",
     )
 
     args = parser.parse_args()
+
     if args.batch:
+        if (
+            not args.address
+            or args.address.startswith("http://")
+            or args.address.startswith("https://")
+        ):
+            raise ValueError("local file path cannot be url")
+
         if not (os.path.exists(args.address) and os.path.isfile(args.address)):
             print(
                 "select batch mode, but file not found, path: {}, begin crawl from telegram".format(
