@@ -677,6 +677,8 @@ def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> No
             return
 
         rr = airport.AirPort.get_register_require(domain=url)
+
+        # if rr.invite or rr.recaptcha:
         if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify):
             return
 

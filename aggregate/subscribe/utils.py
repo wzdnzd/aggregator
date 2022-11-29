@@ -228,7 +228,7 @@ def write_file(filename: str, lines: list) -> bool:
         return False
 
 
-def isb64encode(content: str) -> bool:
+def isb64encode(content: str, padding: bool = True) -> bool:
     if not content:
         return False
 
@@ -239,11 +239,11 @@ def isb64encode(content: str) -> bool:
 
     # 不是标准base64编码的情况，padding
     b64flag = re.match(regex, content)
-    if not b64flag and len(content) % 4 != 0:
+    if not b64flag and len(content) % 4 != 0 and padding:
         content += "=" * (4 - len(content) % 4)
         b64flag = re.match(regex, content)
 
-    return b64flag
+    return b64flag is not None
 
 
 def isblank(text: str) -> bool:
