@@ -84,11 +84,10 @@ def aggregate(args: argparse.Namespace):
         return
 
     clash_bin, subconverter_bin = clash.which_bin()
-    domains_file = os.path.join(PATH, "domains.txt")
     tasks = assign(
         retry=3,
         bin_name=subconverter_bin,
-        filename=domains_file,
+        filename=os.path.join(PATH, "domains.txt"),
         overwrite=args.overwrite,
         pages=args.pages,
     )
@@ -193,7 +192,9 @@ def aggregate(args: argparse.Namespace):
         domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
 
         # 更新 domains.txt 文件为实际可使用的网站列表
-        utils.write_file(filename=domains_file, lines=domains)
+        utils.write_file(
+            filename=os.path.join(PATH, "valid-domains.txt"), lines=domains
+        )
 
         # 关闭clash
         workflow.cleanup(process, workspace, [])

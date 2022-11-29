@@ -316,6 +316,7 @@ class AirPort:
         )
 
         # 需要邀请码或者强制验证
+        # if rr.invite or rr.recaptcha:
         if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify):
             self.available = False
             return "", ""
@@ -335,6 +336,9 @@ class AirPort:
             return self.register(email=email, password=password, retry=retry)
         else:
             try:
+                # onlygmail = True if rr.whitelist else False
+                # mailbox = mailtm.create_instance(onlygmail=onlygmail)
+
                 mailbox = mailtm.create_instance()
                 account = mailbox.get_account()
                 if not account:
@@ -391,6 +395,7 @@ class AirPort:
         bin_name: str,
         tag: str,
         allow_insecure: bool = False,
+        udp: bool = True,
     ) -> list:
         if "" == self.sub:
             logger.error(
@@ -614,6 +619,9 @@ class AirPort:
 
                 if allow_insecure:
                     item["skip-cert-verify"] = allow_insecure
+
+                if udp and "udp" not in item:
+                    item["udp"] = True
 
                 proxies.append(item)
 

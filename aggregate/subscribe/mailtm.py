@@ -8,6 +8,7 @@ import json
 import random
 import re
 import time
+import traceback
 import urllib
 import urllib.parse
 import urllib.request
@@ -397,7 +398,7 @@ class LinShiEmail(TemporaryMail):
             return []
 
         address = account.address.split("@", maxsplit=1)[0]
-        url = f"{self.api_address}//api/v1/mailbox/{address}"
+        url = f"{self.api_address}/api/v1/mailbox/{address}"
         content = utils.http_get(url=url, retry=1)
         if not content:
             return []
@@ -687,6 +688,167 @@ class MOAKT(TemporaryMail):
             return False
 
         utils.http_get(url=f"{self.api_address}/inbox/logout", headers=self.headers)
+        return True
+
+
+class Emailnator(TemporaryMail):
+    def __init__(self, onlygmail: bool = False) -> None:
+        self.api_address = "https://www.emailnator.com"
+        self.only_gmail = onlygmail
+        self.headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Encoding": "gzip, deflate",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "User-Agent": utils.USER_AGENT,
+            "Content-Type": "application/json",
+            "Origin": "https://www.emailnator.com",
+            "Referer": "https://www.emailnator.com/",
+        }
+
+    def get_domains_list(self) -> list:
+        # unable to obtain the supported email domain through web api
+        return ["gmail.com", "femailtor.com", "smartnator.com", "psnator.com"]
+
+    def _get_xsrf_token(self, retry: int = 3) -> tuple[str, str]:
+        cookies, xsrf_token, count = "", "", 1
+        while not cookies and count <= retry:
+            count += 1
+            try:
+                request = urllib.request.Request(
+                    url=self.api_address, headers=self.headers
+                )
+                response = urllib.request.urlopen(
+                    request, timeout=10, context=utils.CTX
+                )
+
+                cookies = response.getheader("Set-Cookie")
+                groups = re.findall("XSRF-TOKEN=(.+?);", cookies)
+                xsrf_token = groups[0] if groups else ""
+                xsrf_token = urllib.parse.unquote(
+                    xsrf_token, encoding="utf8", errors="replace"
+                )
+
+                groups = re.findall("(XSRF-TOKEN|gmailnator_session)=(.+?);", cookies)
+                cookies = (
+                    ";".join(["=".join(x) for x in groups]).strip()
+                    if groups
+                    else cookies
+                )
+            except Exception:
+                pass
+
+        return cookies, xsrf_token
+
+    def get_account(self, retry: int = 3) -> Account:
+        cookie, xsrf_token = self._get_xsrf_token(retry=3)
+        if retry <= 0 or not cookie or not xsrf_token:
+            logger.error(
+                f"[EmailnatorError] cannot create account because cannot get cookies or xsrf_token or archieved max retry, domain: {self.api_address}"
+            )
+            return None
+
+        self.headers["Cookie"] = cookie
+        self.headers["X-XSRF-TOKEN"] = xsrf_token
+
+        url = f"{self.api_address}/generate-email"
+        params = (
+            ["plusGmail", "dotGmail"]
+            if self.only_gmail
+            else ["domain", "plusGmail", "dotGmail"]
+        )
+
+        try:
+            data = bytes(json.dumps({"email": params}), "UTF8")
+            request = urllib.request.Request(
+                url, data=data, headers=self.headers, method="POST"
+            )
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+            if response.getcode() == 200:
+                content = response.read()
+                try:
+                    content = str(content, encoding="utf8")
+                except:
+                    content = gzip.decompress(content).decode("utf8")
+
+                emails = json.loads(content).get("email", [])
+                return Account(emails[0]) if emails else None
+            else:
+                logger.error(
+                    "[EmailnatorError] cannot create email account, domain: {}\tmessage: {}".format(
+                        self.api_address, response.read().decode("UTF8")
+                    )
+                )
+                return None
+        except:
+            return self.get_account(retry=retry - 1)
+
+    def get_messages(self, account: Account) -> list:
+        if not account:
+            return []
+        try:
+            content, messages = self._get_messages(address=account.address), []
+            if not content:
+                return messages
+
+            dataset = json.loads(content).get("messageData", [])
+            for data in dataset:
+                messageid = data.get("messageID", "")
+                # AD
+                if not utils.isb64encode(content=messageid, padding=False):
+                    continue
+
+                content = self._get_messages(
+                    address=account.address, messageid=messageid
+                )
+                messages.append(
+                    Message(
+                        subject=data.get("subject", ""),
+                        id=messageid,
+                        sender={data.get("from", ""), data.get("from", "")},
+                        html=content,
+                        text=content,
+                    )
+                )
+            return messages
+        except:
+            return []
+
+    def _get_messages(self, address: str, messageid: str = "", retry: int = 3) -> str:
+        if not address or retry <= 0:
+            logger.error(
+                f"[EmailnatorError] cannot list messages because address is empty or archieved max retry, domain: {self.api_address}"
+            )
+            return ""
+
+        url = f"{self.api_address}/message-list"
+        params = {"email": address}
+        if not utils.isblank(messageid):
+            params["messageID"] = messageid
+
+        try:
+            data = data = bytes(json.dumps(params), "UTF8")
+            request = urllib.request.Request(
+                url, data=data, headers=self.headers, method="POST"
+            )
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+            content = ""
+            if response.getcode() == 200:
+                content = response.read()
+                try:
+                    content = str(content, encoding="utf8")
+                except:
+                    content = gzip.decompress(content).decode("utf8")
+
+            return content
+        except:
+            return self._get_messages(
+                address=address, messageid=messageid, retry=retry - 1
+            )
+
+    def delete_account(self, account: Account) -> bool:
+        logger.info(
+            f"[EmailnatorError] not support delete account, domain: {self.api_address}"
+        )
         return True
 
 
