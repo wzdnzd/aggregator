@@ -27,6 +27,7 @@ import airport
 import utils
 from logger import logger
 from origin import Origin
+from urlvalidator import isurl
 
 SEPARATOR = "-"
 
@@ -388,10 +389,7 @@ def crawl_pages(pages: dict):
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"[PageCrawl] start crawl from Page, time: {starttime}")
     for k, v in pages.items():
-        if not re.match(
-            "https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+.*",
-            k,
-        ):
+        if not isurl(url=k):
             continue
 
         push_to = v.get("push_to", [])

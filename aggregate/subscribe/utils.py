@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 
 from logger import logger
+from urlvalidator import isurl
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -48,10 +49,7 @@ def http_get(
     proxy: str = "",
     interval: float = 0,
 ) -> str:
-    if not re.match(
-        "^(https?:\/\/(\S+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
-        url,
-    ):
+    if not isurl(url=url):
         logger.error(f"invalid url: {url}")
         return ""
 

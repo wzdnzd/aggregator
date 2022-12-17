@@ -15,17 +15,18 @@ import subprocess
 import sys
 import time
 
-import yaml
-
-import clash
 import crawl
 import push
-import subconverter
 import utils
 import workflow
+import yaml
 from logger import logger
 from origin import Origin
+from urlvalidator import isurl
 from workflow import TaskConfig
+
+import clash
+import subconverter
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -174,10 +175,7 @@ def load_configs(file: str, url: str) -> tuple[list, dict, dict, dict, int]:
             config = json.loads(open(file, "r", encoding="utf8").read())
             parse_config(config)
 
-        if re.match(
-            "^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
-            url,
-        ):
+        if isurl(url=url):
             headers = {"User-Agent": utils.USER_AGENT, "Referer": url}
             content = utils.http_get(url=url, headers=headers)
             if not content:
@@ -322,7 +320,7 @@ def aggregate(args: argparse.Namespace):
     if not args:
         return
 
-    pushtool = push.get_instance(push_type=1)
+    pushtool = push.get_instance()
     clash_bin, subconverter_bin = clash.which_bin()
 
     sites, push_configs, crawl_conf, update_conf, delay = load_configs(
