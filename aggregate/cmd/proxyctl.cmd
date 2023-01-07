@@ -13,7 +13,7 @@ call :setESC
 @REM https://blog.csdn.net/sanqima/article/details/37818115
 setlocal enableDelayedExpansion
 
-@REM call workflow
+@REM call workflowconfigfile
 goto :workflow
 
 
@@ -26,11 +26,21 @@ goto :workflow
 @REM batch file name
 set "batname=%~nx0"
 
-@REM help flag
-set "helpflag=0"
+@REM exit flag
+set "shouldexit=0"
+
+@REM init
+set "initflag=0"
+
+@REM configuration file name
+set "configuration=config.yaml"
+
+@REM subscription link
+set "sublink="
+set "isweblink=0"
 
 @REM check
-set "checkflag=0"
+set "testflag=0"
 
 @REM repair
 set "repair=0"
@@ -71,30 +81,31 @@ set "show=0"
 @REM setting workspace
 set "dest="
 
+@REM network proxy registry configuration path
+set "regeditpath=HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings"
+
 @REM parse arguments
 call :argsparse %*
 
-@REM arguments error occured
-if "!helpflag!" == "1" exit /b 0
+@REM invalid arguments
+if "!shouldexit!" == "1" exit /b 1
 
 @REM close network proxy
 if "!killflag!" == "1" goto :closeproxy
+
+@REM connectivity test
+if "!testflag!" == "1" (
+    call :checkconnect available 1
+    exit /b
+)
 
 @REM regular file path
 if "!dest!" == "" set "dest=%~dp0"
 call :pathregular dest "!dest!"
 
 @REM config file path
-set "configfile=!dest!\config.yaml"
-
-@REM github proxy
-set "ghproxy=https://ghproxy.com"
-
-@REM exit if config file not exists
-if not exist "!configfile!" exit /b 1
-
-@REM connectivity test
-if "!checkflag!" == "1" goto :checkconnect 1
+call :precheck configfile
+if "!configfile!" == "" exit /b 1
 
 @REM reload config
 if "!reloadonly!" == "1" goto :reload
@@ -108,9 +119,103 @@ if "!repair!" == "1" goto :resolveissues
 @REM update
 if "!updateflag!" == "1" goto :updateplugins
 
+@REM init
+if "!initflag!" == "1" goto :initialize
+
 @REM unknown command
-if "!helpflag!" == "0" goto :usage
+if "!shouldexit!" == "0" goto :usage
 exit /b
+
+
+@REM check if the configuration file exists
+:precheck <result>
+set "%~1="
+set "subfile=!temp!\clashsub.yaml"
+
+@REM absolute path
+call :pathconvert conflocation "!configuration!"
+call :pathregular conflocation "!conflocation!"
+if "!conflocation!" == "" (
+    @echo [%ESC%[91merror%ESC%[0m] configuration path is %ESC%[91minvalid%ESC%[0m, the network proxy cannot start
+    exit /b 1
+)
+
+@REM cannot contain whitespace in path
+if "!conflocation!" neq "!conflocation: =!" (
+    @echo [%ESC%[91merror%ESC%[0m] invalid configuration path "%ESC%[97m!conflocation!%ESC%[0m", %ESC%[91mcannot%ESC%[0m contain %ESC%[97mwhitespace%ESC%[0m
+    exit /b 1
+)
+
+if "!isweblink!" == "1" (
+    if exist "!conflocation!" (
+        choice /t 6 /d n /n /m "[%ESC%[97mwarning%ESC%[0m] %ESC%[97mexisting%ESC%[0m configuration file "%ESC%[97m!conflocation!%ESC%[0m" will be %ESC%[91moverwritten%ESC%[0m, do you want to continue? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+        if !errorlevel! == 2 exit /b 1
+    )
+
+    @REM try to download
+    del /f /q "!subfile!" >nul 2>nul
+
+    set "statuscode=000"
+    for /f %%a in ('curl --retry 3 --retry-max-time 30 -m 60 --connect-timeout 30 -L -s -o "!subfile!" -w "%%{http_code}" -H "User-Agent: Clash" "!sublink!"') do set "statuscode=%%a"
+
+    @REM download success
+    if "!statuscode!" == "200" (
+        set "filesize=0"
+        if exist "!subfile!" (for %%a in ("!subfile!") do set "filesize=%%~za")
+        if !filesize! GTR 64 (
+            @REM validate
+            set "content="
+            for /f "tokens=*" %%a in ('findstr /i /r /c:"^external-controller:[ ][ ]*.*:[0-9][0-9]*.*" !subfile!') do set "content=%%a"
+            if "!content!" == "" (
+                @echo [%ESC%[91merror%ESC%[0m] invalid configuration file, please confirm the %ESC%[97msubscription%ESC%[0m is valid
+                exit /b 1
+            )
+
+            del /f /q "!conflocation!" >nul 2>nul
+            call :splitpath filepath filename "!conflocation!"
+            call :makedirs "!filepath!"
+            move "!subfile!" "!conflocation!" >nul 2>nul
+            
+            @echo [%ESC%[95minfo%ESC%[0m] configuration file has been downloaded %ESC%[95msuccessfully%ESC%[0m
+        ) else (
+            @REM output is empty
+            set "statuscode=000"
+        )
+    )
+
+    if "!statuscode!" NEQ "200" (
+        @echo [%ESC%[91merror%ESC%[0m] configuration file download %ESC%[91mfailed%ESC%[0m, please check if your subscription link is available
+        exit /b 1
+    )
+)
+
+if not exist "!conflocation!" (
+    @echo [%ESC%[91merror%ESC%[0m] the specified configuration file "%ESC%[97m!conflocation!%ESC%[0m" does %ESC%[91mnot exist%ESC%[0m
+    goto :eof
+)
+
+@REM validate
+set "content="
+for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^proxy-groups:[ ]*" "!conflocation!"') do set "content=%%a"
+call :trim content "!content!"
+if "!content!" NEQ "proxy-groups" (
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91minvalid%ESC%[0m configuration file "%ESC%[97m!conflocation!%ESC%[0m"
+    exit /b 1
+)
+
+set "%~1=!conflocation!"
+goto :eof
+
+
+@REM Initialize network proxy
+:initialize
+choice /t 5 /d n /n /m "[%ESC%[97mwarning%ESC%[0m] clash will be initialized and started in "%ESC%[97m!dest!%ESC%[0m", do you want to continue (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+if !errorlevel! == 2 exit /b 1
+
+set "quickflag=0"
+set "exclude=1"
+call :updateplugins
+goto :eof
 
 
 @REM fix network issues
@@ -155,9 +260,6 @@ if !errorlevel! == 1 (
         if "!continue!" == "0" exit /b
     )
 
-    @REM wintun.dll
-    call :downloadwintun
-
     @REM restore plugins
     call :updateplugins
 ) else (
@@ -173,7 +275,7 @@ call :checkconnect available 0
 if "!available!" == "1" (
     @echo [%ESC%[95minfo%ESC%[0m] issues has been %ESC%[95mfixed%ESC%[0m and now the network proxy can be used %ESC%[95mnormally%ESC%[0m
 ) else (
-    @echo [%ESC%[91merror%ESC%[0m] the problem repair %ESC%[91mfailed%ESC%[0m, the network proxy is still %ESC%[91munavailable%ESC%[0m, please try other methods
+    @echo [%ESC%[91merror%ESC%[0m] issues repair %ESC%[91mfailed%ESC%[0m, the network proxy is still %ESC%[91munavailable%ESC%[0m, please try other methods
 )
 goto :eof
 
@@ -184,7 +286,7 @@ set "%~1=1"
 call :trim loglevel "%~2"
 if "!loglevel!" == "" set "loglevel=1"
 
-call :isavailable available 0 "https://www.baidu.com"
+call :isavailable available 0 "https://www.baidu.com" ""
 if "!available!" == "0" (
     @echo [%ESC%[91merror%ESC%[0m] your network is %ESC%[91munavailable%ESC%[0m, but proxy program is %ESC%[91mnot running%ESC%[0m. please check the network first
 
@@ -198,6 +300,7 @@ if "!loglevel!" == "1" (
 )
 goto :eof
 
+
 @REM update workflow
 :updateplugins
 if "!quickflag!" == "1" goto :quickupdate
@@ -207,32 +310,8 @@ if "!asdaemon!" == "1" (
     cacls "%SystemDrive%\System Volume Information" >nul 2>&1 || (start "" mshta vbscript:CreateObject^("Shell.Application"^).ShellExecute^("%~snx0"," %*","","runas",!show!^)^(window.close^)&exit /b)
 )
 
-@REM dashboard directory name
-call :extractpath
-
-@REM confirm download url and filename
-call :versioned
-
-@REM confirm donwload url
-call :confirmurl
-
-@REM precleann workspace
-call :cleanworkspace "!temp!"
-
-@REM update dashboard
-call :dashboardupdate
-
-@REM update subscriptions
-if "!exclude!" == "0" call :updatesubs
-
-@REM update rulefiles
-call :updaterules
-
-@REM download clah.exe and geoip.data and so on
-call :donwloadfiles filenames
-
-@REM judge file changed with md5
-call :detect changed "!filenames!"
+@REM prepare all plugins
+call :prepare changed 1
 
 @REM no new version found
 if "!changed!" == "0" (
@@ -263,11 +342,58 @@ if "!result!" == "true" (
 )
 
 if "%1" == "-c" set result=true
-if "%1" == "--check" set result=true
+if "%1" == "--conf" set result=true
 if "!result!" == "true" (
-    set "checkflag=1"
-    set result=false
-    shift & goto :argsparse
+    @REM validate argument
+    call :trim subscription "%~2"
+
+    if "!subscription!" == "" set result=false
+    if "!subscription:~0,2!" == "--" set result=false
+    if "!subscription:~0,1!" == "-" set result=false
+
+    if "!result!" == "false" (
+        @echo [%ESC%[91merror%ESC%[0m] invalid argument, must provide a %ESC%[91mvalid%ESC%[0m %ESC%[97mconfiguration file%ESC%[0m or %ESC%[97msubscription link%ESC%[0m if you specify "%ESC%[97m--conf%ESC%[0m"
+        @echo.
+        goto :usage
+    )
+
+    if "!subscription:~0,8!" == "https://" set "isweblink=1"
+    if "!subscription:~0,7!" == "http://" set "isweblink=1"
+    if "!isweblink!" == "1" (
+        set "invalid=0"
+
+        @REM include '"' see https://stackoverflow.com/questions/46238709/how-to-detect-if-input-is-quote
+        @echo !subscription! | findstr /i /r /c:"\"^" >nul && (set "invalid=1")
+
+        @REM contain whitespace
+        if "!subscription!" neq "!subscription: =!" set "invalid=1"
+        @REM match url
+        echo "!subscription!" | findstr /i /r /c:^"\"http.*://.*[a-zA-Z0-9][a-zA-Z0-9]*\"^" >nul 2>nul || (set "invalid=1")
+
+        if "!invalid!" == "1" (
+            set "shouldexit=1"
+
+            @echo [%ESC%[91merror%ESC%[0m] invalid subscription link "%ESC%[97m!subscription!%ESC%[0m"
+            @echo.
+            goto :eof
+        ) 
+        set "sublink=!subscription!"
+    ) else (
+        set "invalid=1"
+        if "!subscription:~-5!" == ".yaml" (set "invalid=0") else (
+            if "!subscription:~-4!" == ".yml" (set "invalid=0")
+        )
+        if "!invalid!" == "0" (
+            set "configuration=!subscription!"
+        ) else (
+            set "shouldexit=1"
+
+            @echo [%ESC%[91merror%ESC%[0m] invalid configuration "%ESC%[97m!subscription!%ESC%[0m", only "%ESC%[97m.yaml%ESC%[0m" and "%ESC%[97m.yml%ESC%[0m" files are supported
+            @echo.
+            goto :eof
+        )
+    )
+    shift & shift & goto :argsparse
 )
 
 if "%1" == "-d" set result=true
@@ -300,10 +426,26 @@ if "!result!" == "true" (
     call :usage
 )
 
+if "%1" == "-i" set result=true
+if "%1" == "--init" set result=true
+if "!result!" == "true" (
+    set "initflag=1"
+    set result=false
+    shift & goto :argsparse
+)
+
 if "%1" == "-k" set result=true
 if "%1" == "--kill" set result=true
 if "!result!" == "true" (
     set "killflag=1"
+    set result=false
+    shift & goto :argsparse
+)
+
+if "%1" == "-m" set result=true
+if "%1" == "--meta" set result=true
+if "!result!" == "true" (
+    set "clashmeta=1"
     set result=false
     shift & goto :argsparse
 )
@@ -348,6 +490,14 @@ if "!result!" == "true" (
     shift & goto :argsparse
 )
 
+if "%1" == "-t" set result=true
+if "%1" == "--test" set result=true
+if "!result!" == "true" (
+    set "testflag=1"
+    set result=false
+    shift & goto :argsparse
+)
+
 if "%1" == "-u" set result=true
 if "%1" == "--update" set result=true
 if "!result!" == "true" (
@@ -372,9 +522,11 @@ if "!result!" == "true" (
     )
 
     if not exist "!directory!" (
+        set "shouldexit=1"
+
         @echo [%ESC%[91merror%ESC%[0m] the specified path "%ESC%[97m!directory!%ESC%[0m" for "%ESC%[97m--workspace%ESC%[0m" does %ESC%[91mnot exist%ESC%[0m, must be an %ESC%[97mabsolute path%ESC%[0m
         @echo.
-        goto :usage
+        goto :eof
     )
 
     set "dest=!directory!"
@@ -389,6 +541,9 @@ if "!result!" == "true" (
     set result=false
     shift & goto :argsparse
 )
+
+@REM will throw exception if this code not in here or delete it or merge with <if "%1" NEQ "">. why?
+if "%1" == "" goto :eof
 
 if "%1" NEQ "" (
     call :trim syntax "%~1"
@@ -413,6 +568,7 @@ if "%1" NEQ "" (
     @echo.
     goto :usage
 )
+
 goto :eof
 
 
@@ -421,43 +577,45 @@ goto :eof
 @echo Usage: !batname! [OPTIONS]
 @echo.
 @echo arguments: support long options and short options
-@echo -a, --alpha          alpha version allowed for clash, the stable version is used by default, %ESC%[97muse with --update%ESC%[0m
-@echo -c, --check          check whether the network proxy is available
-@echo -d, --daemon         run on background as daemon, default is false, %ESC%[97muse with --update%ESC%[0m
-@echo -e, --exclude        ignore subscriptions when updating, %ESC%[97muse with --update%ESC%[0m
-@echo -f, --fix            overwrite all plugins to fix network issues
+@echo -a, --alpha          alpha version allowed for clash, the stable version is used by default
+@echo -c, --conf           specify a configuration file, support local files and subscription links
+@echo -d, --daemon         run on background as daemon, default is false
+@echo -e, --exclude        skip subscriptions when updating
+@echo -f, --fix            %ESC%[91moverwrite%ESC%[0m all plugins to fix network issues
 @echo -h, --help           display this help and exit
+@echo -i, --init           initialize network proxy with the configuration provided by "%ESC%[97m--conf%ESC%[0m"
 @echo -k, --kill           close network proxy by kill clash process
-@echo -m, --meta           use clash.meta instead of clash premium, %ESC%[97muse with --update%ESC%[0m
+@echo -m, --meta           if configuration is compatible, use clash.meta instead of clash premium
 @echo -o, --overload       only reload configuration files
-@echo -q, --quick          quick updates, only subscriptions and rulesets are refreshed, %ESC%[97muse with --update%ESC%[0m
+@echo -q, --quick          quick updates, only subscriptions and rulesets are refreshed
 @echo -r, --restart        kill and restart clash process
-@echo -s, --show           show running window, hide by default, %ESC%[97muse with --update%ESC%[0m
+@echo -s, --show           show running window, hide by default
+@echo -t, --test           check whether the network proxy is available
 @echo -u, --update         perform update operations on plugins, subscriptions, and rulesets
-@echo -w, --workspace      specify the absolute path of clash workspace, default is the path where the current script is located
-@echo -y, --yacd           use yacd to replace the standard dashboard, %ESC%[97muse with --update%ESC%[0m
+@echo -w, --workspace      the %ESC%[97mabsolute path%ESC%[0m of clash workspace, default is the path where the current script is located
+@echo -y, --yacd           use yacd to replace the standard dashboard
 
-set "helpflag=1"
+set "shouldexit=1"
 goto :eof
 
 
 @REM confirm download url and filename according parameters
-:versioned
+:versioned <geosite>
+set "%~1=0"
 set "content="
-set "geositeneed=0"
 
-for /f "tokens=*" %%i in ('findstr /i /r "GEOSITE,.*" !configfile!') do set "content=!content!;%%i"
+for /f "tokens=*" %%i in ('findstr /i /r "GEOSITE,.*" "!configfile!"') do set "content=!content!;%%i"
 call :searchrules "!content!"
 
 @REM rulesets include GEOSITE, must be clash.meta
 if "!notfound!" == "0" (
     set "clashmeta=1"
-    set "geositeneed=1"
+    set "%~1=1"
     goto :eof
 )
 
 set "content="
-for /f "tokens=*" %%i in ('findstr /i /r "SCRIPT,.*" !configfile!') do set "content=!content!;%%i"
+for /f "tokens=*" %%i in ('findstr /i /r "SCRIPT,.*" "!configfile!"') do set "content=!content!;%%i"
 call :searchrules "!content!"
 
 @REM rulesets include SCRIPT, must be clash.premium
@@ -470,10 +628,10 @@ goto :eof
 @REM quickly update subscriptions and rulesets
 :quickupdate
 @REM subscriptions
-if "!exclude!" == "0" call :updatesubs
+if "!exclude!" == "0" call :updatesubs 1
 
 @REM rulesets
-call :updaterules
+call :updaterules 1
 
 @REM reload
 if "!changed!" == "1" (goto :reload) else (goto :eof)
@@ -498,9 +656,15 @@ goto :eof
 
 
 @REM update subscriptions
-:updatesubs
-@echo [%ESC%[95minfo%ESC%[0m] subscriptions are being updated, only those with type "http" will be updated
-call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com"
+:updatesubs <force>
+call :trim force "%~1"
+if "!force!" == "" set "force=1"
+
+if "!force!" == "1" (
+    @echo [%ESC%[95minfo%ESC%[0m] subscriptions are being updated, only those with type "http" will be updated
+)
+
+call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com" "!force!"
 goto :eof
 
 
@@ -517,11 +681,12 @@ goto :eof
 call :trim filepath %~2
 set "%~1="
 
-if "!filepath!" == "" (
-    goto :eof
-)
+if "!filepath!" == "" goto :eof
 
-@echo "!filepath!" | findstr ":" >nul 2>nul && goto :eof || (
+@echo "!filepath!" | findstr ":" >nul 2>nul && (
+    set "%~1=!filepath!"
+    goto :eof
+) || (
     set "filepath=!filepath:/=\!"
 
     if "!filepath:~0,3!" == ".\\" (
@@ -551,23 +716,32 @@ if "!status!" == "0" (
     goto :eof
 )
 
+@REM call :queryfromreg server
+call :generateproxy server
+
 @REM detect network is available
-call :isavailable status !enable! "https://www.google.com"
+call :isavailable status !enable! "https://www.google.com" "!server!"
 set "%~1=!status!"
 goto :eof
 
 
 @REM check network
-:isavailable <result> <allowed> <url>
+:isavailable <result> <allowed> <url> <proxyserver>
 set "%~1=0"
 call :trim enable "%~2"
 call :trim url "%~3"
+call :trim proxyserver "%~4"
+
 if "!enable!" == "" set "enable=1"
 if "!url!" == "" set "url=https://www.google.com"
 
 @REM check
 set "statuscode=000"
-for /f %%a in ('curl --retry 3 --retry-max-time 10 -m 5 --connect-timeout 5 -L -s -o nul -w "%%{http_code}" "!url!"') do set "statuscode=%%a"
+if "!proxyserver!" == "" (
+    for /f %%a in ('curl --retry 3 --retry-max-time 10 -m 5 --connect-timeout 5 -L -s -o nul -w "%%{http_code}" "!url!"') do set "statuscode=%%a"
+) else (
+    for /f %%a in ('curl -x !proxyserver! --retry 3 --retry-max-time 10 -m 5 --connect-timeout 5 -L -s -o nul -w "%%{http_code}" "!url!"') do set "statuscode=%%a"
+)
 
 if "!statuscode!" == "200" (
     set "%~1=1"
@@ -577,8 +751,37 @@ if "!statuscode!" == "200" (
 ) else (
     set "%~1=0"
     if "!enable!" == "1" (
+        call :outputhint
+
         @echo [%ESC%[97mwarning%ESC%[0m] network proxy is %ESC%[91mnot available%ESC%[0m, you can %ESC%[97mreload%ESC%[0m it with "%ESC%[97m!batname! -o%ESC%[0m" or %ESC%[97mrestart%ESC%[0m it with "%ESC%[97m!batname! -r%ESC%[0m" or "%ESC%[97m!batname! -f%ESC%[0m" to try to %ESC%[97mfix%ESC%[0m the problem
     )
+)
+goto :eof
+
+
+@REM query proxy address
+:generateproxy <result>
+set "%~1="
+
+call :queryfromreg server
+if "!server!" NEQ "" (
+    set "%~1=!server!"
+    goto :eof
+)
+
+@REM extract from config file
+if exist "!configfile!" (
+    call :istunenabled enabled
+    if "!enabled!" == "1" goto :eof
+    call :extractport port
+    if "!port!" == "" goto :eof
+
+    choice /t 5 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] found that the system network proxy is %ESC%[91mnot enabled%ESC%[0m, whether to set it? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+    if !errorlevel! == 2 goto :eof
+
+    call :enableproxy "127.0.0.1:!port!"
+    set "%~1=127.0.0.1:!port!"
+    goto :eof
 )
 goto :eof
 
@@ -597,12 +800,40 @@ if not exist "!directory!" (
 goto :eof
 
 
+@REM tun enabled
+:istunenabled <enabled>
+set "%~1=0"
+set "text="
+
+@REM not work in batch but works fine in cmd, why?
+@REM for /f "tokens=*" %%a in ('findstr /i /r /c:"^tun:[ ]*" "!configfile!"') do set "text=%%a"
+
+for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"tun:[ ]*" "!configfile!"') do set "text=%%a"
+
+@REM not required
+call :trim text "!text!"
+if "!text!" == "tun" set "%~1=1"
+goto :eof
+
+
 @REM wintun
-:downloadwintun
+:downloadwintun <changed> <force>
+set "%~1=0"
+
+call :trim force "%~2"
+if "!force!" == "" set "force=0"
+
+@REM check if required
+call :istunenabled enabled
+if "!enabled!" == "0" exit /b
+
+@REM exists
+if exist "!dest!\wintun.dll" if "!force!" == "0" goto :eof
+
 set "content="
 set "wintunurl=https://www.wintun.net"
 
-for /f delims^=^"^ tokens^=2 %%a in ('curl --retry 5 -s -L "!wintunurl!" ^| findstr /i /r "builds/wintun-.*.zip"') do set "content=%%a"
+for /f delims^=^"^ tokens^=2 %%a in ('curl --retry 5 --retry-max-time 60 --connect-timeout 15 -s -L "!wintunurl!" ^| findstr /i /r "builds/wintun-.*.zip"') do set "content=%%a"
 call :trim content !content!
 
 if "!content!" == "" (
@@ -612,7 +843,7 @@ if "!content!" == "" (
 
 set "wintunurl=!wintunurl!/!content!"
 @echo [%ESC%[95minfo%ESC%[0m] begin to download wintun for overwrite wintun.dll, link: "!wintunurl!"
-curl.exe --retry 5 -m 90 --connect-timeout 15 -s -L -C - -o "!temp!\wintun.zip" "!wintunurl!"
+curl.exe --retry 5 --retry-max-time 60 --connect-timeout 15 -s -L -C - -o "!temp!\wintun.zip" "!wintunurl!"
 if exist "!temp!\wintun.zip" (
     @REM unzip
     tar -xzf "!temp!\wintun.zip" -C !temp!
@@ -622,8 +853,16 @@ if exist "!temp!\wintun.zip" (
 
     set "wintunfile=!temp!\wintun\bin\amd64\wintun.dll"
     if exist "!wintunfile!" (
-        if exist "!dest!\wintun.dll" del /f /q "!dest!\wintun.dll" >nul 2>nul
-        move "!wintunfile!" "!dest!" >nul 2>nul
+        @REM compare and update
+        call :md5compare diff "!wintunfile!" "!dest!\wintun.dll"
+        if "!diff!" == "1" (
+            set "%~1=1"
+            @echo [%ESC%[95minfo%ESC%[0m] new version found, filename: %ESC%[97mwintun.dll%ESC%[0m
+            
+            @REM delete if exist
+            del /f /q "!dest!\wintun.dll" >nul 2>nul
+            move "!wintunfile!" "!dest!" >nul 2>nul
+        )
     ) else (
         @echo [%ESC%[97mwarning%ESC%[0m] not found wintun.dll, there may be an error downloading
     )
@@ -634,13 +873,19 @@ goto :eof
 
 
 @REM download binary file and data
-:donwloadfiles <filenames>
-@echo [%ESC%[95minfo%ESC%[0m] downloading clash.exe, domain site and IP address data
+:donwloadfiles <filenames> <outenable>
+set "%~1="
+call :trim outenable "%~2"
+if "!outenable!" == "" set "outenable=1"
+if "!outenable!" == "1" (
+    @echo [%ESC%[95minfo%ESC%[0m] downloading clash.exe, domain site and IP address data
+)
+
 set "dfiles="
 
 @REM download clash
 if "!clashurl!" NEQ "" (
-    curl.exe --retry 5 -m 120 --connect-timeout 20 -s -L -C - -o "!temp!\clash.zip" "!clashurl!"
+    curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\clash.zip" "!clashurl!"
 
     if exist "!temp!\clash.zip" (
         @REM unzip
@@ -660,13 +905,11 @@ if "!clashurl!" NEQ "" (
     ) else (
         @echo [%ESC%[91merror%ESC%[0m] not found "!temp!\!clashexe!", download link: "!clashurl!"
     )
-) else (
-    @echo [%ESC%[91merror%ESC%[0m] skip download clash.exe because link is empty
 )
 
 @REM download Country.mmdb
 if "!countryurl!" NEQ "" (
-    curl.exe --retry 5 -m 120 --connect-timeout 20 -s -L -C - -o "!temp!\!countryfile!" "!countryurl!"
+    curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!countryfile!" "!countryurl!"
     if exist "!temp!\!countryfile!" (
         if "!dfiles!" == "" (
             set "dfiles=!countryfile!"
@@ -680,7 +923,7 @@ if "!countryurl!" NEQ "" (
 
 @REM download GeoSite.dat
 if "!geositeurl!" NEQ "" (
-    curl.exe --retry 5 -m 120 --connect-timeout 20 -m 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geositefile!" "!geositeurl!"
+    curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geositefile!" "!geositeurl!"
 
     if exist "!temp!\!geositefile!" (
         if "!dfiles!" == "" (
@@ -695,7 +938,7 @@ if "!geositeurl!" NEQ "" (
 
 @REM download GeoIP.dat
 if "!geoipurl!" NEQ "" (
-    curl.exe --retry 5 -m 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geoipfile!" "!geoipurl!"
+    curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geoipfile!" "!geoipurl!"
 
     if exist "!temp!\!geoipfile!" (
         if "!dfiles!" == "" (
@@ -720,6 +963,11 @@ set "filenames=%~2"
 for %%a in (!filenames!) do (
     set "fname=%%a"
 
+    if not exist "!temp!\!fname!" (
+        @echo [%ESC%[91merror%ESC%[0m] %ESC%[97m!fname!%ESC%[0m download finished, but not found it in directory "!temp!"
+        goto :eof
+    )
+
     if "!repair!" == "1" (
         @REM delete for triggering upgrade
         del /f /q "!dest!\!fname!" >nul 2>nul
@@ -728,25 +976,50 @@ for %%a in (!filenames!) do (
     @REM found new file
     if not exist "!dest!\!fname!" (
         set "%~1=1"
-        @echo [%ESC%[95minfo%ESC%[0m] missing file found, filename: !fname!, recreate it in directory "!dest!"
-        goto :upgrade
+        call :upgrade "!filenames!"
+        exit /b
     )
 
-    set "original=" & for /F "skip=1 delims=" %%h in ('2^> nul CertUtil -hashfile "!temp!\!fname!" MD5') do if not defined original set "original=%%h"
-
-    set "received=" & for /F "skip=1 delims=" %%h in ('2^> nul CertUtil -hashfile "!dest!\!fname!" MD5') do if not defined received set "received=%%h"
-
-    if "!original!" NEQ "!received!" (
+    @REM compare and update
+    call :md5compare diff "!temp!\!fname!" "!dest!\!fname!"
+    if "!diff!" == "1" (
         set "%~1=1"
-        @echo [%ESC%[95minfo%ESC%[0m] new version found, filename: %ESC%[97m!fname!%ESC%[0m, omd5: !original!, nmd5: !received!
-        goto :upgrade
+        @echo [%ESC%[95minfo%ESC%[0m] new version found, filename: %ESC%[97m!fname!%ESC%[0m
+        call :upgrade "!filenames!"
+        exit /b
     )
 )
 goto :eof
 
 
+@REM compare file with md5
+:md5compare <changed> <source> <target>
+set "%~1=0"
+
+call :trim source "%~2"
+call :trim target "%~3"
+
+if not exist "!source!" if not exist "!target!" goto :eof
+if not exist "!source!" goto :eof
+if not exist "!target!" (
+    set "%~1=1"
+    goto :eof
+)
+
+@REM source md5
+set "original=" & for /F "skip=1 delims=" %%h in ('2^> nul CertUtil -hashfile "!source!" MD5') do if not defined original set "original=%%h"
+@REM target md5
+set "received=" & for /F "skip=1 delims=" %%h in ('2^> nul CertUtil -hashfile "!target!" MD5') do if not defined received set "received=%%h"
+
+if "!original!" NEQ "!received!" (set "%~1=1")
+goto :eof
+
+
 @REM update clash.exe and data
-:upgrade
+:upgrade <filenames>
+call :trim filenames "%~1"
+if "!filenames!" == "" goto :eof
+
 @REM make sure the file exists
 set "existfiles="
 for %%a in (!filenames!) do (
@@ -786,7 +1059,7 @@ call :isrunning status
 
 if "!status!" == "0" (
     @REM startup clash
-    goto :executewrapper
+    call :executewrapper 0
 ) else (
     @echo [%ESC%[95minfo%ESC%[0m] subscriptions and rulesets have been updated, and the reload operation is about to be performed
     goto :reload
@@ -816,23 +1089,94 @@ if "!cfile!" == "" (
     goto :eof
 )
 
-call :splitpath filepath filename "!cfile!"
-if not exist "!filepath!\clash.exe" (
-    @echo [%ESC%[91merror%ESC%[0m] failed to startup process, file "!filepath!\clash.exe" is missing
-    goto :eof
-)
-
-if not exist "!cfile!" (
-    @echo [%ESC%[91merror%ESC%[0m] failed to startup process, not found config file "!cfile!"
-    goto :eof
-)
- 
+call :splitpath filepath filename "!cfile!" 
 "!filepath!\clash.exe" -d "!filepath!" -f "!cfile!"
 goto :eof
 
 
+@REM ensure all plugins exist
+:prepare <changed> <force>
+set "%~1=0"
+
+call :trim downforce "%~2"
+if "!downforce!" == "" set "downforce=0"
+
+@REM dashboard directory name
+call :extractpath dashboard
+
+@REM confirm download url and filename
+call :versioned geositeneed
+
+@REM confirm donwload url
+call :confirmurl "!downforce!" "!geositeneed!"
+
+@REM precleann workspace
+call :cleanworkspace "!temp!"
+
+@REM update dashboard
+call :dashboardupdate "!downforce!"
+
+@REM update subscriptions
+if "!exclude!" == "0" call :updatesubs "!downforce!"
+
+@REM update rulefiles
+call :updaterules "!downforce!"
+
+@REM wintun.dll
+call :downloadwintun newwintun "!downforce!"
+set "%~1=!newwintun!"
+
+@REM download clah.exe and geoip.data and so on
+call :donwloadfiles filenames "!downforce!"
+
+@REM judge file changed with md5
+call :detect changed "!filenames!"
+if "!changed!" == "1" set "%~1=!changed!"
+
+goto :eof
+
+
 @REM privilege escalation
-:executewrapper
+:executewrapper <shouldcheck>
+call :trim shouldcheck "%~1"
+if "!shouldcheck!" == "" set "shouldcheck=0"
+if "!shouldcheck!" == "1" (call :prepare changed 0)
+
+@REM verify config
+if not exist "!dest!\clash.exe" (
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to start clash.exe, program "%ESC%[97m!dest!\clash.exe%ESC%[0m" is missing
+    goto :eof
+)
+
+if not exist "!configfile!" (
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to start clash.exe, not found configuration file "%ESC%[97m!configfile!%ESC%[0m"
+    goto :eof
+)
+
+set "testoutput=!temp!\clashtestout.txt"
+del /f /q "!testoutput!" >nul 2>nul
+
+@REM test config file
+"!dest!\clash.exe" -d "!dest!" -t "!configfile!" > "!testoutput!"
+
+@REM failed
+if !errorlevel! NEQ 0 (
+    set "messages="
+    if exist "!testoutput!" (
+        for /f "tokens=1* delims==" %%a in ('findstr /i /r /c:"[ ]ERR[ ]\[config\][ ].*" "!testoutput!"') do set "messages=%%b"
+        del /f /q "!testoutput!" >nul 2>nul
+    )
+
+    if "!messages!" == "" set "messages=unknown error"
+    @echo [%ESC%[91merror%ESC%[0m] clash.exe %ESC%[91mfailed%ESC%[0m to start because of some errors in the configuration file "%ESC%[97m!configfile!%ESC%[0m"
+    @echo [%ESC%[91merror%ESC%[0m] messages: "!messages!"
+    exit /b 1
+)
+
+@REM delete test output
+del /f /q "!testoutput!" >nul 2>nul
+
+@REM run clash.exe with config
 call :privilege "goto :execute !configfile!" !show!
 
 @REM waiting
@@ -843,9 +1187,61 @@ call :isrunning status
 
 if "!status!" == "1" (
     @echo [%ESC%[95minfo%ESC%[0m] execute clash.exe %ESC%[95msuccess%ESC%[0m, network proxy is %ESC%[95menabled%ESC%[0m
+    call :outputhint
 ) else (
     @echo [%ESC%[91merror%ESC%[0m] execute clash.exe %ESC%[91mfailed%ESC%[0m, please check if the %ESC%[91mconfiguration%ESC%[0m is correct
 )
+goto :eof
+
+
+@REM search port on config file with keyword
+:searchport <result> <key>
+set "%~1="
+set "content="
+call :trim key "%~2"
+if "!key!" == "" goto :eof
+
+@REM search
+for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^^!key!:[ ][ ]*[0-9][0-9]*" "!configfile!"') do set "content=%%b"
+if "!content!" == "" goto :eof
+
+call :trim port "!content!"
+if "!port!" NEQ "" set "%~1=!port!"
+goto :eof
+
+
+@REM extract proxy port
+:extractport <result>
+set "%~1=7890"
+set "keys=mixed-port;port;socks-port"
+for %%a in (!keys!) do (
+    call :searchport port "%%a"
+    if "!port!" NEQ "" (
+        set "%~1=!port!"
+        exit /b
+    )
+)
+goto :eof
+
+
+@REM print warning if tun is disabled
+:outputhint
+call :istunenabled enabled
+if "!enabled!" == "1" goto :eof
+
+call :extractport proxyport
+if "!proxyport!" == "" set "proxyport=7890"
+
+@REM set proxy
+set "proxyserver=127.0.0.1:!proxyport!"
+call :queryfromreg server
+if "!proxyserver!" NEQ "!server!" (
+    choice /t 5 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] found that the system network proxy is %ESC%[91mnot enabled%ESC%[0m, whether to set it? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+    if !errorlevel! == 1 call :enableproxy "!proxyserver!"
+)
+
+@REM hint
+@echo [%ESC%[97mwarning%ESC%[0m] if you cannot use the network proxy, please go to "%ESC%[97mSettings -^> Network & Internet -^> Proxy%ESC%[0m" to confirm whether the proxy has been set to "%ESC%[97m!proxyserver!%ESC%[0m"
 goto :eof
 
 
@@ -857,9 +1253,6 @@ if "!status!" == "1" (
     @REM kill process
     call :killprocesswrapper
 
-    @REM waiting for process exit
-    timeout /t 3 /nobreak >nul 2>nul
-
     @REM check running status
     call :isrunning status
 
@@ -869,12 +1262,19 @@ if "!status!" == "1" (
     )
 )
 
+@REM if alpha=1 may cause clash download failure
+set "alpha=0"
+
 @REM startup
-goto :executewrapper
+call :executewrapper 1
+exit /b
 
 
 @REM run as admin
 :killprocesswrapper
+call :isrunning status
+if "!status!" == "0" goto :eof
+
 @echo [%ESC%[95minfo%ESC%[0m] kill clash process with administrator permission
 call :privilege "goto :killprocess" 0
 
@@ -885,6 +1285,12 @@ timeout /t 3 /nobreak >nul 2>nul
 call :isrunning status
 if "!status!" == "0" (
     @echo [%ESC%[95minfo%ESC%[0m] network proxy program has exited %ESC%[95msuccessfully%ESC%[0m. if you want to restart it you can execute with "%ESC%[97m!batname! -r%ESC%[0m"
+
+    @REM disable proxy
+    @REM call :istunenabled enabled
+    @REM if "!enabled!" == "0" call :disableproxy
+
+    call :disableproxy
 ) else (
     @echo [%ESC%[97mwarning%ESC%[0m] kill network proxy process %ESC%[91mfailed%ESC%[0m, you can close it manually in %ESC%[97mtask manager%ESC%[0m
 )
@@ -915,9 +1321,17 @@ goto :eof
 tasklist | findstr /i "clash.exe" >nul 2>nul && set "%~1=1" || set "%~1=0"
 goto :eof
 
-@REM donwload url
-:confirmurl
+
+@REM get donwload url
+:confirmurl <force> <enabled>
 @REM country data
+call :trim force "%~1"
+if "!force!" == "" set "force=0"
+
+call :trim geositeflag "%~2"
+if "!geositeflag!" == "" set "geositeflag=0"
+
+set "needdownload=0"
 set "countryurl=https://raw.githubusercontent.com/Hackl0us/GeoIP2-CN/release/Country.mmdb"
 
 @REM geosite/geoip filename
@@ -929,21 +1343,28 @@ set "geoipfile=GeoIP.dat"
 set "dashboardurl=https://github.com/Dreamacro/clash-dashboard/archive/refs/heads/gh-pages.zip"
 set "dashdirectory=clash-dashboard-gh-pages"
 
+set "clashurl="
+
+@REM determine whether to download clash.exe
+if not exist "!dest!\clash.exe" (set "needdownload=1") else (set "needdownload=!force!")
+
 if "!clashmeta!" == "0" (
     set "clashexe=clash-windows-amd64.exe"
 
-    if "!alpha!" == "0" (
-        for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/Dreamacro/clash/releases/tags/premium" ^| findstr /i /r /c:"https://github.com/Dreamacro/clash/releases/download/premium/clash-windows-amd64-[^v][^3].*.zip"') do set "clashurl=%%b"
-        
-        @REM remove whitespace
-        call :trim clashurl "!clashurl!"
-        if !clashurl! == "" (
-            @echo [%ESC%[91merror%ESC%[0m] cannot extract download url for clash.premium, version: stable
-            goto :eof
+    if "!needdownload!" == "1" (
+        if "!alpha!" == "0" (
+            for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/Dreamacro/clash/releases/tags/premium" ^| findstr /i /r /c:"https://github.com/Dreamacro/clash/releases/download/premium/clash-windows-amd64-[^v][^3].*.zip"') do set "clashurl=%%b"
+            
+            @REM remove whitespace
+            call :trim clashurl "!clashurl!"
+            if !clashurl! == "" (
+                @echo [%ESC%[91merror%ESC%[0m] cannot extract download url for clash.premium, version: stable
+                goto :eof
+            )
+            set "clashurl=!clashurl:~1,-1!"
+        ) else (
+            set "clashurl=https://release.dreamacro.workers.dev/latest/clash-windows-amd64-latest.zip"
         )
-        set "clashurl=!clashurl:~1,-1!"
-    ) else (
-        set "clashurl=https://release.dreamacro.workers.dev/latest/clash-windows-amd64-latest.zip"
     )
 
     if "!yacd!" == "1" (
@@ -955,35 +1376,27 @@ if "!clashmeta!" == "0" (
     set "geositeurl=https://raw.githubusercontent.com/Loyalsoldier/domain-list-custom/release/geosite.dat"
     set "geoipurl=https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat"
 
-    if "!alpha!" == "1" (
-        for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/Clash.Meta/releases?prerelease=true&per_page=10" ^| findstr /i /r "https://github.com/MetaCubeX/Clash.Meta/releases/download/Prerelease-Alpha/Clash.Meta-windows-amd64-alpha-.*.zip"') do set "clashurl=%%b"
-    ) else (
-        for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/Clash.Meta/releases/latest?per_page=1" ^| findstr /i /r "https://github.com/MetaCubeX/Clash.Meta/releases/download/.*/Clash.Meta-windows-amd64-.*.zip"') do set "clashurl=%%b"
-    )
+    if "!needdownload!" == "1" (
+        if "!alpha!" == "1" (
+            for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/Clash.Meta/releases?prerelease=true&per_page=10" ^| findstr /i /r "https://github.com/MetaCubeX/Clash.Meta/releases/download/Prerelease-Alpha/Clash.Meta-windows-amd64-alpha-.*.zip"') do set "clashurl=%%b"
+        ) else (
+            for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/Clash.Meta/releases/latest?per_page=1" ^| findstr /i /r "https://github.com/MetaCubeX/Clash.Meta/releases/download/.*/Clash.Meta-windows-amd64-.*.zip"') do set "clashurl=%%b"
+        )
 
-    call :trim clashurl "!clashurl!"
-    if !clashurl! == "" (
-        @echo [%ESC%[91merror%ESC%[0m] cannot extract download url for clash.meta
-        goto :eof
-    )
+        call :trim clashurl "!clashurl!"
+        if !clashurl! == "" (
+            @echo [%ESC%[91merror%ESC%[0m] cannot extract download url for clash.meta
+            goto :eof
+        )
 
-    set "clashurl=!clashurl:~1,-1!"
-
-    @REM geodata-mode
-    set "geodatamode=false"
-
-    for /f "tokens=1,2 delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*geodata-mode:[ ][ ]*" !configfile!') do (
-        call :trim gmode %%a
-
-        @REM commented
-        if /i "!gmode:~0,1!" NEQ "#" call :trim geodatamode %%b
+        set "clashurl=!clashurl:~1,-1!"
     )
 
     @REM geosite.data download url
-    if "!geositeneed!" == "0" (
+    if "!geositeflag!" == "0" (
         set "geositeurl="
     ) else (
-        for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*geosite:[ ][ ]*" !configfile!') do (
+        for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*geosite:[ ][ ]*" "!configfile!"') do (
             call :trim geositekey %%a
 
             @REM commented
@@ -991,11 +1404,20 @@ if "!clashmeta!" == "0" (
         )
     )
 
+    @REM geodata-mode
+    set "geodatamode=false"
+    for /f "tokens=1,2 delims=:" %%a in ('findstr /i /r /c:"^geodata-mode:[ ][ ]*" "!configfile!"') do (
+        call :trim gmn %%a
+
+        @REM commented
+        if /i "!gmn:~0,1!" NEQ "#" call :trim geodatamode %%b
+    )
+
     @REM geoip.data
     if "!geodatamode!" == "false" (
         set "geoipurl="
 
-        for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*mmdb:[ ][ ]*" !configfile!') do (
+        for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*mmdb:[ ][ ]*" "!configfile!"') do (
             call :trim mmdbkey %%a
 
             @REM commented
@@ -1004,7 +1426,7 @@ if "!clashmeta!" == "0" (
     ) else (
         set "countryurl="
 
-        for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*geoip:[ ][ ]*http.*://" !configfile!') do (
+        for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*geoip:[ ][ ]*http.*://" "!configfile!"') do (
             call :trim geoipkey %%a
             
             @REM commented
@@ -1018,25 +1440,50 @@ if "!clashmeta!" == "0" (
     )
 )
 
-@REM don't need dashboard
+@REM clashurl
+call :generateurl clashurl "!clashurl!" "clash.exe" "!force!"
+
+@REM dashboardurl
 if "!dashboard!" == "" (
+    @REM don't need dashboard
     set "dashboardurl="
+) else (
+    set "needdash=!force!"
+    if not exist "!dashboard!\index.html" set "needdash=1"
+    if "!needdash!" == "0" (
+        set "dashboardurl="
+    ) else (
+        call :ghproxywrapper dashboardurl !dashboardurl!
+    )
 )
 
-@REM ghproxy for clashurl
-call :ghproxywrapper clashurl !clashurl!
+@REM countryurl
+call :generateurl countryurl "!countryurl!" "!countryfile!" "!force!"
 
-@REM ghproxy for dashboardurl
-call :ghproxywrapper dashboardurl !dashboardurl!
+@REM geositeurl
+call :generateurl geositeurl "!geositeurl!" "!geositefile!" "!force!"
 
-@REM ghproxy for countryurl
-call :ghproxywrapper countryurl !countryurl!
+@REM geoipurl
+call :generateurl geoipurl "!geoipurl!" "!geoipfile!" "!force!"
+goto :eof
 
-@REM ghproxy for geositeurl
-call :ghproxywrapper geositeurl !geositeurl!
 
-@REM ghproxy for geoipurl
-call :ghproxywrapper geoipurl !geoipurl!
+@REM generate real download url
+:generateurl <result> <url> <filename> <force>
+set "%~1="
+
+call :trim url "%~2"
+if "!url!" == "" goto :eof
+
+call :trim filename "%~3"
+if "!filename!" == "" goto :eof
+
+if not exist "!dest!\!filename!" (set "needdownload=1") else (set "needdownload=!force!")
+if "!needdownload!" == "0" goto :eof
+
+call :ghproxywrapper downloadurl !url!
+
+set "%~1=!downloadurl!"
 goto :eof
 
 
@@ -1047,7 +1494,11 @@ set "%~1="
 if "!rawtext!" == "" goto :eof
 
 for /f "tokens=* delims= " %%a in ("!rawtext!") do set "rawtext=%%a"
-for /l %%a in (1,1,100) do if "!rawtext:~-1!"==" " set "rawtext=!rawtext:~0,-1!"
+
+@REM for /l %%a in (1,1,100) do if "!rawtext:~-1!"==" " set "rawtext=!rawtext:~0,-1!"
+
+@REM for speed, iteration set to 10
+for /l %%a in (1,1,10) do if "!rawtext:~-1!"==" " set "rawtext=!rawtext:~0,-1!"
 
 set "%~1=!rawtext!"
 goto :eof
@@ -1055,7 +1506,12 @@ goto :eof
 
 @REM wrapper github
 :ghproxywrapper <result> <rawurl>
+set "%~1="
 call :trim rawurl %~2
+if "!rawurl!" == "" goto :eof
+
+@REM github proxy
+set "ghproxy=https://ghproxy.com"
 
 if "!rawurl:~0,18!" == "https://github.com" set "rawurl=!ghproxy!/!rawurl!"
 if "!rawurl:~0,33!" == "https://raw.githubusercontent.com" set "rawurl=!ghproxy!/!rawurl!"
@@ -1080,19 +1536,54 @@ powershell -command "& {&'Get-Content' '!filepath!' | &'Select-String' -Pattern 
 goto :eof
 
 
+@REM remove leading and trailing quotes
+:removequotes <result> <str>
+set "%~1="
+call :trim str "%~2"
+if "!str!" == "" goto :eof
+
+if !str:~0^,1!!str:~-1! equ "" set "str=!str:~1,-1!"
+set "%~1=!str!"
+goto :eof
+
+
+@REM query value from yaml
+:parsevalue <result> <regex>
+set "%~1="
+set "regex=%~2"
+if "!regex!" == "" goto :eof
+
+set "key="
+set "text="
+for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"!regex!" "!configfile!"') do (
+    set "key=%%a"
+    set "text=%%b"
+)
+
+call :trim key "!key!"
+if "!key!" == "" goto :eof
+@REM commened 
+if "!key:~0,1!" == "#" goto :eof
+
+call :removequotes value "!text!"
+set "%~1=!value!"
+goto :eof
+
+
 @REM reload config
 :reload
 if not exist "!configfile!" goto :eof
 
 @REM clash api address
-for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"external-controller:[ ][ ]*" !configfile!') do set "clashapi=%%b"
-call :trim clashapi "!clashapi!"
+call :parsevalue clashapi "external-controller:[ ][ ]*"
+if "!clashapi!" == "" (
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mdon't%ESC%[0m support reload, maybe you can use "%ESC%[97m!batname! -r%ESC%[0m" to restart or configure "%ESC%[97mexternal-controller%ESC%[0m" in file "%ESC%[97m!configfile!%ESC%[0m" to enable this operation
+    goto :eof
+)
 set "clashapi=http://!clashapi!/configs?force=true"
 
-@REM clash api secret
-for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"secret:[ ][ ]*" !configfile!') do set "secret=%%b"
-call :trim secret "!secret!"
-set "secret=!secret:~1,-1!"
+@REM secret
+call :parsevalue secret "secret:[ ][ ]*"
 
 @REM running detect
 call :isrunning status
@@ -1106,10 +1597,16 @@ if "!status!" == "1" (
     set "output=!temp!\clashout.txt"
     if exist "!output!" del /f /q "!output!" >nul 2>nul
 
-    for /f %%a in ('curl --retry 3 -L -s -o "!output!" -w "%%{http_code}" -H "Content-Type: application/json" -H "Authorization: Bearer !secret!" -X PUT -d "{""path"":""!filepath!""}" "!clashapi!"') do set "statuscode=%%a"
-
+    if "!secret!" NEQ "" (
+        for /f %%a in ('curl --retry 3 -L -s -o "!output!" -w "%%{http_code}" -H "Content-Type: application/json" -H "Authorization: Bearer !secret!" -X PUT -d "{""path"":""!filepath!""}" "!clashapi!"') do set "statuscode=%%a"
+    ) else (
+        for /f %%a in ('curl --retry 3 -L -s -o "!output!" -w "%%{http_code}" -H "Content-Type: application/json" -X PUT -d "{""path"":""!filepath!""}" "!clashapi!"') do set "statuscode=%%a"
+    )
     if "!statuscode!" == "204" (
         @echo [%ESC%[95minfo%ESC%[0m] proxy program reload %ESC%[95msucceeded%ESC%[0m, wish you a happy use
+        call :outputhint
+    ) else if "!statuscode!" == "401" (
+        @echo [%ESC%[95minfo%ESC%[0m] %ESC%[97msecret%ESC%[0m has been %ESC%[91mmodified%ESC%[0m, please use "%ESC%[97m!batname! -r%ESC%[0m" to restart
     ) else (
         set "content="
 
@@ -1135,19 +1632,28 @@ goto :eof
 
 
 @REM update rules
-:updaterules
-@echo [%ESC%[95minfo%ESC%[0m] checking and updating rulesets of type "http"
-call :filerefresh changed "^\s+behavior:\s+.*" "www.gstatic.com"
+:updaterules <force>
+call :trim force "%~1"
+if "!force!" == "" set "force=1"
+
+if "!force!" == "1" (
+    @echo [%ESC%[95minfo%ESC%[0m] checking and updating rulesets of type "http"
+)
+
+call :filerefresh changed "^\s+behavior:\s+.*" "www.gstatic.com" "!force!"
 goto :eof
 
 
 @REM refresh subsribe and rulesets
-:filerefresh <result> <regex> <filter>
+:filerefresh <result> <regex> <filter> <force>
 set "%~1=0"
 set "regex=%~2"
 
 call :trim filter "%~3"
 if "!filter!" == "" set "filter=www.gstatic.com"
+
+call :trim force "%~4"
+if "!force!" == "" set "force=1"
 
 if "!regex!" == "" (
     @echo [%ESC%[97mwarning%ESC%[0m] skip update, keywords cannot empty
@@ -1164,6 +1670,8 @@ set "tempfile=!temp!\clashupdate.txt"
 
 call :findby "!configfile!" "!regex!" "!tempfile!"
 if not exist "!tempfile!" (
+    if "!force!" == "0" goto :eof
+
     @echo [%ESC%[97mwarning%ESC%[0m] ignore download file due to cannot extract config from file "!configfile!"
     goto :eof
 )
@@ -1189,36 +1697,35 @@ for %%u in (!texturls!) do (
                 goto :eof  
             )
 
-            @REM get directory
-            call :splitpath filepath filename "!tfile!"
-
-            @REM mkdir if not exists
-            call :makedirs "!filepath!"
-
-            @REM request and save
-            curl.exe --retry 5 -m 90 --connect-timeout 15 -s -L -C - "!url!" > "!temp!\!filename!"
-
-            @REM check file
-            set "filesize=0"
-            if exist "!temp!\!filename!" (
-                for %%a in ("!temp!\!filename!") do set "filesize=%%~za"
-            )
-
-            if !filesize! GTR 16 (
-                @REM delete if old file exists
-                if exist "!tfile!" (
-                    del /f /q "!tfile!" >nul 2>nul
+            set "needdownload=0"
+            if not exist "!tfile!" set "needdownload=1"
+            if "!force!" == "1" set "needdownload=1"
+            @REM should download
+            if "!needdownload!" == "1" (
+                @REM get directory
+                call :splitpath filepath filename "!tfile!"
+                @REM mkdir if not exists
+                call :makedirs "!filepath!"
+                @REM request and save
+                curl.exe --retry 5 --retry-max-time 90 -m 120 --connect-timeout 15 -s -L -C - "!url!" > "!temp!\!filename!"
+                @REM check file
+                set "filesize=0"
+                if exist "!temp!\!filename!" (
+                    for %%a in ("!temp!\!filename!") do set "filesize=%%~za"
                 )
-                
-                @REM move new file to dest
-                move "!temp!\!filename!" "!filepath!" >nul 2>nul
-                
-                @REM changed status 
-                set "%~1=1"
-            ) else (
-                @echo [%ESC%[91merror%ESC%[0m] %ESC%[97m!filename!%ESC%[0m download error, link: "!url!"
+
+                if !filesize! GTR 16 (
+                    @REM delete if old file exists
+                    del /f /q "!tfile!" >nul 2>nul
+                    @REM move new file to dest
+                    move "!temp!\!filename!" "!filepath!" >nul 2>nul
+                    @REM changed status 
+                    set "%~1=1"
+                ) else (
+                    @echo [%ESC%[91merror%ESC%[0m] %ESC%[97m!filename!%ESC%[0m download error, link: "!url!"
+                )
             )
-            
+
             set "localfiles=%%s"
         )
     )
@@ -1230,49 +1737,51 @@ goto :eof
 
 
 @REM extract dashboard path
-:extractpath
-if not exist "!configfile!" (
-    set "dashboard="
-    goto :eof
-)
+:extractpath <result>
+set "%~1="
 
+if not exist "!configfile!" goto :eof
+
+set "keyname="
 set "content="
-for /f "tokens=*" %%i in ('findstr /i /r /c:"external-ui:[ ][ ]*" !configfile!') do set "content=%%i"
+for /f "tokens=1,* delims=:" %%a in ('findstr /i /r /c:"external-ui:[ ][ ]*" "!configfile!"') do (
+    set "keyname=%%a"
+    set "content=%%b"
+)
 
 @REM not found 'external-ui' configuration in config file
-if "!content!" == "" (
-    set "dashboard="
-    goto :eof
-)
+call :trim keyname "!keyname!"
+if "!keyname!" NEQ "external-ui" goto :eof
 
-for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"external-ui:[ ][ ]*" !configfile!') do (
-    call :trim uikey "%%a"
+call :trim content "!content!"
+if "!content!" == "" goto :eof
 
-    @REM commented
-    if /i "!uikey:~0,1!"=="#" (
-        set "dashboard="
-        goto :eof
-    )
-
-    call :trim dashboard "%%b"
-)
+call :pathconvert directory "!content!"
+set "%~1=!directory!"
 goto :eof
 
 
 @REM upgrade dashboard
-:dashboardupdate
+:dashboardupdate <force>
+call :trim force "%~1"
+if "!force!" == "" set "force=0"
+
 if "!dashboardurl!" == "" (
+    if "!force!" == "0" goto :eof
+
     @echo [%ESC%[95minfo%ESC%[0m] %ESC%[97mskip%ESC%[0m update dashboard because it's %ESC%[97mnot enabled%ESC%[0m
     goto :eof
 )
 
-call :pathconvert directory "!dashboard!"
-if "!directory!" == "" (
+if "!dashboard!" == "" (
     @echo [%ESC%[91merror%ESC%[0m] parse dashboard directory error, dashboard: "!dashboard!"
     goto :eof
 )
 
-call :makedirs "!directory!"
+@REM exists
+if exist "!dashboard!\index.html" if "!force!" == "0" goto :eof
+
+call :makedirs "!dashboard!"
 
 @echo [%ESC%[95minfo%ESC%[0m] start download and upgrading the dashboard
 curl.exe --retry 5 -m 120 --connect-timeout 20 -s -L -C - -o "!temp!\dashboard.zip" "!dashboardurl!"
@@ -1287,7 +1796,7 @@ tar -xzf "!temp!\dashboard.zip" -C !temp!
 del /f /q "!temp!\dashboard.zip" >nul 2>nul
 
 @REM base path and directory name
-call :splitpath dashpath dashname "!directory!"
+call :splitpath dashpath dashname "!dashboard!"
 if "!dashpath!" == "" (
     @echo [%ESC%[91merror%ESC%[0m] cannot extract base path for dashboard
     goto :eof
@@ -1303,7 +1812,7 @@ ren "!temp!\!dashdirectory!" !dashname!
 
 @REM replace if dashboard download success
 dir /a /s /b "!temp!\!dashname!" | findstr . >nul && (
-    call :replacedir "!temp!\!dashname!" "!directory!"
+    call :replacedir "!temp!\!dashname!" "!dashboard!"
     @echo [%ESC%[95minfo%ESC%[0m] dashboard has been updated to the latest version
 ) || (
     @echo [%ESC%[97mwarning%ESC%[0m] occur error when download dashboard, link: "!dashboardurl!"
@@ -1420,6 +1929,7 @@ choice /t 6 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] this action will close networ
 if !errorlevel! == 2 exit /b 1
 goto :killprocesswrapper
 
+
 @REM output with color
 :setESC
 for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1) do rem"') do (
@@ -1427,5 +1937,53 @@ for /F "tokens=1,2 delims=#" %%a in ('"prompt #$H#$E# & echo on & for %%b in (1)
   exit /B 0
 )
 exit /B 0
+
+
+@REM set proxy
+:enableproxy <server>
+call :trim server "%~1"
+if "!server!" == "" goto :eof
+
+reg add "!regeditpath!" /v ProxyEnable /t REG_DWORD /d 1 /f >nul 2>nul
+reg add "!regeditpath!" /v ProxyServer /t REG_SZ /d "!server!" /f >nul 2>nul
+reg add "!regeditpath!" /v ProxyOverride /t REG_SZ /d "<local>" /f >nul 2>nul
+goto :eof
+
+
+@REM cancel proxy
+:disableproxy
+reg add "!regeditpath!" /v ProxyServer /t REG_SZ /d "" /f >nul 2>nul
+reg add "!regeditpath!" /v ProxyEnable /t REG_DWORD /d 0 /f >nul 2>nul
+reg add "!regeditpath!" /v ProxyOverride /t REG_SZ /d "" /f >nul 2>nul
+goto :eof
+
+
+@REM query proxy status
+:queryfromreg <result>
+set "%~1="
+
+@REM query from regedit
+set "valid=1"
+@REM ProxyServer
+reg query "!regeditpath!" /V ProxyServer >nul 2>nul
+if "!errorlevel!" NEQ "0" set "valid=0"
+@REM ProxyEnable
+reg query "!regeditpath!" /V ProxyEnable >nul 2>nul
+if "!errorlevel!" NEQ "0" set "valid=0"
+
+@REM found has been opened
+if "!valid!" == "0" goto :eof
+
+set "pserver="
+set "proxyenable="
+
+for /f "tokens=3" %%a in ('reg query "!regeditpath!" /V ProxyServer ^| findstr /r /i "REG_SZ"') do set "pserver=%%a"
+for /f "tokens=3" %%a in ('reg query "!regeditpath!" /V ProxyEnable ^| findstr /r /i "REG_DWORD"') do set "proxyenable=%%a"
+
+call :trim proxyenable "!proxyenable!"
+call :trim pserver "!pserver!"
+if "!proxyenable!" == "0x1" if "!pserver!" NEQ "" set "%~1=!pserver!"
+goto :eof
+
 
 endlocal
