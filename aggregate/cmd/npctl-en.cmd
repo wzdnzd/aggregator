@@ -27,10 +27,14 @@ goto :workflow
 set "batname=%~nx0"
 
 @REM microsoft terminal displays differently from cmd and powershell
+@REM call :ismsterminal msterminal
 set "msterminal=0"
 
 @REM use set /p instead of choice
 set "usesetp=0"
+
+@REM enable create shortcut 
+set "enableshortcut=1"
 
 @REM info color
 set "infocolor=92"
@@ -2478,6 +2482,8 @@ goto :eof
 
 @REM send to desktop
 :adddesktop
+if "!enableshortcut!" == "0" goto :eof
+
 set "iconname=clash.ico"
 set "linkdest=!HOMEDRIVE!!HOMEPATH!\Desktop\Clash.lnk"
 
@@ -2521,6 +2527,44 @@ goto :eof
 :deleteshortcut
 set "linkpath=!HOMEDRIVE!!HOMEPATH!\Desktop\Clash.lnk"
 del /f /q "!linkpath!" >nul 2>nul
+goto :eof
+
+
+@REM determine whether it is a microsoft terminal
+:ismsterminal <result>
+set "%~1=0"
+
+call :whatterminal output 3
+call :trim output "!output!"
+
+set "retry=0"
+if /i "!output!" == "powershell" set "retry=1"
+if /i "!output!" == "pwsh" set "retry=1"
+
+if "!retry!" == "1" (
+    call :whatterminal output 4
+    call :trim output "!output!"
+)
+
+if /i "!output!" == "WindowsTerminal" (
+    set "%~1=1"
+    goto :eof
+)
+goto :eof
+
+
+@REM get current terminal name
+:whatterminal <result> <num>
+set "%~1="
+call :trim num "%~2"
+if "!num!" == "" set "num=3"
+
+@REM set "pscmd=$current = Get-CimInstance -ClassName win32_process -filter ('ProcessID='+$pid); $parent = Get-Process -id ($current.parentprocessID); if ($parent.ProcessName -eq 'WindowsTerminal') {echo 'true';} else {$cimgrandparent = Get-CimInstance -ClassName win32_process -filter ('Processid='+($($parent.id))); $grandparent = Get-Process -id ($cimgrandparent.parentProcessId); if (($grandparent.processname) -eq 'WindowsTerminal') {echo 'true';} else {echo 'false';}}"
+
+@REM reference: https://stackoverflow.com/questions/53447286/in-a-cmd-batch-file-can-i-determine-if-it-was-run-from-powershell
+set "pscmd=$ppid=$pid;while($i++ -lt !num! -and ($ppid=(Get-CimInstance Win32_Process -Filter ('ProcessID='+$ppid)).ParentProcessId)) {}; (Get-Process -EA Ignore -ID $ppid).Name"
+
+for /f "tokens=*" %%a in ('powershell -noprofile -command "!pscmd!"') do set "%~1=%%a"
 goto :eof
 
 
