@@ -26,6 +26,22 @@ goto :workflow
 @REM batch file name
 set "batname=%~nx0"
 
+@REM microsoft terminal displays differently from cmd and powershell
+set "msterminal=0"
+
+@REM use set /p instead of choice
+set "usesetp=0"
+
+@REM info color
+set "infocolor=92"
+set "warncolor=93"
+
+if "!msterminal!" == "1" (
+    set "usesetp=1"
+    set "infocolor=95"
+    set "warncolor=97"
+)
+
 @REM exit flag
 set "shouldexit=0"
 
@@ -121,8 +137,8 @@ if "!purgeflag!" == "1" goto :purge
 
 @REM prevent precheck if no action
 if "!reloadonly!" == "0" if "!restartflag!" == "0" if "!repair!" == "0" if "!updateflag!" == "0" if "!initflag!" == "0" (
-    @echo [%ESC%[91merror%ESC%[0m] must include one action in [%ESC%[97m-f%ESC%[0m %ESC%[97m-i%ESC%[0m %ESC%[97m-k%ESC%[0m %ESC%[97m-r%ESC%[0m %ESC%[97m-t%ESC%[0m %ESC%[97m-u%ESC%[0m]
-    @echo.
+    @REM @echo [%ESC%[91merror%ESC%[0m] must include one action in [%ESC%[!warncolor!m-f%ESC%[0m %ESC%[!warncolor!m-i%ESC%[0m %ESC%[!warncolor!m-k%ESC%[0m %ESC%[!warncolor!m-r%ESC%[0m %ESC%[!warncolor!m-t%ESC%[0m %ESC%[!warncolor!m-u%ESC%[0m]
+    @REM @echo.
 
     if "!shouldexit!" == "0" goto :usage
     exit /b
@@ -168,13 +184,19 @@ if "!conflocation!" == "" (
 
 @REM cannot contain whitespace in path
 if "!conflocation!" NEQ "!conflocation: =!" (
-    @echo [%ESC%[91merror%ESC%[0m] invalid configuration path "%ESC%[97m!conflocation!%ESC%[0m", %ESC%[91mcannot%ESC%[0m contain %ESC%[97mwhitespace%ESC%[0m
+    @echo [%ESC%[91merror%ESC%[0m] invalid configuration path "%ESC%[!warncolor!m!conflocation!%ESC%[0m", %ESC%[91mcannot%ESC%[0m contain %ESC%[!warncolor!mwhitespace%ESC%[0m
     exit /b 1
 )
 
 if "!isweblink!" == "1" (
     if exist "!conflocation!" (
-        choice /t 6 /d n /n /m "[%ESC%[97mwarning%ESC%[0m] %ESC%[97mexisting%ESC%[0m configuration file "%ESC%[97m!conflocation!%ESC%[0m" will be %ESC%[91moverwritten%ESC%[0m, do you want to continue? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+        set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] %ESC%[!warncolor!mexisting%ESC%[0m configuration file "%ESC%[!warncolor!m!conflocation!%ESC%[0m" will be %ESC%[91moverwritten%ESC%[0m, do you want to continue? (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+        if "!msterminal!" == "1" (
+            choice /t 6 /d n /n /m "!tips!"
+        ) else (
+            set /p "=!tips!" <nul
+            choice /t 6 /d n /n
+        )
         if !errorlevel! == 2 exit /b 1
     )
 
@@ -193,7 +215,7 @@ if "!isweblink!" == "1" (
             set "content="
             for /f "tokens=*" %%a in ('findstr /i /r /c:"^external-controller:[ ][ ]*.*:[0-9][0-9]*.*" !subfile!') do set "content=%%a"
             if "!content!" == "" (
-                @echo [%ESC%[91merror%ESC%[0m] invalid configuration file, please confirm the %ESC%[97msubscription%ESC%[0m is valid
+                @echo [%ESC%[91merror%ESC%[0m] invalid configuration file, please confirm the %ESC%[!warncolor!msubscription%ESC%[0m is valid
                 exit /b 1
             )
 
@@ -201,12 +223,12 @@ if "!isweblink!" == "1" (
             call :splitpath filepath filename "!conflocation!"
             call :makedirs success "!filepath!"
             if "!success!" == "0" (
-                @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to create directory "%ESC%[97m!filepath!%ESC%[0m", please check whether the path is legal
+                @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to create directory "%ESC%[!warncolor!m!filepath!%ESC%[0m", please check whether the path is legal
                 exit /b 1
             )
 
             move "!subfile!" "!conflocation!" >nul 2>nul
-            @echo [%ESC%[95minfo%ESC%[0m] configuration file has been downloaded %ESC%[95msuccessfully%ESC%[0m
+            @echo [%ESC%[!infocolor!minfo%ESC%[0m] configuration file has been downloaded %ESC%[!infocolor!msuccessfully%ESC%[0m
         ) else (
             @REM output is empty
             set "statuscode=000"
@@ -220,7 +242,7 @@ if "!isweblink!" == "1" (
 )
 
 if not exist "!conflocation!" (
-    @echo [%ESC%[91merror%ESC%[0m] the specified configuration file "%ESC%[97m!conflocation!%ESC%[0m" does %ESC%[91mnot exist%ESC%[0m
+    @echo [%ESC%[91merror%ESC%[0m] the specified configuration file "%ESC%[!warncolor!m!conflocation!%ESC%[0m" does %ESC%[91mnot exist%ESC%[0m
     goto :eof
 )
 
@@ -229,7 +251,7 @@ set "content="
 for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^proxy-groups:[ ]*" "!conflocation!"') do set "content=%%a"
 call :trim content "!content!"
 if "!content!" NEQ "proxy-groups" (
-    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91minvalid%ESC%[0m configuration file "%ESC%[97m!conflocation!%ESC%[0m"
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91minvalid%ESC%[0m configuration file "%ESC%[!warncolor!m!conflocation!%ESC%[0m"
     exit /b 1
 )
 
@@ -239,7 +261,13 @@ goto :eof
 
 @REM Initialize network proxy
 :initialize
-choice /t 5 /d n /n /m "[%ESC%[97mwarning%ESC%[0m] clash will be initialized and started in "%ESC%[97m!dest!%ESC%[0m", do you want to continue (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] clash will be initialized and started in "%ESC%[!warncolor!m!dest!%ESC%[0m", do you want to continue (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+if "!msterminal!" == "1" (
+    choice /t 5 /d n /n /m "!tips!"
+) else (
+    set /p "=!tips!" <nul
+    choice /t 5 /d n /n
+)
 if !errorlevel! == 2 exit /b 1
 
 set "quickflag=0"
@@ -253,13 +281,19 @@ goto :eof
 @REM mandatory use of the stable version
 set "alpha=0"
 
-@echo [%ESC%[95minfo%ESC%[0m] start checking and fixing proxy network problems
+@echo [%ESC%[!infocolor!minfo%ESC%[0m] start checking and fixing proxy network problems
 
 @REM check status
 call :checkconnect available 0
 set "lazycheck=0"
 if "!available!" == "1" (
-    choice /t 5 /d n /n /m "[%ESC%[97mwarning%ESC%[0m] network proxy is %ESC%[95mworking fine%ESC%[0m, %ESC%[91mno fixes needed%ESC%[0m, do you want to continue (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+    set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] network proxy is %ESC%[!infocolor!mworking fine%ESC%[0m, %ESC%[91mno fixes needed%ESC%[0m, do you want to continue (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+    if "!msterminal!" == "1" (
+        choice /t 5 /d n /n /m "!tips!"
+    ) else (
+        set /p "=!tips!" <nul
+        choice /t 5 /d n /n
+    )
     if !errorlevel! == 2 exit /b 1
 ) else (
     @REM running detect
@@ -271,7 +305,13 @@ if "!available!" == "1" (
 )
 
 @REM O: Reload | R: Restart | U: Restore | N: Cancel
-choice /t 6 /c ORUN /d R /n /m "[%ESC%[97mwarning%ESC%[0m] press %ESC%[97mO%ESC%[0m to %ESC%[97mReload%ESC%[0m, press %ESC%[97mR%ESC%[0m to %ESC%[97mRestart%ESC%[0m, press %ESC%[97mU%ESC%[0m to %ESC%[97mRestore%ESC%[0m to default, press %ESC%[97mN%ESC%[0m to %ESC%[97mCancel%ESC%[0m. (%ESC%[97mO%ESC%[0m/%ESC%[97mR%ESC%[0m/%ESC%[97mU%ESC%[0m/%ESC%[97mN%ESC%[0m) "
+set "[%ESC%[!warncolor!mwarning%ESC%[0m] press %ESC%[!warncolor!mO%ESC%[0m to %ESC%[!warncolor!mReload%ESC%[0m, press %ESC%[!warncolor!mR%ESC%[0m to %ESC%[!warncolor!mRestart%ESC%[0m, press %ESC%[!warncolor!mU%ESC%[0m to %ESC%[!warncolor!mRestore%ESC%[0m to default, press %ESC%[!warncolor!mN%ESC%[0m to %ESC%[!warncolor!mCancel%ESC%[0m. (%ESC%[!warncolor!mO%ESC%[0m/%ESC%[!warncolor!mR%ESC%[0m/%ESC%[!warncolor!mU%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
+if "!msterminal!" == "1" (
+    choice /t 6 /c ORUN /d R /n /m "!tips!"
+) else (
+    set /p "=!tips!" <nul
+    choice /t 6 /c ORUN /d R /n
+)
 
 if !errorlevel! == 1 (
     call :reload
@@ -303,7 +343,7 @@ timeout /t 3 /nobreak >nul 2>nul
 @REM recheck
 call :checkconnect available 0
 if "!available!" == "1" (
-    @echo [%ESC%[95minfo%ESC%[0m] issues has been %ESC%[95mfixed%ESC%[0m and now the network proxy can be used %ESC%[95mnormally%ESC%[0m
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] issues has been %ESC%[!infocolor!mfixed%ESC%[0m and now the network proxy can be used %ESC%[!infocolor!mnormally%ESC%[0m
 ) else (
     @echo [%ESC%[91merror%ESC%[0m] issues repair %ESC%[91mfailed%ESC%[0m, the network proxy is still %ESC%[91munavailable%ESC%[0m, please try other methods
 )
@@ -326,7 +366,7 @@ if "!available!" == "0" (
 )
 
 if "!loglevel!" == "1" (
-    @echo [%ESC%[97mwarning%ESC%[0m] network proxy is %ESC%[91mnot running%ESC%[0m, recommend you choose %ESC%[97mRestart%ESC%[0m to execute it
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] network proxy is %ESC%[91mnot running%ESC%[0m, recommend you choose %ESC%[!warncolor!mRestart%ESC%[0m to execute it
 )
 goto :eof
 
@@ -345,7 +385,7 @@ call :prepare changed 1
 
 @REM no new version found
 if "!changed!" == "0" (
-    @echo [%ESC%[95minfo%ESC%[0m] don't need update due to not found new version
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] don't need update due to not found new version
 ) else (
     @REM wait for overwrite files
     timeout /t 3 /nobreak >nul 2>nul
@@ -382,7 +422,7 @@ if "!result!" == "true" (
     if "!subscription:~0,1!" == "-" set result=false
 
     if "!result!" == "false" (
-        @echo [%ESC%[91merror%ESC%[0m] invalid argument, must provide a %ESC%[91mvalid%ESC%[0m %ESC%[97mconfiguration file%ESC%[0m or %ESC%[97msubscription link%ESC%[0m if you specify "%ESC%[97m--conf%ESC%[0m"
+        @echo [%ESC%[91merror%ESC%[0m] invalid argument, must provide a %ESC%[91mvalid%ESC%[0m %ESC%[!warncolor!mconfiguration file%ESC%[0m or %ESC%[!warncolor!msubscription link%ESC%[0m if you specify "%ESC%[!warncolor!m--conf%ESC%[0m"
         @echo.
         goto :usage
     )
@@ -403,7 +443,7 @@ if "!result!" == "true" (
         if "!invalid!" == "1" (
             set "shouldexit=1"
 
-            @echo [%ESC%[91merror%ESC%[0m] invalid subscription link "%ESC%[97m!subscription!%ESC%[0m"
+            @echo [%ESC%[91merror%ESC%[0m] invalid subscription link "%ESC%[!warncolor!m!subscription!%ESC%[0m"
             @echo.
             goto :eof
         ) 
@@ -418,7 +458,7 @@ if "!result!" == "true" (
         ) else (
             set "shouldexit=1"
 
-            @echo [%ESC%[91merror%ESC%[0m] invalid configuration "%ESC%[97m!subscription!%ESC%[0m", only "%ESC%[97m.yaml%ESC%[0m" and "%ESC%[97m.yml%ESC%[0m" files are supported
+            @echo [%ESC%[91merror%ESC%[0m] invalid configuration "%ESC%[!warncolor!m!subscription!%ESC%[0m", only "%ESC%[!warncolor!m.yaml%ESC%[0m" and "%ESC%[!warncolor!m.yml%ESC%[0m" files are supported
             @echo.
             goto :eof
         )
@@ -546,7 +586,7 @@ if "!result!" == "true" (
     if "!param:~0,1!" == "-" set result=false
 
     if "!result!" == "false" (
-        @echo [%ESC%[91merror%ESC%[0m] invalid argument, if you set "%ESC%[97m--workspace%ESC%[0m" you must specify an path
+        @echo [%ESC%[91merror%ESC%[0m] invalid argument, if you set "%ESC%[!warncolor!m--workspace%ESC%[0m" you must specify an path
         @echo.
         goto :usage
     )
@@ -558,7 +598,7 @@ if "!result!" == "true" (
     )
 
     if "!shouldexit!" == "1" (
-        @echo [%ESC%[91merror%ESC%[0m] the specified path "%ESC%[97m!directory!%ESC%[0m" for "%ESC%[97m--workspace%ESC%[0m" is %ESC%[91minvalid%ESC%[0m
+        @echo [%ESC%[91merror%ESC%[0m] the specified path "%ESC%[!warncolor!m!directory!%ESC%[0m" for "%ESC%[!warncolor!m--workspace%ESC%[0m" is %ESC%[91minvalid%ESC%[0m
         @echo.
         goto :eof
     )
@@ -611,15 +651,15 @@ goto :eof
 @echo Usage: !batname! [OPTIONS]
 @echo.
 @echo arguments: support long options and short options
-@echo -a, --alpha          alpha version allowed for clash, the stable version is used by default, use with %ESC%[97m-i%ESC%[0m or %ESC%[97m-u%ESC%[0m
+@echo -a, --alpha          alpha version allowed for clash, the stable version is used by default, use with %ESC%[!warncolor!m-i%ESC%[0m or %ESC%[!warncolor!m-u%ESC%[0m
 @echo -c, --conf           specify a configuration file, support local files and subscription links
 @echo -d, --daemon         run on background as daemon, default is false
 @echo -e, --exclude        skip subscriptions when updating
 @echo -f, --fix            %ESC%[91moverwrite%ESC%[0m all plugins to fix network issues
 @echo -h, --help           display this help and exit
-@echo -i, --init           initialize network proxy with the configuration provided by %ESC%[97m-c%ESC%[0m
+@echo -i, --init           initialize network proxy with the configuration provided by %ESC%[!warncolor!m-c%ESC%[0m
 @echo -k, --kill           close network proxy by kill clash process
-@echo -m, --meta           if configuration is compatible, use clash.meta instead of clash premium, use with %ESC%[97m-i%ESC%[0m or %ESC%[97m-u%ESC%[0m
+@echo -m, --meta           if configuration is compatible, use clash.meta instead of clash premium, use with %ESC%[!warncolor!m-i%ESC%[0m or %ESC%[!warncolor!m-u%ESC%[0m
 @echo -o, --overload       only reload configuration files
 @echo -p, --purge          turn off system network proxy, disable booting and automatic updating
 @echo -q, --quick          quick updates, only subscriptions and rulesets are refreshed
@@ -627,8 +667,9 @@ goto :eof
 @echo -s, --show           show running window, hide by default
 @echo -t, --test           check whether the network proxy is available
 @echo -u, --update         perform update operations on plugins, subscriptions, and rulesets
-@echo -w, --workspace      the %ESC%[97mabsolute path%ESC%[0m of clash workspace, default is the path where the current script is located
-@echo -y, --yacd           use yacd to replace the standard dashboard, use with %ESC%[97m-i%ESC%[0m or %ESC%[97m-u%ESC%[0m
+@echo -w, --workspace      the %ESC%[!warncolor!mabsolute path%ESC%[0m of clash workspace, default is the path where the current script is located
+@echo -y, --yacd           use yacd to replace the standard dashboard, use with %ESC%[!warncolor!m-i%ESC%[0m or %ESC%[!warncolor!m-u%ESC%[0m
+@echo.
 
 set "shouldexit=1"
 goto :eof
@@ -696,7 +737,7 @@ call :trim force "%~1"
 if "!force!" == "" set "force=1"
 
 if "!force!" == "1" (
-    @echo [%ESC%[95minfo%ESC%[0m] subscriptions are being updated, only those with type "http" will be updated
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] subscriptions are being updated, only those with type "http" will be updated
 )
 
 call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com" "!force!"
@@ -747,7 +788,7 @@ if "!output!" == "" set "output=1"
 call :isrunning status
 if "!status!" == "0" (
     if "!output!" == "1" (
-        @echo [%ESC%[97mwarning%ESC%[0m] network proxy is %ESC%[91mnot available%ESC%[0m because clash.exe is %ESC%[91mnot running%ESC%[0m
+        @echo [%ESC%[!warncolor!mwarning%ESC%[0m] network proxy is %ESC%[91mnot available%ESC%[0m because clash.exe is %ESC%[91mnot running%ESC%[0m
     )
 
     goto :eof
@@ -783,14 +824,14 @@ if "!proxyserver!" == "" (
 if "!statuscode!" == "200" (
     set "%~1=1"
     if "!output!" == "1" (
-        @echo [%ESC%[95minfo%ESC%[0m] network proxy is not a problem and %ESC%[95mworks fine%ESC%[0m
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] network proxy is not a problem and %ESC%[!infocolor!mworks fine%ESC%[0m
     )
 ) else (
     set "%~1=0"
     if "!output!" == "1" (
         call :postprocess
 
-        @echo [%ESC%[97mwarning%ESC%[0m] network proxy is %ESC%[91mnot available%ESC%[0m, you can %ESC%[97mreload%ESC%[0m it with "%ESC%[97m!batname! -o%ESC%[0m" or %ESC%[97mrestart%ESC%[0m it with "%ESC%[97m!batname! -r%ESC%[0m" or "%ESC%[97m!batname! -f%ESC%[0m" to try to %ESC%[97mfix%ESC%[0m the problem
+        @echo [%ESC%[!warncolor!mwarning%ESC%[0m] network proxy is %ESC%[91mnot available%ESC%[0m, you can %ESC%[!warncolor!mreload%ESC%[0m it with "%ESC%[!warncolor!m!batname! -o%ESC%[0m" or %ESC%[!warncolor!mrestart%ESC%[0m it with "%ESC%[!warncolor!m!batname! -r%ESC%[0m" or "%ESC%[!warncolor!m!batname! -f%ESC%[0m" to try to %ESC%[!warncolor!mfix%ESC%[0m the problem
     )
 )
 goto :eof
@@ -813,7 +854,13 @@ if exist "!configfile!" (
     call :extractport port
     if "!port!" == "" goto :eof
 
-    choice /t 5 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] found that the system network proxy is %ESC%[91mnot enabled%ESC%[0m, whether to set it? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+    set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] found that the system network proxy is %ESC%[91mnot enabled%ESC%[0m, whether to set it? (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+    if "!msterminal!" == "1" (
+        choice /t 5 /d y /n /m "!tips!"
+    ) else (
+        set /p "=!tips!" <nul
+        choice /t 5 /d y /n
+    )
     if !errorlevel! == 2 goto :eof
 
     call :enableproxy "127.0.0.1:!port!"
@@ -828,7 +875,7 @@ goto :eof
 set "%~1=0"
 call :trim directory "%~2"
 if "!directory!" == "" (
-    @echo [%ESC%[97mwarning%ESC%[0m] skip mkdir because file path is empty
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] skip mkdir because file path is empty
     goto :eof
 )
 
@@ -876,16 +923,16 @@ for /f delims^=^"^ tokens^=2 %%a in ('curl --retry 5 --retry-max-time 60 --conne
 call :trim content !content!
 
 if "!content!" == "" (
-    @echo [%ESC%[97mwarning%ESC%[0m] cannot extract wintun download link
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] cannot extract wintun download link
     goto :eof
 )
 
 set "wintunurl=!wintunurl!/!content!"
-@echo [%ESC%[95minfo%ESC%[0m] begin to download wintun for overwrite wintun.dll, link: "!wintunurl!"
+@echo [%ESC%[!infocolor!minfo%ESC%[0m] begin to download wintun for overwrite wintun.dll, link: "!wintunurl!"
 curl.exe --retry 5 --retry-max-time 60 --connect-timeout 15 -s -L -C - -o "!temp!\wintun.zip" "!wintunurl!"
 if exist "!temp!\wintun.zip" (
     @REM unzip
-    tar -xzf "!temp!\wintun.zip" -C !temp!
+    tar -xzf "!temp!\wintun.zip" -C !temp! >nul 2>nul
 
     @REM clean workspace
     del /f /q "!temp!\wintun.zip" >nul 2>nul
@@ -896,17 +943,17 @@ if exist "!temp!\wintun.zip" (
         call :md5compare diff "!wintunfile!" "!dest!\wintun.dll"
         if "!diff!" == "1" (
             set "%~1=1"
-            @echo [%ESC%[95minfo%ESC%[0m] new version found, filename: %ESC%[97mwintun.dll%ESC%[0m
+            @echo [%ESC%[!infocolor!minfo%ESC%[0m] new version found, filename: %ESC%[!warncolor!mwintun.dll%ESC%[0m
             
             @REM delete if exist
             del /f /q "!dest!\wintun.dll" >nul 2>nul
             move "!wintunfile!" "!dest!" >nul 2>nul
         )
     ) else (
-        @echo [%ESC%[97mwarning%ESC%[0m] not found wintun.dll, there may be an error downloading
+        @echo [%ESC%[!warncolor!mwarning%ESC%[0m] not found wintun.dll, there may be an error downloading
     )
 ) else (
-    @echo [%ESC%[97mwarning%ESC%[0m] wintun download failed, please check link is correct
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] wintun download failed, please check link is correct
 )
 goto :eof
 
@@ -917,7 +964,7 @@ set "%~1="
 call :trim outenable "%~2"
 if "!outenable!" == "" set "outenable=1"
 if "!outenable!" == "1" (
-    @echo [%ESC%[95minfo%ESC%[0m] downloading clash.exe, domain site and IP address data
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] downloading clash.exe, domain site and IP address data
 )
 
 set "dfiles="
@@ -928,7 +975,7 @@ if "!clashurl!" NEQ "" (
 
     if exist "!temp!\clash.zip" (
         @REM unzip
-        tar -xzf "!temp!\clash.zip" -C !temp!
+        tar -xzf "!temp!\clash.zip" -C !temp! >nul 2>nul
 
         @REM clean workspace
         del /f /q "!temp!\clash.zip"
@@ -1003,7 +1050,7 @@ for %%a in (!filenames!) do (
     set "fname=%%a"
 
     if not exist "!temp!\!fname!" (
-        @echo [%ESC%[91merror%ESC%[0m] %ESC%[97m!fname!%ESC%[0m download finished, but not found it in directory "!temp!"
+        @echo [%ESC%[91merror%ESC%[0m] %ESC%[!warncolor!m!fname!%ESC%[0m download finished, but not found it in directory "!temp!"
         goto :eof
     )
 
@@ -1023,7 +1070,7 @@ for %%a in (!filenames!) do (
     call :md5compare diff "!temp!\!fname!" "!dest!\!fname!"
     if "!diff!" == "1" (
         set "%~1=1"
-        @echo [%ESC%[95minfo%ESC%[0m] new version found, filename: %ESC%[97m!fname!%ESC%[0m
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] new version found, filename: %ESC%[!warncolor!m!fname!%ESC%[0m
         call :upgrade "!filenames!"
         exit /b
     )
@@ -1100,7 +1147,7 @@ if "!status!" == "0" (
     @REM startup clash
     call :executewrapper 0
 ) else (
-    @echo [%ESC%[95minfo%ESC%[0m] subscriptions and rulesets have been updated, and the reload operation is about to be performed
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] subscriptions and rulesets have been updated, and the reload operation is about to be performed
     goto :reload
 )
 goto :eof
@@ -1121,16 +1168,26 @@ set "display=" & for /f "delims=0123456789" %%i in ("!param!") do set "display=%
 if defined display (set "hidewindow=0") else (set "hidewindow=!param!")
 if "!hidewindow!" NEQ "0" set "hidewindow=1"
 
-cacls "%SystemDrive%\System Volume Information" >nul 2>&1 && (!operation!) || (start "" mshta vbscript:CreateObject^("Shell.Application"^).ShellExecute^("%~snx0","%~1","","runas",!hidewindow!^)^(window.close^)&exit /b)
+cacls "%SystemDrive%\System Volume Information" >nul 2>&1 && (
+    if "!hidewindow!" == "1" (
+        !operation!
+        exit /b
+    ) else (
+        start "" mshta vbscript:CreateObject^("Shell.Application"^).ShellExecute^("%~snx0","%~1","","runas",0^)^(window.close^)&exit /b
+    )
+) || (start "" mshta vbscript:CreateObject^("Shell.Application"^).ShellExecute^("%~snx0","%~1","","runas",!hidewindow!^)^(window.close^)&exit /b)
 goto :eof
 
 
 @REM execute
 :execute <config>
 call :trim cfile "%~1"
+if "!cfile:~0,13!" == "goto :execute" (
+    for /f "tokens=1-4 delims= " %%a in ("!cfile!") do set "cfile=%%c"
+)
 
 if "!cfile!" == "" (
-    @echo [%ESC%[95minfo%ESC%[0m] cannot execute clash.exe, invalid config path
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] cannot execute clash.exe, invalid config path
     goto :eof
 )
 
@@ -1197,6 +1254,9 @@ call :autostart
 
 @REM allow auto check update
 call :autoupdate
+
+@REM create shortcut on desktop
+call :adddesktop
 goto :eof
 
 
@@ -1208,12 +1268,12 @@ if "!shouldcheck!" == "1" (call :prepare changed 0)
 
 @REM verify config
 if not exist "!dest!\clash.exe" (
-    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to start clash.exe, program "%ESC%[97m!dest!\clash.exe%ESC%[0m" is missing
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to start clash.exe, program "%ESC%[!warncolor!m!dest!\clash.exe%ESC%[0m" is missing
     goto :eof
 )
 
 if not exist "!configfile!" (
-    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to start clash.exe, not found configuration file "%ESC%[97m!configfile!%ESC%[0m"
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to start clash.exe, not found configuration file "%ESC%[!warncolor!m!configfile!%ESC%[0m"
     goto :eof
 )
 
@@ -1232,7 +1292,7 @@ if !errorlevel! NEQ 0 (
     )
 
     if "!messages!" == "" set "messages=unknown error"
-    @echo [%ESC%[91merror%ESC%[0m] clash.exe %ESC%[91mfailed%ESC%[0m to start because of some errors in the configuration file "%ESC%[97m!configfile!%ESC%[0m"
+    @echo [%ESC%[91merror%ESC%[0m] clash.exe %ESC%[91mfailed%ESC%[0m to start because of some errors in the configuration file "%ESC%[!warncolor!m!configfile!%ESC%[0m"
     @echo [%ESC%[91merror%ESC%[0m] messages: "!messages!"
     exit /b 1
 )
@@ -1250,7 +1310,7 @@ timeout /t 5 /nobreak >nul 2>nul
 call :isrunning status
 
 if "!status!" == "1" (
-    @echo [%ESC%[95minfo%ESC%[0m] execute clash.exe %ESC%[95msuccess%ESC%[0m, network proxy is %ESC%[95menabled%ESC%[0m
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] execute clash.exe %ESC%[!infocolor!msuccess%ESC%[0m, network proxy is %ESC%[!infocolor!menabled%ESC%[0m
 
     @REM auto start 
     call :postprocess
@@ -1302,12 +1362,18 @@ if "!proxyport!" == "" set "proxyport=7890"
 set "proxyserver=127.0.0.1:!proxyport!"
 call :systemproxy server
 if "!proxyserver!" NEQ "!server!" (
-    choice /t 5 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] found that the system network proxy is %ESC%[91mnot enabled%ESC%[0m, whether to set it? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+    set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] found that the system network proxy is %ESC%[91mnot enabled%ESC%[0m, whether to set it? (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+    if "!msterminal!" == "1" (
+        choice /t 5 /d y /n /m "!tips!"
+    ) else (
+        set /p "=!tips!" <nul
+        choice /t 5 /d y /n
+    )
     if !errorlevel! == 1 call :enableproxy "!proxyserver!"
 )
 
 @REM hint
-@echo [%ESC%[97mwarning%ESC%[0m] if you cannot use the network proxy, please go to "%ESC%[97mSettings -^> Network & Internet -^> Proxy%ESC%[0m" to confirm whether the proxy has been set to "%ESC%[97m!proxyserver!%ESC%[0m"
+@echo [%ESC%[!warncolor!mwarning%ESC%[0m] if you cannot use the network proxy, please go to "%ESC%[!warncolor!mSettings -^> Network & Internet -^> Proxy%ESC%[0m" to confirm whether the proxy has been set to "%ESC%[!warncolor!m!proxyserver!%ESC%[0m"
 goto :eof
 
 
@@ -1323,7 +1389,7 @@ if "!status!" == "1" (
     call :isrunning status
 
     if "!status!" == "1" (
-        @echo [%ESC%[97mwarning%ESC%[0m] restart clash.exe %ESC%[91mfailed%ESC%[0m due to %ESC%[97mcannot stop%ESC%[0m it
+        @echo [%ESC%[!warncolor!mwarning%ESC%[0m] restart clash.exe %ESC%[91mfailed%ESC%[0m due to %ESC%[!warncolor!mcannot stop%ESC%[0m it
         goto :eof
     )
 )
@@ -1341,7 +1407,7 @@ exit /b
 call :isrunning status
 if "!status!" == "0" goto :eof
 
-@echo [%ESC%[95minfo%ESC%[0m] kill clash process with administrator permission
+@echo [%ESC%[!infocolor!minfo%ESC%[0m] kill clash process with administrator permission
 call :privilege "goto :killprocess" 0
 
 @REM wait a moment
@@ -1350,7 +1416,7 @@ timeout /t 6 /nobreak >nul 2>nul
 @REM detect
 call :isrunning status
 if "!status!" == "0" (
-    @echo [%ESC%[95minfo%ESC%[0m] network proxy program has exited %ESC%[95msuccessfully%ESC%[0m. if you want to restart it you can execute with "%ESC%[97m!batname! -r%ESC%[0m"
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] network proxy program has exited %ESC%[!infocolor!msuccessfully%ESC%[0m. if you want to restart it you can execute with "%ESC%[!warncolor!m!batname! -r%ESC%[0m"
 
     @REM disable proxy
     @REM call :istunenabled enabled
@@ -1358,7 +1424,7 @@ if "!status!" == "0" (
 
     call :disableproxy
 ) else (
-    @echo [%ESC%[97mwarning%ESC%[0m] kill network proxy process %ESC%[91mfailed%ESC%[0m, you can close it manually in %ESC%[97mtask manager%ESC%[0m
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] kill network proxy process %ESC%[91mfailed%ESC%[0m, you can close it manually in %ESC%[!warncolor!mtask manager%ESC%[0m
 )
 goto :eof
 
@@ -1378,7 +1444,7 @@ timeout /t 2 /nobreak >nul 2>nul
 call :isrunning status
 
 if "!status!" == "0" (
-    @echo [%ESC%[95minfo%ESC%[0m] clash.exe process exits successfully, and the network proxy is closed
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] clash.exe process exits successfully, and the network proxy is closed
 ) else (
     @echo [%ESC%[91merror%ESC%[0m] failed to close network proxy, cannot exit clash process, status: !exitcode!
 )
@@ -1648,7 +1714,7 @@ if not exist "!configfile!" goto :eof
 @REM clash api address
 call :parsevalue clashapi "external-controller:[ ][ ]*"
 if "!clashapi!" == "" (
-    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mdon't%ESC%[0m support reload, maybe you can use "%ESC%[97m!batname! -r%ESC%[0m" to restart or configure "%ESC%[97mexternal-controller%ESC%[0m" in file "%ESC%[97m!configfile!%ESC%[0m" to enable this operation
+    @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mdon't%ESC%[0m support reload, maybe you can use "%ESC%[!warncolor!m!batname! -r%ESC%[0m" to restart or configure "%ESC%[!warncolor!mexternal-controller%ESC%[0m" in file "%ESC%[!warncolor!m!configfile!%ESC%[0m" to enable this operation
     goto :eof
 )
 set "clashapi=http://!clashapi!/configs?force=true"
@@ -1675,10 +1741,10 @@ if "!status!" == "1" (
     )
 
     if "!statuscode!" == "204" (
-        @echo [%ESC%[95minfo%ESC%[0m] proxy program reload %ESC%[95msucceeded%ESC%[0m, wish you a happy use
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] proxy program reload %ESC%[!infocolor!msucceeded%ESC%[0m, wish you a happy use
         call :postprocess
     ) else if "!statuscode!" == "401" (
-        @echo [%ESC%[95minfo%ESC%[0m] %ESC%[97msecret%ESC%[0m has been %ESC%[91mmodified%ESC%[0m, please use "%ESC%[97m!batname! -r%ESC%[0m" to restart
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] %ESC%[!warncolor!msecret%ESC%[0m has been %ESC%[91mmodified%ESC%[0m, please use "%ESC%[!warncolor!m!batname! -r%ESC%[0m" to restart
     ) else (
         set "content="
 
@@ -1698,7 +1764,7 @@ if "!status!" == "1" (
     @REM delete
     del /f /q "!output!" >nul 2>nul
 ) else (
-    @echo [%ESC%[91merror%ESC%[0m] clash.exe is %ESC%[91mnot running%ESC%[0m, skip reload. you can start it with command "%ESC%[97m!batname! -r%ESC%[0m"
+    @echo [%ESC%[91merror%ESC%[0m] clash.exe is %ESC%[91mnot running%ESC%[0m, skip reload. you can start it with command "%ESC%[!warncolor!m!batname! -r%ESC%[0m"
 )
 goto :eof
 
@@ -1709,7 +1775,7 @@ call :trim force "%~1"
 if "!force!" == "" set "force=1"
 
 if "!force!" == "1" (
-    @echo [%ESC%[95minfo%ESC%[0m] checking and updating rulesets of type "http"
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] checking and updating rulesets of type "http"
 )
 
 call :filerefresh changed "^\s+behavior:\s+.*" "www.gstatic.com" "!force!"
@@ -1728,7 +1794,7 @@ call :trim force "%~4"
 if "!force!" == "" set "force=1"
 
 if "!regex!" == "" (
-    @echo [%ESC%[97mwarning%ESC%[0m] skip update, keywords cannot empty
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] skip update, keywords cannot empty
     goto :eof
 )
 
@@ -1744,7 +1810,7 @@ call :findby "!configfile!" "!regex!" "!tempfile!"
 if not exist "!tempfile!" (
     if "!force!" == "0" goto :eof
 
-    @echo [%ESC%[97mwarning%ESC%[0m] ignore download file due to cannot extract config from file "!configfile!"
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] ignore download file due to cannot extract config from file "!configfile!"
     goto :eof
 )
 
@@ -1794,7 +1860,7 @@ for %%u in (!texturls!) do (
                     @REM changed status 
                     set "%~1=1"
                 ) else (
-                    @echo [%ESC%[91merror%ESC%[0m] %ESC%[97m!filename!%ESC%[0m download error, link: "!url!"
+                    @echo [%ESC%[91merror%ESC%[0m] %ESC%[!warncolor!m!filename!%ESC%[0m download error, link: "!url!"
                 )
             )
 
@@ -1841,7 +1907,7 @@ if "!force!" == "" set "force=0"
 if "!dashboardurl!" == "" (
     if "!force!" == "0" goto :eof
 
-    @echo [%ESC%[95minfo%ESC%[0m] %ESC%[97mskip%ESC%[0m update dashboard because it's %ESC%[97mnot enabled%ESC%[0m
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] %ESC%[!warncolor!mskip%ESC%[0m update dashboard because it's %ESC%[!warncolor!mnot enabled%ESC%[0m
     goto :eof
 )
 
@@ -1855,16 +1921,16 @@ if exist "!dashboard!\index.html" if "!force!" == "0" goto :eof
 
 call :makedirs success "!dashboard!"
 
-@echo [%ESC%[95minfo%ESC%[0m] start download and upgrading the dashboard
+@echo [%ESC%[!infocolor!minfo%ESC%[0m] start download and upgrading the dashboard
 curl.exe --retry 5 -m 120 --connect-timeout 20 -s -L -C - -o "!temp!\dashboard.zip" "!dashboardurl!"
 
 if not exist "!temp!\dashboard.zip" (
-    @echo [%ESC%[97mwarning%ESC%[0m] fail to download dashboard, link: "!dashboardurl!"
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] fail to download dashboard, link: "!dashboardurl!"
     goto :eof
 )
 
 @REM unzip
-tar -xzf "!temp!\dashboard.zip" -C !temp!
+tar -xzf "!temp!\dashboard.zip" -C !temp! >nul 2>nul
 del /f /q "!temp!\dashboard.zip" >nul 2>nul
 
 @REM base path and directory name
@@ -1885,9 +1951,9 @@ ren "!temp!\!dashdirectory!" !dashname!
 @REM replace if dashboard download success
 dir /a /s /b "!temp!\!dashname!" | findstr . >nul && (
     call :replacedir "!temp!\!dashname!" "!dashboard!"
-    @echo [%ESC%[95minfo%ESC%[0m] dashboard has been updated to the latest version
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] dashboard has been updated to the latest version
 ) || (
-    @echo [%ESC%[97mwarning%ESC%[0m] occur error when download dashboard, link: "!dashboardurl!"
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] occur error when download dashboard, link: "!dashboardurl!"
 )
 goto :eof
 
@@ -1898,12 +1964,12 @@ set "src=%~1"
 set "target=%~2"
 
 if "!src!" == "" (
-    @echo [%ESC%[97mwarning%ESC%[0m] skip to replace files because resource path is empty
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] skip to replace files because resource path is empty
     goto :eof
 )
 
 if "!target!" == "" (
-    @echo [%ESC%[97mwarning%ESC%[0m] skip to replace files because destination path is empty
+    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] skip to replace files because destination path is empty
     goto :eof
 )
 
@@ -1993,11 +2059,17 @@ goto :eof
 :closeproxy
 call :isrunning status
 if "!status!" == "0" (
-    @echo [%ESC%[95minfo%ESC%[0m] no need to kill because network proxy %ESC%[97mis not running%ESC%[0m
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] no need to kill because network proxy %ESC%[!warncolor!mis not running%ESC%[0m
     goto :eof
 )
 
-choice /t 6 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] this action will close network proxy, do you want to continue (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] this action will close network proxy, do you want to continue (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+if "!msterminal!" == "1" (
+    choice /t 6 /d y /n /m "!tips!"
+) else (
+    set /p "=!tips!" <nul
+    choice /t 6 /d y /n
+)
 if !errorlevel! == 2 exit /b 1
 goto :killprocesswrapper
 
@@ -2048,7 +2120,13 @@ goto :eof
 :autostart
 call :regquery exename "!autostartregpath!" "Clash" "REG_SZ"
 if "!startupvbs!" NEQ "!exename!" (
-    choice /t 5 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] whether to add network proxy program to boot automatically (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+    set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] whether to add network proxy program to boot automatically (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+    if "!msterminal!" == "1" (
+        choice /t 5 /d y /n /m "!tips!"
+    ) else (
+        set /p "=!tips!" <nul
+        choice /t 5 /d y /n
+    )
     if !errorlevel! == 2 exit /b 1
 
     call :nopromptrunas success
@@ -2060,7 +2138,7 @@ if "!startupvbs!" NEQ "!exename!" (
     call :generatestartvbs "!startupvbs!" "-r"
     call :registerexe success "!startupvbs!"
     if "!success!" == "1" (
-        @echo [%ESC%[95minfo%ESC%[0m] network proxy program is automatically started at boot time
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] network proxy program is automatically started at boot time
     ) else (
         @echo [%ESC%[91merror%ESC%[0m] %ESC%[91mfailed%ESC%[0m to obtain permission, unable to join boot autostart
     )
@@ -2078,7 +2156,13 @@ if "!exename!" == "" (
 ) else (
     set "shoulddelete=1"
     if "!startupvbs!" NEQ "!exename!" (
-        choice /t 5 /d n /n /m "[%ESC%[97mwarning%ESC%[0m] found same program but different execution paths, whether to continue (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+        set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] found same program but different execution paths, whether to continue (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+        if "!msterminal!" == "1" (
+            choice /t 5 /d n /n /m "!tips!"
+        ) else (
+            set /p "=!tips!" <nul
+            choice /t 5 /d n /n
+        )
         if !errorlevel! == 2 set "shoulddelete=0"
     )
     if "!shoulddelete!" == "1" (
@@ -2102,7 +2186,13 @@ call :taskstatus ready "!taskname!"
 if "!refresh!" == "1" set "ready=0"
 
 if "!ready!" == "0" (
-    choice /t 5 /d y /n /m "[%ESC%[97mwarning%ESC%[0m] whether to allow automatic checking for updates? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+    set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] whether to allow automatic checking for updates? (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+    if "!msterminal!" == "1" (
+        choice /t 5 /d n /n /m "!tips!"
+    ) else (
+        set /p "=!tips!" <nul
+        choice /t 5 /d y /n
+    )
     if !errorlevel! == 2 exit /b 1
 
     set "operation=-u"
@@ -2114,7 +2204,7 @@ if "!ready!" == "0" (
     call :deletetask success "!taskname!"
     call :createtask success "!updatevbs!" "!taskname!"
     if "!success!" == "1" (
-        @echo [%ESC%[95minfo%ESC%[0m] automatic update scheduled task is set %ESC%[95msuccessfully%ESC%[0m
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] automatic update scheduled task is set %ESC%[!infocolor!msuccessfully%ESC%[0m
     ) else (
         @echo [%ESC%[91merror%ESC%[0m] automatic update scheduled task setting %ESC%[91mfailed%ESC%[0m
     )
@@ -2272,7 +2362,13 @@ goto :eof
 
 @REM clean data
 :purge
-choice /t 6 /d n /n /m "[%ESC%[97mwarning%ESC%[0m] %ESC%[97msystem network proxy%ESC%[0m will be closed and the %ESC%[97mboot autostart%ESC%[0m is disabled, do you want to continue? (%ESC%[97mY%ESC%[0m/%ESC%[97mN%ESC%[0m)? "
+set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] %ESC%[!warncolor!msystem network proxy%ESC%[0m will be closed and the %ESC%[!warncolor!mboot autostart%ESC%[0m is disabled, do you want to continue? (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
+if "!msterminal!" == "1" (
+    choice /t 6 /d n /n /m "!tips!"
+) else (
+    set /p "=!tips!" <nul
+    choice /t 6 /d n /n
+)
 if !errorlevel! == 2 exit /b 1
 
 @REM get administrator privileges
@@ -2293,13 +2389,16 @@ if "!success!" == "0" (
 @REM delete scheduled
 call :deletetask success "ClashUpdater"
 if "!success!" == "0" (
-    @echo [%ESC%[91merror%ESC%[0m] delete automatic check for updates task %ESC%[91mfailed%ESC%[0m, please delete it manually in %ESC%[97mtask scheduler%ESC%[0m 
+    @echo [%ESC%[91merror%ESC%[0m] delete automatic check for updates task %ESC%[91mfailed%ESC%[0m, please delete it manually in %ESC%[!warncolor!mtask scheduler%ESC%[0m 
 )
 
 @REM stop process
 call :killprocesswrapper
 
-@echo [%ESC%[95minfo%ESC%[0m] cleaned up %ESC%[95msuccessfully%ESC%[0m, bye~
+@REM remote shortcut
+call :deleteshortcut
+
+@echo [%ESC%[!infocolor!minfo%ESC%[0m] cleaned up %ESC%[!infocolor!msuccessfully%ESC%[0m, bye~
 goto :eof
 
 
@@ -2327,6 +2426,101 @@ if "!errorlevel!" NEQ "0" goto :eof
 for /f "tokens=3" %%a in ('reg query "!rpath!" /V "!rkey!" ^| findstr /r /i "!rtype!"') do set "value=%%a"
 call :trim value "!value!"
 set "%~1=!value!"
+goto :eof
+
+
+@REM icon generation
+:downloadicon <result> <iconname>
+set "%~1=0"
+
+call :trim iconname "%~2"
+if "!iconname!" == "" goto :eof
+
+call :ghproxywrapper iconurl "https://raw.githubusercontent.com/wzdnzd/aggregator/master/clash.ico"
+set "statuscode=000"
+for /f %%a in ('curl --retry 3 --retry-max-time 60 -m 60 --connect-timeout 30 -L -s -o "!dest!\!iconname!" -w "%%{http_code}" "!iconurl!"') do set "statuscode=%%a"
+
+if "!statuscode!" == "200" set "%~1=1"
+goto :eof
+
+
+@REM create desktop shortcut
+:createshortcut <result> <linkdest> <target> <iconname>
+set "%~1=0"
+call :trim linkdest "%~2"
+call :trim target "%~3"
+call :trim iconname "%~4"
+
+
+if "!linkdest!" == "" goto :eof
+if "!target!" == "" goto :eof
+if "!iconname!" == "" set "iconname=clash.ico"
+if exist "!linkdest!" del /f /q "!linkdest!" >nul
+
+set "vbspath=!temp!\createshortcut.vbs"
+((
+    @echo set ows = WScript.CreateObject^("WScript.Shell"^) 
+    @echo slinkfile = ows.ExpandEnvironmentStrings^("!linkdest!"^)
+    @echo set olink = ows.CreateShortcut^(slinkfile^) 
+    @echo olink.TargetPath = ows.ExpandEnvironmentStrings^("!target!"^)
+    @echo olink.IconLocation = ows.ExpandEnvironmentStrings^("!dest!\!iconname!"^)
+    @echo olink.WorkingDirectory = ows.ExpandEnvironmentStrings^("!dest!"^)
+    @echo olink.Save
+) 1>!vbspath!
+
+cscript //nologo "!vbspath!"
+if "!errorlevel!" == "0" set "%~1=1"
+
+del /f /q "!vbspath!"
+) >nul
+goto :eof
+
+
+@REM send to desktop
+:adddesktop
+set "iconname=clash.ico"
+set "linkdest=!HOMEDRIVE!!HOMEPATH!\Desktop\Clash.lnk"
+
+set "exepath="
+@REM parse target if link exists
+if exist "!linkdest!" (
+    for /f "delims=" %%a in ('wmic path win32_shortcutfile where "name='!linkdest:\=\\!'" get target /value') do (
+        for /f "tokens=2 delims==" %%b in ("%%~a") do set "exepath=%%b"
+    )
+)
+
+call :trim exepath "!exepath!"
+if "!exepath!" == "!startupvbs!" goto :eof
+set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] whether to add to the desktop shortcut? (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
+if "!msterminal!" == "1" (
+    choice /t 5 /d y /n /m "!tips!"
+) else (
+    set /p "=!tips!" <nul
+    choice /t 5 /d y /n
+)
+if !errorlevel! == 2 goto :eof
+
+if not exist "!dest!\!iconname!" (
+    call :downloadicon finished "!iconname!"
+    if "!finished!" == "0" (
+        @echo [%ESC%[91merror%ESC%[0m] application icon file download %ESC%[91mfailed%ESC%[0m, unable to create desktop shortcut
+        goto :eof
+    )
+)
+
+call :createshortcut finished "!linkdest!" "!startupvbs!" "!iconname!"
+if "!finished!" == "0" (
+    @echo [%ESC%[91merror%ESC%[0m] desktop shortcut added %ESC%[91mfailed%ESC%[0m, please create it yourself if necessary
+) else (
+    @echo [%ESC%[!infocolor!minfo%ESC%[0m] desktop shortcut added %ESC%[!infocolor!msuccessfully%ESC%[0m
+)
+goto :eof
+
+
+@REM remove shortcut from desktop
+:deleteshortcut
+set "linkpath=!HOMEDRIVE!!HOMEPATH!\Desktop\Clash.lnk"
+del /f /q "!linkpath!" >nul 2>nul
 goto :eof
 
 
