@@ -30,18 +30,20 @@ set "batname=%~nx0"
 @REM call :ismsterminal msterminal
 set "msterminal=0"
 
-@REM use set /p instead of choice
-set "usesetp=0"
-
 @REM enable create shortcut 
 set "enableshortcut=1"
+
+@REM validate configuration files before starting
+set "verifyconf=1"
+
+@REM check and update wintun.dll
+set "checkwintun=0"
 
 @REM info color
 set "infocolor=92"
 set "warncolor=93"
 
 if "!msterminal!" == "1" (
-    set "usesetp=1"
     set "infocolor=95"
     set "warncolor=97"
 )
@@ -325,9 +327,6 @@ if !errorlevel! == 1 (
     @REM kill clash process
     call :killprocesswrapper
 
-    @REM wait 3 seconds
-    timeout /t 3 /nobreak >nul 2>nul
-
     @REM lazy check
     if "!lazycheck!" == "1" (
         call :checkwapper continue 0
@@ -341,16 +340,19 @@ if !errorlevel! == 1 (
     exit /b
 )
 
-@REM wait 3 seconds
-timeout /t 3 /nobreak >nul 2>nul
-
-@REM recheck
-call :checkconnect available 0
-if "!available!" == "1" (
-    @echo [%ESC%[!infocolor!minfo%ESC%[0m] issues has been %ESC%[!infocolor!mfixed%ESC%[0m and now the network proxy can be used %ESC%[!infocolor!mnormally%ESC%[0m
-) else (
-    @echo [%ESC%[91merror%ESC%[0m] issues repair %ESC%[91mfailed%ESC%[0m, the network proxy is still %ESC%[91munavailable%ESC%[0m, please try other methods
+for /l %%i in (1,1,5) do (
+    @REM recheck
+    call :checkconnect available 0
+    if "!available!" == "1" (
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] issues has been %ESC%[!infocolor!mfixed%ESC%[0m and now the network proxy can be used %ESC%[!infocolor!mnormally%ESC%[0m
+        exit /b
+    ) else (
+        @REM wait
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[91merror%ESC%[0m] issues repair %ESC%[91mfailed%ESC%[0m, the network proxy is still %ESC%[91munavailable%ESC%[0m, please try other methods
 goto :eof
 
 
@@ -392,7 +394,7 @@ if "!changed!" == "0" (
     @echo [%ESC%[!infocolor!minfo%ESC%[0m] don't need update due to not found new version
 ) else (
     @REM wait for overwrite files
-    timeout /t 3 /nobreak >nul 2>nul
+    timeout /t 1 /nobreak >nul 2>nul
 )
 
 @REM postclean
@@ -917,8 +919,10 @@ if "!force!" == "" set "force=0"
 call :istunenabled enabled
 if "!enabled!" == "0" exit /b
 
+if "!force!" == "0" set "checkwintun=0"
+
 @REM exists
-if exist "!dest!\wintun.dll" if "!force!" == "0" goto :eof
+if exist "!dest!\wintun.dll" if "!checkwintun!" == "0" goto :eof
 
 set "content="
 set "wintunurl=https://www.wintun.net"
@@ -1281,46 +1285,48 @@ if not exist "!configfile!" (
     goto :eof
 )
 
-set "testoutput=!temp!\clashtestout.txt"
-del /f /q "!testoutput!" >nul 2>nul
+if "!verifyconf!" == "1" (
+    set "testoutput=!temp!\clashtestout.txt"
+    del /f /q "!testoutput!" >nul 2>nul
 
-@REM test config file
-"!dest!\clash.exe" -d "!dest!" -t "!configfile!" > "!testoutput!"
+    @REM test config file
+    "!dest!\clash.exe" -d "!dest!" -t "!configfile!" > "!testoutput!"
 
-@REM failed
-if !errorlevel! NEQ 0 (
-    set "messages="
-    if exist "!testoutput!" (
-        for /f "tokens=1* delims==" %%a in ('findstr /i /r /c:"[ ]ERR[ ]\[config\][ ].*" "!testoutput!"') do set "messages=%%b"
-        del /f /q "!testoutput!" >nul 2>nul
+    @REM failed
+    if !errorlevel! NEQ 0 (
+        set "messages="
+        if exist "!testoutput!" (
+            for /f "tokens=1* delims==" %%a in ('findstr /i /r /c:"[ ]ERR[ ]\[config\][ ].*" "!testoutput!"') do set "messages=%%b"
+            del /f /q "!testoutput!" >nul 2>nul
+        )
+
+        if "!messages!" == "" set "messages=unknown error"
+        @echo [%ESC%[91merror%ESC%[0m] clash.exe %ESC%[91mfailed%ESC%[0m to start because of some errors in the configuration file "%ESC%[!warncolor!m!configfile!%ESC%[0m"
+        @echo [%ESC%[91merror%ESC%[0m] messages: "!messages!"
+        exit /b 1
     )
 
-    if "!messages!" == "" set "messages=unknown error"
-    @echo [%ESC%[91merror%ESC%[0m] clash.exe %ESC%[91mfailed%ESC%[0m to start because of some errors in the configuration file "%ESC%[!warncolor!m!configfile!%ESC%[0m"
-    @echo [%ESC%[91merror%ESC%[0m] messages: "!messages!"
-    exit /b 1
+    @REM delete test output
+    del /f /q "!testoutput!" >nul 2>nul
 )
-
-@REM delete test output
-del /f /q "!testoutput!" >nul 2>nul
 
 @REM run clash.exe with config
 call :privilege "goto :execute !configfile!" !show!
 
-@REM waiting
-timeout /t 5 /nobreak >nul 2>nul
-
-@REM check running status
-call :isrunning status
-
-if "!status!" == "1" (
-    @echo [%ESC%[!infocolor!minfo%ESC%[0m] execute clash.exe %ESC%[!infocolor!msuccess%ESC%[0m, network proxy is %ESC%[!infocolor!menabled%ESC%[0m
-
-    @REM auto start 
-    call :postprocess
-) else (
-    @echo [%ESC%[91merror%ESC%[0m] execute clash.exe %ESC%[91mfailed%ESC%[0m, please check if the %ESC%[91mconfiguration%ESC%[0m is correct
+for /l %%i in (1,1,6) do (
+    @REM check running status
+    call :isrunning status
+    if "!status!" == "1" (
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] execute clash.exe %ESC%[!infocolor!msuccess%ESC%[0m, network proxy is %ESC%[!infocolor!menabled%ESC%[0m
+        call :postprocess
+        exit /b
+    ) else (
+        @REM waiting
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[91merror%ESC%[0m] execute clash.exe %ESC%[91mfailed%ESC%[0m, please check if the %ESC%[91mconfiguration%ESC%[0m is correct
 goto :eof
 
 
@@ -1414,22 +1420,25 @@ if "!status!" == "0" goto :eof
 @echo [%ESC%[!infocolor!minfo%ESC%[0m] kill clash process with administrator permission
 call :privilege "goto :killprocess" 0
 
-@REM wait a moment
-timeout /t 6 /nobreak >nul 2>nul
-
 @REM detect
-call :isrunning status
-if "!status!" == "0" (
-    @echo [%ESC%[!infocolor!minfo%ESC%[0m] network proxy program has exited %ESC%[!infocolor!msuccessfully%ESC%[0m. if you want to restart it you can execute with "%ESC%[!warncolor!m!batname! -r%ESC%[0m"
+for /l %%i in (1,1,6) do (
+    call :isrunning status
+    if "!status!" == "0" (
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] network proxy program has exited %ESC%[!infocolor!msuccessfully%ESC%[0m. if you want to restart it you can execute with "%ESC%[!warncolor!m!batname! -r%ESC%[0m"
 
-    @REM disable proxy
-    @REM call :istunenabled enabled
-    @REM if "!enabled!" == "0" call :disableproxy
+        @REM disable proxy
+        @REM call :istunenabled enabled
+        @REM if "!enabled!" == "0" call :disableproxy
 
-    call :disableproxy
-) else (
-    @echo [%ESC%[!warncolor!mwarning%ESC%[0m] kill network proxy process %ESC%[91mfailed%ESC%[0m, you can close it manually in %ESC%[!warncolor!mtask manager%ESC%[0m
+        call :disableproxy
+        exit /b
+    ) else (
+        @REM wait a moment
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[!warncolor!mwarning%ESC%[0m] kill network proxy process %ESC%[91mfailed%ESC%[0m, you can close it manually in %ESC%[!warncolor!mtask manager%ESC%[0m
 goto :eof
 
 
@@ -1441,17 +1450,20 @@ set "exitcode=!errorlevel!"
 @REM no prompt
 call :nopromptrunas success
 
-@REM waiting for release
-timeout /t 2 /nobreak >nul 2>nul
-
-@REM detect running status
-call :isrunning status
-
-if "!status!" == "0" (
-    @echo [%ESC%[!infocolor!minfo%ESC%[0m] clash.exe process exits successfully, and the network proxy is closed
-) else (
-    @echo [%ESC%[91merror%ESC%[0m] failed to close network proxy, cannot exit clash process, status: !exitcode!
+@REM detect
+for /l %%i in (1,1,6) do (
+    @REM detect running status
+    call :isrunning status
+    if "!status!" == "0" (
+        @echo [%ESC%[!infocolor!minfo%ESC%[0m] clash.exe process exits successfully, and the network proxy is closed
+        goto :eof
+    ) else (
+        @REM waiting for release
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[91merror%ESC%[0m] failed to close network proxy, cannot exit clash process, status: !exitcode!
 goto :eof
 
 
@@ -2249,7 +2261,7 @@ if "!status!" == "Ready" set "%~1=1"
 goto :eof
 
 
-@REM delete scheduled tasks
+@REM delete update tasks
 :deletetask <result> <taskname>
 set "%~1=0"
 call :trim taskname "%~2"
@@ -2262,8 +2274,30 @@ if "!errorlevel!" NEQ "0" (
     goto :eof
 )
 
-schtasks /delete /tn "!taskname!" /f >nul 2>nul
-if "!errorlevel!" == "0" set "%~1=1"
+@REM remove
+call :privilege "goto :cancelscheduled !taskname!" 0
+
+@REM get delete status
+for /l %%i in (1,1,5) do (
+    schtasks /query /tn "!taskname!" >nul 2>nul
+    if "!errorlevel!" == "0" (
+        @REM wait
+        timeout /t 1 /nobreak >nul 2>nul
+    ) else (
+        set "%~1=1"
+        exit /b
+    )
+)
+goto :eof
+
+
+@REM remove scheduled task
+:cancelscheduled <taskname>
+@REM delete
+schtasks /delete /tn "%~1" /f  >nul 2>nul
+
+@REM get administrator privileges
+call :nopromptrunas result
 goto :eof
 
 
@@ -2345,22 +2379,23 @@ goto :eof
 :nopromptrunas <result>
 set "%~1=0"
 
-call :enablerunas enable
-if "!enable!" == "0" goto :eof
-
-@REM no prompt
+@REM regedit path and key
 set "grouppolicy=HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 set "gprkey=ConsentPromptBehaviorAdmin"
 
 call :regquery code "!grouppolicy!" "!gprkey!" "REG_DWORD"
-if "!code!" NEQ "0x0" (
-    reg delete "!grouppolicy!" /v ConsentPromptBehaviorAdmin /f >nul 2>nul
-    reg add "!grouppolicy!" /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 0 /f >nul 2>nul
-    if "!errorlevel!" == "0" set "%~1=1"
-    goto :eof
+if "!code!" == "0x0" (
+    set "%~1=1"
+    exit /b  
 )
 
-set "%~1=1"
+call :enablerunas enable
+if "!enable!" == "0" goto :eof
+
+@REM change regedit
+reg delete "!grouppolicy!" /v ConsentPromptBehaviorAdmin /f >nul 2>nul
+reg add "!grouppolicy!" /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 0 /f >nul 2>nul
+if "!errorlevel!" == "0" set "%~1=1"
 goto :eof
 
 
@@ -2374,12 +2409,6 @@ if "!msterminal!" == "1" (
     choice /t 6 /d n /n
 )
 if !errorlevel! == 2 exit /b 1
-
-@REM get administrator privileges
-call :privilege "goto :nopromptrunas" 0
-
-@REM wait
-timeout /t 5 /nobreak >nul 2>nul
 
 @REM close system proxy
 call :disableproxy
