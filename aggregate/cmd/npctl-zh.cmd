@@ -30,18 +30,20 @@ set "batname=%~nx0"
 @REM call :ismsterminal msterminal
 set "msterminal=0"
 
-@REM use set /p instead of choice
-set "usesetp=0"
-
 @REM enable create shortcut 
 set "enableshortcut=1"
+
+@REM validate configuration files before starting
+set "verifyconf=1"
+
+@REM check and update wintun.dll
+set "checkwintun=0"
 
 @REM info color
 set "infocolor=92"
 set "warncolor=93"
 
 if "!msterminal!" == "1" (
-    set "usesetp=1"
     set "infocolor=95"
     set "warncolor=97"
 )
@@ -333,9 +335,6 @@ if !errorlevel! == 1 (
     @REM kill clash process
     call :killprocesswrapper
 
-    @REM wait 3 seconds
-    timeout /t 3 /nobreak >nul 2>nul
-
     @REM lazy check
     if "!lazycheck!" == "1" (
         call :checkwapper continue 0
@@ -349,16 +348,19 @@ if !errorlevel! == 1 (
     exit /b
 )
 
-@REM wait 3 seconds
-timeout /t 3 /nobreak >nul 2>nul
-
-@REM recheck
-call :checkconnect available 0
-if "!available!" == "1" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 问题修复%ESC%[!infocolor!m成功%ESC%[0m，网络代理可%ESC%[!infocolor!m正常%ESC%[0m使用
-) else (
-    @echo [%ESC%[91m错误%ESC%[0m] 问题修复%ESC%[91m失败%ESC%[0m， 网络代理仍%ESC%[91m无法%ESC%[0m使用， 请尝试其他方法
+for /l %%i in (1,1,5) do (
+    @REM recheck
+    call :checkconnect available 0
+    if "!available!" == "1" (
+        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 问题修复%ESC%[!infocolor!m成功%ESC%[0m，网络代理可%ESC%[!infocolor!m正常%ESC%[0m使用
+        exit /b
+    ) else (
+        @REM wait
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[91m错误%ESC%[0m] 问题修复%ESC%[91m失败%ESC%[0m， 网络代理仍%ESC%[91m无法%ESC%[0m使用， 请尝试其他方法
 goto :eof
 
 
@@ -400,7 +402,7 @@ if "!changed!" == "0" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 当前已是最新版本，无需更新
 ) else (
     @REM wait for overwrite files
-    timeout /t 3 /nobreak >nul 2>nul
+    timeout /t 1 /nobreak >nul 2>nul
 )
 
 @REM postclean
@@ -994,8 +996,10 @@ if "!force!" == "" set "force=0"
 call :istunenabled enabled
 if "!enabled!" == "0" exit /b
 
+if "!force!" == "0" set "checkwintun=0"
+
 @REM exists
-if exist "!dest!\wintun.dll" if "!force!" == "0" goto :eof
+if exist "!dest!\wintun.dll" if "!checkwintun!" == "0" goto :eof
 
 set "content="
 set "wintunurl=https://www.wintun.net"
@@ -1356,44 +1360,48 @@ if not exist "!configfile!" (
     goto :eof
 )
 
-set "testoutput=!temp!\clashtestout.txt"
-del /f /q "!testoutput!" >nul 2>nul
+if "!verifyconf!" == "1" (
+    set "testoutput=!temp!\clashtestout.txt"
+    del /f /q "!testoutput!" >nul 2>nul
 
-@REM test config file
-"!dest!\clash.exe" -d "!dest!" -t "!configfile!" > "!testoutput!"
+    @REM test config file
+    "!dest!\clash.exe" -d "!dest!" -t "!configfile!" > "!testoutput!"
 
-@REM failed
-if !errorlevel! NEQ 0 (
-    set "messages="
-    if exist "!testoutput!" (
-        for /f "tokens=1* delims==" %%a in ('findstr /i /r /c:"[ ]ERR[ ]\[config\][ ].*" "!testoutput!"') do set "messages=%%b"
-        del /f /q "!testoutput!" >nul 2>nul
+    @REM failed
+    if !errorlevel! NEQ 0 (
+        set "messages="
+        if exist "!testoutput!" (
+            for /f "tokens=1* delims==" %%a in ('findstr /i /r /c:"[ ]ERR[ ]\[config\][ ].*" "!testoutput!"') do set "messages=%%b"
+            del /f /q "!testoutput!" >nul 2>nul
+        )
+
+        if "!messages!" == "" set "messages=文件校验失败，%ESC%[!warncolor!mclash.exe%ESC%[0m 或配置文件 %ESC%[!warncolor!m!configfile!%ESC%[0m存在问题"
+        @echo [%ESC%[91m错误%ESC%[0m] 网络代理启动%ESC%[91m失败%ESC%[0m，配置文件 "%ESC%[!warncolor!m!configfile!%ESC%[0m" 存在错误
+        @echo [%ESC%[91m错误%ESC%[0m] 错误信息："!messages!"
+        exit /b 1
     )
 
-    if "!messages!" == "" set "messages=文件校验失败，%ESC%[!warncolor!mclash.exe%ESC%[0m 或配置文件 %ESC%[!warncolor!m!configfile!%ESC%[0m存在问题"
-    @echo [%ESC%[91m错误%ESC%[0m] 网络代理启动%ESC%[91m失败%ESC%[0m，配置文件 "%ESC%[!warncolor!m!configfile!%ESC%[0m" 存在错误
-    @echo [%ESC%[91m错误%ESC%[0m] 错误信息："!messages!"
-    exit /b 1
+    @REM delete test output
+    del /f /q "!testoutput!" >nul 2>nul
 )
-
-@REM delete test output
-del /f /q "!testoutput!" >nul 2>nul
 
 @REM run clash.exe with config
 call :privilege "goto :execute !configfile!" !show!
 
-@REM waiting
-timeout /t 3 /nobreak >nul 2>nul
-
-@REM check running status
-call :isrunning status
-
-if "!status!" == "1" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序启动%ESC%[!infocolor!m成功%ESC%[0m
-    call :postprocess
-) else (
-    @echo [%ESC%[91m错误%ESC%[0m] 代理程序启动%ESC%[91m失败%ESC%[0m，请检查配置 %ESC%[91mconfiguration%ESC%[0m 是否正确
+for /l %%i in (1,1,6) do (
+    @REM check running status
+    call :isrunning status
+    if "!status!" == "1" (
+        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序启动%ESC%[!infocolor!m成功%ESC%[0m
+        call :postprocess
+        exit /b
+    ) else (
+        @REM waiting
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[91m错误%ESC%[0m] 代理程序启动%ESC%[91m失败%ESC%[0m，请检查配置 %ESC%[91mconfiguration%ESC%[0m 是否正确
 goto :eof
 
 
@@ -1486,22 +1494,25 @@ if "!status!" == "0" goto :eof
 
 call :privilege "goto :killprocess" 0
 
-@REM wait a moment
-timeout /t 3 /nobreak >nul 2>nul
-
 @REM detect
-call :isrunning status
-if "!status!" == "0" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序关闭%ESC%[!infocolor!m成功%ESC%[0m，可以使用 "%ESC%[!warncolor!m!batname! -r%ESC%[0m" 命令重启
+for /l %%i in (1,1,6) do (
+    call :isrunning status
+    if "!status!" == "0" (
+        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序关闭%ESC%[!infocolor!m成功%ESC%[0m，可使用 "%ESC%[!warncolor!m!batname! -r%ESC%[0m" 命令重启
 
-    @REM disable proxy
-    @REM call :istunenabled enabled
-    @REM if "!enabled!" == "0" call :disableproxy
+        @REM disable proxy
+        @REM call :istunenabled enabled
+        @REM if "!enabled!" == "0" call :disableproxy
 
-    call :disableproxy
-) else (
-    @echo [%ESC%[91m错误%ESC%[0m] 代理程序关闭%ESC%[91m失败%ESC%[0m，请到%ESC%[91m任务管理中心%ESC%[0m手动退出 %ESC%[!warncolor!mclash.exe%ESC%[0m
+        call :disableproxy
+        exit /b
+    ) else (
+        @REM wait a moment
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[91m错误%ESC%[0m] 代理程序关闭%ESC%[91m失败%ESC%[0m，请到%ESC%[91m任务管理中心%ESC%[0m手动退出 %ESC%[!warncolor!mclash.exe%ESC%[0m
 goto :eof
 
 
@@ -1513,17 +1524,20 @@ set "exitcode=!errorlevel!"
 @REM no prompt
 call :nopromptrunas success
 
-@REM waiting for release
-timeout /t 2 /nobreak >nul 2>nul
-
-@REM detect running status
-call :isrunning status
-
-if "!status!" == "0" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 网络代理已关闭
-) else (
-    @echo [%ESC%[91m错误%ESC%[0m] 网络代理关闭失败，请到%ESC%[91m任务管理中心%ESC%[0m手动结束 %ESC%[!warncolor!mclash.exe%ESC%[0m 进程
+@REM detect
+for /l %%i in (1,1,6) do (
+    @REM detect running status
+    call :isrunning status
+    if "!status!" == "0" (
+        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 网络代理已关闭
+        goto :eof
+    ) else (
+        @REM waiting for release
+        timeout /t 1 /nobreak >nul 2>nul
+    )
 )
+
+@echo [%ESC%[91m错误%ESC%[0m] 网络代理关闭失败，请到%ESC%[91m任务管理中心%ESC%[0m手动结束 %ESC%[!warncolor!mclash.exe%ESC%[0m 进程
 goto :eof
 
 
@@ -2321,7 +2335,7 @@ if "!status!" == "Ready" set "%~1=1"
 goto :eof
 
 
-@REM delete scheduled tasks
+@REM delete update tasks
 :deletetask <result> <taskname>
 set "%~1=0"
 call :trim taskname "%~2"
@@ -2334,8 +2348,30 @@ if "!errorlevel!" NEQ "0" (
     goto :eof
 )
 
-schtasks /delete /tn "!taskname!" /f >nul 2>nul
-if "!errorlevel!" == "0" set "%~1=1"
+@REM remove
+call :privilege "goto :cancelscheduled !taskname!" 0
+
+@REM get delete status
+for /l %%i in (1,1,5) do (
+    schtasks /query /tn "!taskname!" >nul 2>nul
+    if "!errorlevel!" == "0" (
+        @REM wait
+        timeout /t 1 /nobreak >nul 2>nul
+    ) else (
+        set "%~1=1"
+        exit /b
+    )
+)
+goto :eof
+
+
+@REM remove scheduled task
+:cancelscheduled <taskname>
+@REM delete
+schtasks /delete /tn "%~1" /f  >nul 2>nul
+
+@REM get administrator privileges
+call :nopromptrunas result
 goto :eof
 
 
@@ -2417,22 +2453,23 @@ goto :eof
 :nopromptrunas <result>
 set "%~1=0"
 
-call :enablerunas enable
-if "!enable!" == "0" goto :eof
-
-@REM no prompt
+@REM regedit path and key
 set "grouppolicy=HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System"
 set "gprkey=ConsentPromptBehaviorAdmin"
 
 call :regquery code "!grouppolicy!" "!gprkey!" "REG_DWORD"
-if "!code!" NEQ "0x0" (
-    reg delete "!grouppolicy!" /v ConsentPromptBehaviorAdmin /f >nul 2>nul
-    reg add "!grouppolicy!" /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 0 /f >nul 2>nul
-    if "!errorlevel!" == "0" set "%~1=1"
-    goto :eof
+if "!code!" == "0x0" (
+    set "%~1=1"
+    exit /b  
 )
 
-set "%~1=1"
+call :enablerunas enable
+if "!enable!" == "0" goto :eof
+
+@REM change regedit
+reg delete "!grouppolicy!" /v ConsentPromptBehaviorAdmin /f >nul 2>nul
+reg add "!grouppolicy!" /v ConsentPromptBehaviorAdmin /t REG_DWORD /d 0 /f >nul 2>nul
+if "!errorlevel!" == "0" set "%~1=1"
 goto :eof
 
 
@@ -2446,12 +2483,6 @@ if "!msterminal!" == "1" (
     choice /t 6 /d n /n
 )
 if !errorlevel! == 2 exit /b 1
-
-@REM get administrator privileges
-call :privilege "goto :nopromptrunas" 0
-
-@REM wait
-timeout /t 5 /nobreak >nul 2>nul
 
 @REM close system proxy
 call :disableproxy
