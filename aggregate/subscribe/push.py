@@ -281,6 +281,7 @@ class PushToPastefy(PushToDevbin):
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json",
             "Accept": "application/json",
+            "User-Agent": utils.USER_AGENT,
         }
         data = json.dumps({"content": content}).encode("UTF8")
         url = f"{self.api_address}/{fileid}"
