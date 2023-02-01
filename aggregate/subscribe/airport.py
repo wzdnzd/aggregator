@@ -24,16 +24,16 @@ from logger import logger
 import subconverter
 
 EMAILS_DOMAINS = [
-    "@gmail.com",
-    "@outlook.com",
-    "@163.com",
-    "@126.com",
-    "@sina.com",
-    "@hotmail.com",
-    "@qq.com",
-    "@foxmail.com",
-    "@hotmail.com",
-    "@yahoo.com",
+    "gmail.com",
+    "outlook.com",
+    "163.com",
+    "126.com",
+    "sina.com",
+    "hotmail.com",
+    "qq.com",
+    "foxmail.com",
+    "hotmail.com",
+    "yahoo.com",
 ]
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -332,7 +332,7 @@ class AirPort:
             if not email_domain:
                 return "", ""
 
-            email = email + email_domain
+            email = f"{email}@{email_domain}"
             return self.register(email=email, password=password, retry=retry)
         else:
             try:
