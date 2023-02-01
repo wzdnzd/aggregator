@@ -446,7 +446,7 @@ def get_free_plan(
             renew_enable = plan.get("renew", 0) == 1
             reset_price = plan.get("reset_price", 1)
             reset_enable = False if reset_price is None else reset_price <= 0
-            trafficflow = data.get("transfer_enable", 1)
+            trafficflow = plan.get("transfer_enable", 1)
 
             plans.append(
                 Plan(
