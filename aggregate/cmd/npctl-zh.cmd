@@ -1907,10 +1907,16 @@ if not exist "!tempfile!" (
 
 @REM urls and file path
 for /f "tokens=1* delims=:" %%i in ('findstr /i /r /c:"^[ ][ ]*url:[ ][ ]*http.*://.*" !tempfile!') do (
-    @echo "%%j" | findstr "!filter!" >nul 2>nul || set "texturls=!texturls!,%%j"
+    @echo "%%j" | findstr "!filter!" >nul 2>nul || (
+        call :trim prifex "%%i"
+        if prifex NEQ "" if "!prifex:~0,1!" NEQ "#" (set "texturls=!texturls!,%%j")
+    )
 )
 
-for /f "tokens=1* delims=:" %%i in ('findstr /i /r /c:"^[ ][ ]*path:[ ][ ]*.*" !tempfile!') do set "localfiles=!localfiles!,%%j"
+for /f "tokens=1* delims=:" %%i in ('findstr /i /r /c:"^[ ][ ]*path:[ ][ ]*.*" !tempfile!') do (
+    call :trim prifex "%%i"
+    if prifex NEQ "" if "!prifex:~0,1!" NEQ "#" (set "localfiles=!localfiles!,%%j")
+)
 
 for %%u in (!texturls!) do (
     call :trim url %%u
