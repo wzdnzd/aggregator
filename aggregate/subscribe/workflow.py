@@ -17,20 +17,51 @@ from push import PushTo
 
 @dataclass
 class TaskConfig:
+    # 任务名
     name: str
+
+    # subconverter程序名
     bin_name: str
+
+    # 任务编号
+    taskid: int = -1
+
+    # 网址域名
     domain: str = ""
+
+    # 订阅地址
     sub: str = ""
+
+    # 任务编号
     index: int = 1
+
+    # 失败重试次数
     retry: int = 3
+
+    # 最高允许倍率
     rate: float = 3.0
+
+    # 标签
     tag: str = ""
+
+    # 套餐续期配置
     renew: dict = None
+
+    # 节点重命名规则
     rename: str = ""
+
+    # 节点排除规则
     exclude: str = ""
     include: str = ""
+
+    # 是否检测节点存活状态
     liveness: bool = True
+
+    # skip-cert-verify
     allow_insecure: bool = False
+
+    # 覆盖subconverter默认exclude规则
+    ignorede: bool = False
 
 
 def execute(task_conf: TaskConfig) -> list:
@@ -47,7 +78,9 @@ def execute(task_conf: TaskConfig) -> list:
         liveness=task_conf.liveness,
     )
 
-    logger.info(f"start fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]")
+    logger.info(
+        f"start fetch proxy: name=[{task_conf.name}]\tid=[{task_conf.index}]\tdomain=[{obj.ref}]"
+    )
 
     # 套餐续期
     if task_conf.renew:
@@ -58,20 +91,30 @@ def execute(task_conf: TaskConfig) -> list:
 
     cookie, authorization = obj.get_subscribe(retry=task_conf.retry)
     proxies = obj.parse(
-        cookie,
-        authorization,
-        task_conf.retry,
-        task_conf.rate,
-        task_conf.bin_name,
-        task_conf.tag,
-        task_conf.allow_insecure,
+        cookie=cookie,
+        auth=authorization,
+        retry=task_conf.retry,
+        rate=task_conf.rate,
+        bin_name=task_conf.bin_name,
+        tag=task_conf.tag,
+        allow_insecure=task_conf.allow_insecure,
+        ignore_exclude=task_conf.ignorede,
     )
 
     logger.info(
-        f"finished fetch proxy: name=[{task_conf.name}]\tdomain=[{obj.ref}]\tcount=[{len(proxies)}]"
+        f"finished fetch proxy: name=[{task_conf.name}]\tid=[{task_conf.index}]\tdomain=[{obj.ref}]\tcount=[{len(proxies)}]"
     )
 
     return proxies
+
+
+def executewrapper(task_conf: TaskConfig) -> tuple[int, list]:
+    if not task_conf:
+        return (-1, [])
+
+    taskid = task_conf.taskid
+    proxies = execute(task_conf=task_conf)
+    return (taskid, proxies)
 
 
 def liveness_fillter(proxies: list) -> tuple[list, list]:
@@ -112,39 +155,38 @@ def dedup_task(tasks: list) -> list:
         return []
     items = []
     for task in tasks:
-        if not isinstance(task, TaskConfig):
-            logger.error(
-                f"[DedupError] need type 'TaskConfig' but got type '{type(task)}'"
-            )
-            continue
-
-        found = False
-        for item in items:
-            if task.sub != "":
-                if task.sub == item.sub:
-                    found = True
-            else:
-                if task.domain == item.domain and task.index == item.index:
-                    found = True
-
-            if found:
-                if not item.rename:
-                    item.rename = task.rename
-                if task.exclude:
-                    item.exclude = "|".join([item.exclude, task.exclude]).removeprefix(
-                        "|"
-                    )
-                if task.include:
-                    item.include = "|".join([item.include, task.include]).removeprefix(
-                        "|"
-                    )
-
-                break
-
-        if not found:
+        if not exists(tasks=items, task=task):
             items.append(task)
 
     return items
+
+
+def exists(tasks: list, task: TaskConfig) -> bool:
+    if not isinstance(task, TaskConfig):
+        logger.error(f"[DedupError] need type 'TaskConfig' but got type '{type(task)}'")
+        return True
+    if not tasks:
+        return False
+
+    found = False
+    for item in tasks:
+        if task.sub != "":
+            if task.sub == item.sub:
+                found = True
+        else:
+            if task.domain == item.domain and task.index == item.index:
+                found = True
+
+        if found:
+            if not item.rename:
+                item.rename = task.rename
+            if task.exclude:
+                item.exclude = "|".join([item.exclude, task.exclude]).removeprefix("|")
+            if task.include:
+                item.include = "|".join([item.include, task.include]).removeprefix("|")
+        break
+
+    return found
 
 
 def merge_config(configs: list) -> list:

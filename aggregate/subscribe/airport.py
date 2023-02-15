@@ -396,6 +396,7 @@ class AirPort:
         tag: str,
         allow_insecure: bool = False,
         udp: bool = True,
+        ignore_exclude: bool = False,
     ) -> list:
         if "" == self.sub:
             logger.error(
@@ -490,6 +491,7 @@ class AirPort:
                     f"{artifact}.txt",
                     f"{artifact}.yaml",
                     "clash",
+                    ignore_exclude,
                 )
                 if not success:
                     logger.error("cannot generate subconverter config file")

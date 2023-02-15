@@ -192,7 +192,12 @@ def get_cookie(text) -> str:
 
 
 def fetch_nodes(
-    domain: str, email: str, passwd: str, headers: dict = None, retry: int = 3
+    domain: str,
+    email: str,
+    passwd: str,
+    headers: dict = None,
+    retry: int = 3,
+    subflag: bool = False,
 ) -> bytes:
     headers = deepcopy(HEADER) if not headers else headers
     login_url = domain + "/auth/login"
@@ -210,7 +215,8 @@ def fetch_nodes(
     while retry > 0 and not content:
         retry -= 1
         try:
-            request = urllib.request.Request(domain + "/getnodelist", headers=headers)
+            url = f"{domain}/getuserinfo" if subflag else f"{domain}/getnodelist"
+            request = urllib.request.Request(url=url, headers=headers)
             response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if response.getcode() == 200:
                 content = response.read()
@@ -266,11 +272,53 @@ def scanone(domain: str, email: str, passwd: str) -> list:
         logger.debug("[ScanerInfo] register failed, domain: {}".format(domain))
 
     # 获取机场所有节点信息
-    content = fetch_nodes(domain, email, passwd)
+    content = fetch_nodes(domain=domain, email=email, passwd=passwd, subflag=False)
     proxies = convert(content)
 
     logger.info("[ScanerInfo] found {} nodes, domain: {}".format(len(proxies), domain))
     return proxies
+
+
+def getsub(domain: str, email: str, passwd: str) -> str:
+    if utils.isblank(domain) or utils.isblank(email) or utils.isblank(passwd):
+        logger.error(
+            f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}"
+        )
+        return ""
+
+    register_url = domain + "/auth/register"
+    params = {
+        "name": email.split("@")[0],
+        "email": email,
+        "passwd": passwd,
+        "repasswd": passwd,
+    }
+
+    # 注册失败后不立即返回 因为可能已经注册过
+    if not register(register_url, params, 3):
+        logger.error("[ScanerInfo] register failed, domain: {}".format(domain))
+
+    # 获取机场所有节点信息
+    content = fetch_nodes(domain=domain, email=email, passwd=passwd, subflag=True)
+    if content is None or b"" == content:
+        logger.error(
+            "[ScanerInfo] cannot found subscribe url, domain: {}".format(domain)
+        )
+        return ""
+    try:
+        data = json.loads(content).get("info", {})
+        suburl = data.get("subUrl", "")
+        subtoken = data.get("ssrSubToken", "")
+        if utils.isblank(suburl) or utils.isblank(subtoken):
+            logger.error(
+                "[ScanerInfo] subUrl or subToken is empty, domain: {}".format(domain)
+            )
+            return ""
+
+        return suburl + subtoken
+    except Exception as e:
+        logger.error("[ScanerError] extract subUrl error: {}".format(str(e)))
+        return ""
 
 
 def filter_task(tasks: dict) -> list:

@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import argparse
+import base64
 import copy
 import itertools
 import json
@@ -159,9 +160,9 @@ def assign(
     remain: bool,
     pushtool: push.PushTo,
     push_conf: dict = {},
-) -> tuple[dict, list]:
-    jobs, arrays = {}, []
-    retry = max(1, retry)
+) -> tuple[list, dict, list]:
+    tasks, groups, arrays = [], {}, []
+    retry, globalid = max(1, retry), 0
     for site in sites:
         if not site:
             continue
@@ -189,6 +190,9 @@ def assign(
         include = site.get("include", "").strip()
         liveness = site.get("liveness", True)
         allow_insecure = site.get("insecure", False)
+        # 覆盖subconverter默认exclude规则
+        ignoreder = site.get("ignorede", False)
+
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -211,70 +215,75 @@ def assign(
         ):
             continue
 
-        for idx, push_name in enumerate(push_names):
-            if not push_conf.get(push_name, None):
-                logger.error(
-                    f"cannot found push config, name=[{push_name}]\tsite=[{name}]"
-                )
+        for i in range(num):
+            index = -1 if num == 1 else i + 1
+            sub = subscribes[i] if subscribes else ""
+            renew = {}
+            globalid += 1
+            if accounts:
+                renew.update(accounts[i])
+                renew.update(renews)
+
+            task = TaskConfig(
+                name=name,
+                taskid=globalid,
+                domain=domain,
+                sub=sub,
+                index=index,
+                retry=retry,
+                rate=rate,
+                bin_name=bin_name,
+                tag=tag,
+                renew=renew,
+                rename=rename,
+                exclude=exclude,
+                include=include,
+                liveness=liveness,
+                allow_insecure=allow_insecure,
+                ignorede=ignoreder,
+            )
+            found = workflow.exists(tasks=tasks, task=task)
+            if found:
                 continue
 
-            flag = True if idx == 0 else False
-            tasks = jobs.get(push_name, [])
-
-            for i in range(num):
-                index = -1 if num == 1 else i + 1
-                sub = subscribes[i] if subscribes else ""
-                renew = {}
-                if accounts:
-                    renew.update(accounts[i])
-                    renew.update(renews)
-                    renew["enable"] = flag
-
-                tasks.append(
-                    TaskConfig(
-                        name=name,
-                        domain=domain,
-                        sub=sub,
-                        index=index,
-                        retry=retry,
-                        rate=rate,
-                        bin_name=bin_name,
-                        tag=tag,
-                        renew=renew,
-                        rename=rename,
-                        exclude=exclude,
-                        include=include,
-                        liveness=liveness,
-                        allow_insecure=allow_insecure,
+            tasks.append(task)
+            for push_name in push_names:
+                if not push_conf.get(push_name, None):
+                    logger.error(
+                        f"cannot found push config, name=[{push_name}]\tsite=[{name}]"
                     )
-                )
+                    continue
 
-            jobs[push_name] = tasks
+                taskids = groups.get(push_name, [])
+                taskids.append(globalid)
+                groups[push_name] = taskids
 
     if remain and push_conf:
         for k, v in push_conf.items():
-            tasks = jobs.get(k, [])
+            taskids = groups.get(k, [])
             folderid = v.get("folderid", "").strip()
             fileid = v.get("fileid", "").strip()
             username = v.get("username", "").strip()
             subscribes = pushtool.raw_url(
                 fileid=fileid, folderid=folderid, username=username
             )
-            if not tasks or not subscribes:
+            if not taskids or not subscribes:
                 continue
 
+            globalid += 1
             tasks.append(
                 TaskConfig(
-                    name="remains",
+                    name=f"remains-{k}",
+                    taskid=globalid,
                     sub=subscribes,
                     index=-1,
                     retry=retry,
-                    rate=rate,
                     bin_name=bin_name,
                 )
             )
-            jobs[k] = tasks
-    return jobs, arrays
+            taskids.append(globalid)
+            groups[k] = taskids
+    return tasks, groups, arrays
 
 
 def aggregate(args: argparse.Namespace):
@@ -286,7 +295,7 @@ def aggregate(args: argparse.Namespace):
 
     sites, push_configs, crawl_conf, update_conf, delay = load_configs(url=args.server)
     push_configs = pushtool.filter_push(push_configs)
-    tasks, sites = assign(
+    tasks, groups, sites = assign(
         sites=sites,
         retry=3,
         bin_name=subconverter_bin,
@@ -297,28 +306,36 @@ def aggregate(args: argparse.Namespace):
     if not tasks:
         logger.error("cannot found any valid config, exit")
         sys.exit(0)
+
     with multiprocessing.Manager() as manager:
         subscribes = manager.dict()
 
-        for k, v in tasks.items():
-            v = workflow.dedup_task(v)
+        # fetch all subscriptions
+        generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
+        if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+            os.remove(generate_conf)
+
+        cpu_count = multiprocessing.cpu_count()
+        num = len(tasks) if len(tasks) <= cpu_count else cpu_count
+        pool = multiprocessing.Pool(num)
+
+        logger.info(f"start fetch all subscriptions, count: [{len(tasks)}]")
+        results = pool.map(workflow.executewrapper, tasks)
+        pool.close()
+
+        datasets = {}
+        for data in results:
+            if not data or data[0] < 0 or not data[1]:
+                continue
+            datasets[data[0]] = data[1]
+
+        for k, v in groups.items():
             if not v:
                 logger.error(f"task is empty, group=[{k}]")
                 continue
 
-            logger.info(f"start generate subscribes information, group=[{k}]")
-            generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
-            if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-                os.remove(generate_conf)
-
-            cpu_count = multiprocessing.cpu_count()
-            num = len(v) if len(v) <= cpu_count else cpu_count
-
-            pool = multiprocessing.Pool(num)
-            results = pool.map(workflow.execute, v)
-            pool.close()
-
-            proxies = list(itertools.chain.from_iterable(results))
+            arrays = [datasets.get(x, []) for x in v]
+            proxies = list(itertools.chain.from_iterable(arrays))
             if len(proxies) == 0:
                 logger.error(f"exit because cannot fetch any proxy node, group=[{k}]")
                 continue
@@ -347,7 +364,7 @@ def aggregate(args: argparse.Namespace):
                 )
 
                 logger.info(
-                    f"clash start success, begin check proxies, count: {len(checks)}"
+                    f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}"
                 )
 
                 processes = []
@@ -380,7 +397,7 @@ def aggregate(args: argparse.Namespace):
                 logger.error(f"cannot fetch any proxy, group=[{k}]")
                 continue
 
-            logger.info(f"proxies check finished, count: {len(nochecks)}\tgroup: {k}")
+            logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}")
 
             data = {"proxies": nochecks}
             push_conf = push_configs.get(k, {})
@@ -409,7 +426,26 @@ def aggregate(args: argparse.Namespace):
                 if subconverter.convert(binname=subconverter_bin, artifact=artifact):
                     # 推送到远端
                     filepath = os.path.join(PATH, "subconverter", dest_file)
-                    pushtool.push_file(filepath=filepath, push_conf=push_conf, group=k)
+                    # pushtool.push_file(filepath=filepath, push_conf=push_conf, group=k)
+
+                    # base64 encode
+                    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                        logger.error(f"converted file {filepath} not found, group: {k}")
+                        continue
+                    content = " "
+                    with open(filepath, "r", encoding="utf8") as f:
+                        content = f.read()
+                    if not utils.isb64encode(content=content):
+                        try:
+                            content = base64.b64encode(
+                                content.encode(encoding="UTF8")
+                            ).decode(encoding="UTF8")
+                        except Exception as e:
+                            logger.error(f"base64 encode error, message: {str(e)}")
+                            continue
+
+                    pushtool.push_to(content=content, push_conf=push_conf, group=k)
+
                 # 关闭clash
                 workflow.cleanup(
                     process,
