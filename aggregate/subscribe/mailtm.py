@@ -8,7 +8,6 @@ import json
 import random
 import re
 import time
-import traceback
 import urllib
 import urllib.parse
 import urllib.request
