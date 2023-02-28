@@ -132,17 +132,11 @@ set "updatevbs=!dest!\update.vbs"
 @REM close network proxy
 if "!killflag!" == "1" goto :closeproxy
 
-@REM connectivity test
-if "!testflag!" == "1" (
-    call :checkconnect available 1
-    exit /b
-)
-
 @REM clean all setting
 if "!purgeflag!" == "1" goto :purge
 
 @REM prevent precheck if no action
-if "!reloadonly!" == "0" if "!restartflag!" == "0" if "!repair!" == "0" if "!updateflag!" == "0" if "!initflag!" == "0" (
+if "!reloadonly!" == "0" if "!restartflag!" == "0" if "!repair!" == "0" if "!testflag!" == "0" if "!updateflag!" == "0" if "!initflag!" == "0" (
     @REM @echo [%ESC%[91merror%ESC%[0m] must include one action in [%ESC%[!warncolor!m-f%ESC%[0m %ESC%[!warncolor!m-i%ESC%[0m %ESC%[!warncolor!m-k%ESC%[0m %ESC%[!warncolor!m-r%ESC%[0m %ESC%[!warncolor!m-t%ESC%[0m %ESC%[!warncolor!m-u%ESC%[0m]
     @REM @echo.
 
@@ -153,6 +147,12 @@ if "!reloadonly!" == "0" if "!restartflag!" == "0" if "!repair!" == "0" if "!upd
 @REM config file path
 call :precheck configfile
 if "!configfile!" == "" exit /b 1
+
+@REM connectivity test
+if "!testflag!" == "1" (
+    call :checkconnect available 1
+    exit /b
+)
 
 @REM reload config
 if "!reloadonly!" == "1" goto :reload
@@ -837,7 +837,7 @@ if "!statuscode!" == "200" (
     if "!output!" == "1" (
         call :postprocess
 
-        @echo [%ESC%[!warncolor!mwarning%ESC%[0m] network proxy is %ESC%[91mnot available%ESC%[0m, you can %ESC%[!warncolor!mreload%ESC%[0m it with "%ESC%[!warncolor!m!batname! -o%ESC%[0m" or %ESC%[!warncolor!mrestart%ESC%[0m it with "%ESC%[!warncolor!m!batname! -r%ESC%[0m" or "%ESC%[!warncolor!m!batname! -f%ESC%[0m" to try to %ESC%[!warncolor!mfix%ESC%[0m the problem
+        @echo [%ESC%[!warncolor!mwarning%ESC%[0m] network proxy is %ESC%[91mnot available%ESC%[0m, you can try again or %ESC%[!warncolor!mreload%ESC%[0m it with "%ESC%[!warncolor!m!batname! -o%ESC%[0m" or %ESC%[!warncolor!mrestart%ESC%[0m it with "%ESC%[!warncolor!m!batname! -r%ESC%[0m" or "%ESC%[!warncolor!m!batname! -f%ESC%[0m" to try to %ESC%[!warncolor!mfix%ESC%[0m the problem
     )
 )
 goto :eof
@@ -1363,14 +1363,20 @@ goto :eof
 @REM print warning if tun is disabled
 :outputhint
 call :istunenabled enabled
-if "!enabled!" == "1" goto :eof
+call :systemproxy server
+if "!enabled!" == "1" (
+    if "!server!" NEQ "" (
+        @echo [%ESC%[!warncolor!mwarning%ESC%[0m] network proxy program is running in %ESC%[!warncolor!mtun%ESC%[0m mode and the system proxy settings have been disabled
+        call :disableproxy
+    )
+    goto :eof
+)
 
 call :extractport proxyport
 if "!proxyport!" == "" set "proxyport=7890"
 
 @REM set proxy
 set "proxyserver=127.0.0.1:!proxyport!"
-call :systemproxy server
 if "!proxyserver!" NEQ "!server!" (
     set "tips=[%ESC%[!warncolor!mwarning%ESC%[0m] found that the system network proxy is %ESC%[91mnot enabled%ESC%[0m, whether to set it? (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)? "
     if "!msterminal!" == "1" (

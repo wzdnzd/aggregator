@@ -139,17 +139,11 @@ if "!drawheart!"== "1" goto :printheart
 @REM close network proxy
 if "!killflag!" == "1" goto :closeproxy
 
-@REM connectivity test
-if "!testflag!" == "1" (
-    call :checkconnect available 1
-    exit /b
-)
-
 @REM clean all setting
 if "!purgeflag!" == "1" goto :purge
 
 @REM prevent precheck if no action
-if "!reloadonly!" == "0" if "!restartflag!" == "0" if "!repair!" == "0" if "!updateflag!" == "0" if "!initflag!" == "0" (
+if "!reloadonly!" == "0" if "!restartflag!" == "0" if "!repair!" == "0" if "!testflag!" == "0" if "!updateflag!" == "0" if "!initflag!" == "0" (
     @REM @echo [%ESC%[91m错误%ESC%[0m] 必须包含 [%ESC%[!warncolor!m-f%ESC%[0m %ESC%[!warncolor!m-i%ESC%[0m %ESC%[!warncolor!m-k%ESC%[0m %ESC%[!warncolor!m-r%ESC%[0m %ESC%[!warncolor!m-t%ESC%[0m %ESC%[!warncolor!m-u%ESC%[0m] 中的一种操作
     @REM @echo.
 
@@ -160,6 +154,12 @@ if "!reloadonly!" == "0" if "!restartflag!" == "0" if "!repair!" == "0" if "!upd
 @REM config file path
 call :precheck configfile
 if "!configfile!" == "" exit /b 1
+
+@REM connectivity test
+if "!testflag!" == "1" (
+    call :checkconnect available 1
+    exit /b
+)
 
 @REM reload config
 if "!reloadonly!" == "1" goto :reload
@@ -914,7 +914,7 @@ if "!statuscode!" == "200" (
     if "!output!" == "1" (
         call :postprocess
 
-        @echo [%ESC%[!warncolor!m提示%ESC%[0m] 代理网络%ESC%[91m不可用%ESC%[0m，可使用命令 "%ESC%[!warncolor!m!batname! -o%ESC%[0m" %ESC%[!warncolor!m重载%ESC%[0m 或者 "%ESC%[!warncolor!m!batname! -r%ESC%[0m" %ESC%[!warncolor!m重启%ESC%[0m 或者 "%ESC%[!warncolor!m!batname! -f%ESC%[0m" 修复问题
+        @echo [%ESC%[!warncolor!m提示%ESC%[0m] 代理网络%ESC%[91m不可用%ESC%[0m，可%ESC%[!warncolor!m再次测试%ESC%[0m或使用命令 "%ESC%[!warncolor!m!batname! -o%ESC%[0m" %ESC%[!warncolor!m重载%ESC%[0m 或者 "%ESC%[!warncolor!m!batname! -r%ESC%[0m" %ESC%[!warncolor!m重启%ESC%[0m 或者 "%ESC%[!warncolor!m!batname! -f%ESC%[0m" %ESC%[!warncolor!m修复%ESC%[0m
     )
 )
 goto :eof
@@ -1438,14 +1438,20 @@ goto :eof
 @REM print warning if tun is disabled
 :outputhint
 call :istunenabled enabled
-if "!enabled!" == "1" goto :eof
+call :systemproxy server
+if "!enabled!" == "1" (
+    if "!server!" NEQ "" (
+        @echo [%ESC%[!warncolor!m提示%ESC%[0m] 程序正以 %ESC%[!warncolor!mtun%ESC%[0m 模式运行，系统代理设置已被禁用
+        call :disableproxy
+    )
+    goto :eof
+)
 
 call :extractport proxyport
 if "!proxyport!" == "" set "proxyport=7890"
 
 @REM set proxy
 set "proxyserver=127.0.0.1:!proxyport!"
-call :systemproxy server
 if "!proxyserver!" NEQ "!server!" (
     set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 系统代理%ESC%[91m未配置%ESC%[0m，是否设置？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)？"
     if "!msterminal!" == "1" (
