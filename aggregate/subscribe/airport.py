@@ -566,9 +566,9 @@ class AirPort:
                             old = words[0].strip()
                             new = words[1].strip()
                             if old:
-                                name = re.sub(old, new, name, re.I)
+                                name = re.sub(old, new, name, flags=re.I)
                         else:
-                            name = re.sub(self.rename, "", name, re.I)
+                            name = re.sub(self.rename, "", name, flags=re.I)
 
                     # 重命名带网址的节点
                     regex = "(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
