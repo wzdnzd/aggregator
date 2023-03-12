@@ -107,7 +107,7 @@ class PushToPaste(PushTo):
         self.method = "PATCH"
 
     def validate(self, push_conf: dict) -> bool:
-        if not push_conf:
+        if not push_conf or type(push_conf) != dict:
             return False
 
         folderid = push_conf.get("folderid", "")
@@ -178,7 +178,11 @@ class PushToFarsEE(PushTo):
         return url, data, headers
 
     def validate(self, push_conf: dict) -> bool:
-        return push_conf is not None and push_conf.get("uuid", "")
+        return (
+            push_conf is not None
+            and type(push_conf) == dict
+            and push_conf.get("uuid", "")
+        )
 
     def filter_push(self, push_conf: dict) -> dict:
         configs = {}
@@ -222,7 +226,7 @@ class PushToDevbin(PushToPaste):
         self.api_address = "https://devbin.dev/api/v3/paste"
 
     def validate(self, push_conf: dict) -> bool:
-        if not push_conf:
+        if not push_conf or type(push_conf) != dict:
             return False
 
         fileid = push_conf.get("fileid", "")
@@ -309,10 +313,10 @@ class PushToPastefy(PushToDevbin):
         return f"https://pastefy.ga/{fileid}/raw"
 
 
-PUSHTYPE = Enum("PUSHTYPE", ("devbin.dev", "pastefy.ga", "paste.gg"))
+PUSHTYPE = Enum("PUSHTYPE", ("pastefy.ga", "devbin.dev", "paste.gg"))
 
 
-def get_instance(push_type: int = 1) -> PushTo:
+def get_instance() -> PushTo:
     def confirm_pushtype() -> int:
         domian = utils.extract_domain(
             url=os.environ.get("SUBSCRIBE_CONF", "").strip(), include_protocal=False
@@ -321,7 +325,7 @@ def get_instance(push_type: int = 1) -> PushTo:
             if domian == item.name:
                 return item.value
 
-        return max(push_type, 1) if push_type <= len(PUSHTYPE) else 1
+        return 1
 
     token = os.environ.get("PUSH_TOKEN", "").strip()
     if not token:
@@ -331,8 +335,8 @@ def get_instance(push_type: int = 1) -> PushTo:
 
     push_type = confirm_pushtype()
     if push_type == 1:
-        return PushToDevbin(token=token)
-    elif push_type == 2:
         return PushToPastefy(token=token)
+    elif push_type == 2:
+        return PushToDevbin(token=token)
 
     return PushToPaste(token=token)

@@ -20,10 +20,11 @@ import urllib
 import urllib.parse
 import urllib.request
 from datetime import datetime
-from multiprocessing.managers import ListProxy
+from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
 
 import airport
+import push
 import utils
 from logger import logger
 from origin import Origin
@@ -66,11 +67,11 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
 
 
 def batch_crawl(conf: dict, thread: int = 50) -> list:
-    if not conf:
+    if not conf or not conf.get("enable", True):
         return []
 
     try:
-        tasks = {}
+        tasks, threshold = {}, conf.get("threshold", 1)
         google_spider = conf.get("google", {})
         if google_spider:
             push_to = google_spider.get("push_to", [])
@@ -82,7 +83,12 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             push_to = github_spider.get("push_to")
             pages = github_spider.get("pages", 1)
             exclude = github_spider.get("exclude", "")
-            tasks.update(crawl_github(limits=pages, push_to=push_to, exclude=exclude))
+            spams = github_spider.get("spams", [])
+            tasks.update(
+                crawl_github(
+                    limits=pages, push_to=push_to, exclude=exclude, spams=spams
+                )
+            )
 
         telegram_spider = conf.get("telegram", {})
         if telegram_spider and telegram_spider.get("users", {}):
@@ -99,26 +105,61 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             tasks.update(crawl_pages(pages=pages))
 
         scripts = conf.get("scripts", {})
-        datasets = []
+        datasets, peristedtasks = [], {}
         if scripts:
             datasets = batch_call(scripts)
 
+        pushconf = conf.get("persist", {})
+        pushtool = push.get_instance()
+        should_persist = pushtool.validate(push_conf=pushconf)
+        if should_persist:
+            folderid = pushconf.get("folderid", "")
+            fileid = pushconf.get("fileid", "")
+            username = pushconf.get("username", "")
+            url = pushtool.raw_url(fileid=fileid, folderid=folderid, username=username)
+            try:
+                content = utils.http_get(url=url)
+                if not utils.isblank(content):
+                    oldsubs = json.loads(content)
+
+                    # tasks.update(oldsubs)
+                    for k, v in oldsubs.items():
+                        merged = dict(list(v.items()) + list(tasks.get(k, {}).items()))
+                        tasks[k] = merged
+            except:
+                logger.error("[CrawlError] load old subscriptions from remote error")
+                pass
+
         if not tasks:
             logger.debug(
-                "cannot found any subscribe from Google/Telegram/Github and Page with crawler"
+                "[CrawlInfo] cannot found any subscribe from Google/Telegram/Github and Page with crawler"
             )
             return datasets
 
         exclude = conf.get("exclude", "")
+        taskconf = conf.get("config", {})
         with multiprocessing.Manager() as manager:
-            availables = manager.list()
+            availables, potentials = manager.list(), manager.dict()
             processes = []
             semaphore = multiprocessing.Semaphore(max(thread, 1))
             time.sleep(random.randint(1, 3))
-            for k, v in tasks.items():
+            for key, value in tasks.items():
+                for k, v in taskconf.items():
+                    if k not in value:
+                        value[k] = v
+
                 semaphore.acquire()
                 p = multiprocessing.Process(
-                    target=validate, args=(k, v, availables, semaphore, exclude)
+                    target=validate,
+                    args=(
+                        key,
+                        value,
+                        availables,
+                        potentials,
+                        semaphore,
+                        exclude,
+                        threshold,
+                    ),
                 )
                 p.start()
                 processes.append(p)
@@ -126,11 +167,17 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 p.join()
 
             datasets.extend(list(availables))
+            peristedtasks = dict(potentials)
 
-        logger.info(f"crawl finished, found {len(datasets)} subscribes")
+        logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscribes")
+
+        if should_persist and peristedtasks:
+            content = json.dumps(peristedtasks)
+            pushtool.push_to(content=content, push_conf=pushconf, group="crwal")
+
         return datasets
     except:
-        logger.error("crawl from web error")
+        logger.error("[CrawlError] crawl from web error")
         return []
 
 
@@ -246,7 +293,9 @@ def crawl_single_repo(
                 )
         return collections
     except:
-        logger.error(f"crawl from github error, username: {username}\trepo: {repo}")
+        logger.error(
+            f"[GithubCrawl] crawl from github error, username: {username}\trepo: {repo}"
+        )
         return {}
 
 
@@ -322,10 +371,20 @@ def crawl_google(
 def crawl_github_page(
     page: int, cookie: str, push_to: list = [], exclude: str = ""
 ) -> dict:
-    if page <= 0 or not cookie:
-        return {}
+    content = search_github_code(page=page, cookie=cookie)
+    return extract_subscribes(
+        content=content, push_to=push_to, exclude=exclude, source=Origin.GITHUB.name
+    )
 
-    url = f"https://github.com/search?o=desc&p={page}&q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&s=indexed&type=Code"
+
+def search_github(page: int, cookie: str, searchtype: str, sortedby: str) -> str:
+    if page <= 0 or not cookie:
+        return ""
+
+    searchtype = "Code" if utils.isblank(searchtype) else searchtype
+    sortedby = "indexed" if utils.isblank(sortedby) else sortedby
+
+    url = f"https://github.com/search?o=desc&p={page}&q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&s={sortedby}&type={searchtype}"
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
         "Referer": "https://github.com",
@@ -333,12 +392,74 @@ def crawl_github_page(
         "Cookie": f"user_session={cookie}",
     }
     content = utils.http_get(url=url, headers=headers)
-    return extract_subscribes(
-        content=content, push_to=push_to, exclude=exclude, source=Origin.GITHUB.name
+    if re.search(r"<h1>Sign in to GitHub</h1>", content, flags=re.I):
+        logger.error(
+            "[GithubCrawl] session has expired, please provide a valid session and try again"
+        )
+        return ""
+
+    return content
+
+
+def search_github_issues(page: int, cookie: str) -> list:
+    content = search_github(
+        page=page, cookie=cookie, searchtype="Issues", sortedby="updated"
     )
+    if utils.isblank(content):
+        return []
+
+    try:
+        regex = 'href="(/.*/.*/issues/\d+)">'
+        groups = re.findall(regex, content, flags=re.I)
+        links = list(set(groups))
+        links = [f"https://github.com{x}" for x in links]
+        return links
+    except:
+        return []
 
 
-def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict:
+def search_github_code(page: int, cookie: str, excludes: list = []) -> list:
+    content = search_github(
+        page=page, cookie=cookie, searchtype="Code", sortedby="indexed"
+    )
+    if utils.isblank(content):
+        return []
+
+    try:
+        regex = '<a href="(/.*/.*/blob/.*)#L\d+">\d+</a>'
+        groups = re.findall(regex, content, flags=re.I)
+        uris, links = list(set(groups)) if groups else [], []
+        for uri in uris:
+            flag = True
+            for exclude in excludes:
+                if uri.startswith(exclude):
+                    flag = False
+                    break
+            if flag:
+                links.append(f"https://github.com{uri}")
+
+        return links
+    except:
+        return []
+
+
+def batchextract_github_pages(params: list) -> list:
+    if not params or type(params) != list:
+        return []
+
+    cpu_count = multiprocessing.cpu_count()
+    num = len(params) if len(params) <= cpu_count else cpu_count
+
+    pool = multiprocessing.Pool(num)
+    results = pool.starmap(search_github_code, params)
+    pool.close()
+    return list(set(itertools.chain.from_iterable(results)))
+
+
+def crawl_github(
+    limits: int = 3, push_to: list = [], spams: list = [], exclude: str = ""
+) -> dict:
+    # user_session=${any}
     cookie = os.environ.get("GH_COOKIE", "").strip()
     if not cookie:
         logger.error(
@@ -347,12 +468,29 @@ def crawl_github(limits: int = 3, push_to: list = [], exclude: str = "") -> dict
         return {}
 
     # 鉴于github搜索code不稳定，爬取两次
-    pages = range(1, limits + 1) * 2
+    pages = [x for x in range(1, limits + 1)] * 2
     exclude = "" if not exclude else exclude.strip()
-    params = [[x, cookie, push_to, exclude] for x in pages]
+    spams = [x if x.startswith("/") else "/" + x for x in spams]
+
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(f"[GithubCrawl] start crawl from Github, time: {starttime}")
-    subscribes = multi_thread_crawl(func=crawl_github_page, params=params)
+    # params = [[x, cookie, push_to, exclude] for x in pages]
+    # subscribes = multi_thread_crawl(func=crawl_github_page, params=params)
+
+    params = [[x, cookie, spams] for x in pages]
+    links = batchextract_github_pages(params=params)
+    links.extend(search_github_issues(page=1, cookie=cookie))
+    if links:
+        page_tasks = {}
+        for link in links:
+            page_tasks[link] = {"push_to": push_to, "exclude": exclude}
+        subscribes = crawl_pages(pages=page_tasks, silent=True)
+    else:
+        subscribes = {}
+        logger.error(
+            "[GithubCrawl] cannot found any links for [/api/v1/client/subscribe?token=]"
+        )
+
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     logger.info(
         f"[GithubCrawl] finished crawl from Github, time: {endtime}, subscribes: {list(subscribes.keys())}"
@@ -365,7 +503,7 @@ def crawl_single_page(
     url: str, push_to: list = [], exclude: str = "", config: dict = {}
 ) -> dict:
     if not url or not push_to:
-        logger.error(f"cannot crawl from page: {url}")
+        logger.error(f"[PageCrawl] cannot crawl from page: {url}")
         return {}
 
     content = utils.http_get(url=url)
@@ -381,13 +519,15 @@ def crawl_single_page(
     )
 
 
-def crawl_pages(pages: dict):
+def crawl_pages(pages: dict, silent: bool = False) -> dict:
     if not pages:
         return {}
 
     params = []
     starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[PageCrawl] start crawl from Page, time: {starttime}")
+    if not silent:
+        logger.info(f"[PageCrawl] start crawl from Page, time: {starttime}")
+
     for k, v in pages.items():
         if not isurl(url=k):
             continue
@@ -400,9 +540,11 @@ def crawl_pages(pages: dict):
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(
-        f"[PageCrawl] finished crawl from Page, time: {endtime}, subscribes: {list(subscribes.keys())}"
-    )
+    if not silent:
+        logger.info(
+            f"[PageCrawl] finished crawl from Page, time: {endtime}, subscribes: {list(subscribes.keys())}"
+        )
+
     return subscribes
 
 
@@ -460,7 +602,7 @@ def extract_subscribes(
                 )
 
             # 强制使用https协议
-            s = s.replace("http://", "https://", 1).strip()
+            # s = s.replace("http://", "https://", 1).strip()
             params = {"push_to": push_to, "origin": source}
             if config:
                 params.update(config)
@@ -471,7 +613,7 @@ def extract_subscribes(
 
         return collections
     except:
-        logger.error("extract subscribe error")
+        logger.error("[ExtractError] extract subscribe error")
         return {}
 
 
@@ -479,8 +621,10 @@ def validate(
     url: str,
     params: dict,
     availables: ListProxy,
+    potentials: DictProxy,
     semaphore: Semaphore,
     exclude: str = "",
+    threshold: int = 1,
 ) -> None:
     try:
         if (
@@ -491,21 +635,31 @@ def validate(
         ):
             return
 
-        if is_available(url=url, retry=2, remain=5, spare_time=12):
-            if "token=" in url:
-                url += "&flag=v2ray"
+        threshold = max(threshold, 1)
+        defeat = params.get("defeat", 0) + 1
+        discovered = params.get("discovered", False)
 
+        reachable, expired = check_status(url=url, retry=2, remain=5, spare_time=12)
+        if reachable:
             item = {"name": naming_task(url), "sub": url, "debut": True}
             item.update(params)
             availables.append(item)
+            # reset defeat to 0
+            defeat = 0
+            discovered = True
+
+        if reachable or (discovered and defeat <= threshold and not expired):
+            params["defeat"] = defeat
+            params["discovered"] = discovered
+            potentials[url] = params
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
             semaphore.release()
 
 
-def is_available(
+def check_status(
     url: str, retry: int = 2, remain: float = 0, spare_time: float = 0
-) -> bool:
+) -> tuple[bool, bool]:
     """
     url: subscription link
     retry: number of retries
@@ -513,7 +667,7 @@ def is_available(
     spare_time: minimum remaining time
     """
     if not url or retry <= 0:
-        return False
+        return False, False
 
     remain, spare_time = max(0, remain), max(spare_time, 0)
     try:
@@ -521,7 +675,7 @@ def is_available(
         request = urllib.request.Request(url=url, headers=headers)
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() != 200:
-            return False
+            return False, False
 
         # 根据订阅信息判断是否有效
         try:
@@ -544,27 +698,42 @@ def is_available(
                         expire = eval(words[1])
 
                 # 剩余流量大于 ${remain} GB 并且未过期则返回 True，否则返回 False
-                return total - (upload + download) > remain * pow(1024, 3) and (
-                    expire is None or expire - time.time() > spare_time * 3600
+                return (
+                    total - (upload + download) > remain * pow(1024, 3)
+                    and (expire is None or expire - time.time() > spare_time * 3600),
+                    False,
                 )
         except:
             pass
 
         content = str(response.read(), encoding="utf8")
-        if utils.isb64encode(content):
-            return True
-        return re.search("proxies:", content) is not None
+        if utils.isblank(content):
+            return False, True
+        elif utils.isb64encode(content):
+            return True, False
+        return re.search("proxies:", content) is not None, False
     except urllib.error.HTTPError as e:
         message = str(e.read(), encoding="utf8")
-        if e.code == 503 and "token" not in message:
-            return is_available(
+        expired = "token is error" in message
+        if e.code in [403, 503] and not expired:
+            return check_status(
                 url=url, retry=retry - 1, remain=remain, spare_time=spare_time
             )
-        return False
+
+        return False, expired
     except Exception as e:
-        return is_available(
+        return check_status(
             url=url, retry=retry - 1, remain=remain, spare_time=spare_time
         )
+
+
+def is_available(
+    url: str, retry: int = 2, remain: float = 0, spare_time: float = 0
+) -> bool:
+    available, _ = check_status(
+        url=url, retry=retry, remain=remain, spare_time=spare_time
+    )
+    return available
 
 
 def naming_task(url):
@@ -748,7 +917,7 @@ def execute_script(script: str, params: dict = {}) -> list:
         func = getattr(module, func_name)
 
         starttime = time.time()
-        logger.info(f"start execute script: scripts.{script}")
+        logger.info(f"[ScriptInfo] start execute script: scripts.{script}")
 
         subscribes = func(params)
         if type(subscribes) != list:
@@ -759,7 +928,7 @@ def execute_script(script: str, params: dict = {}) -> list:
 
         endtime = time.time()
         logger.info(
-            "finished execute script: scripts.{}, cost: {:.3}s".format(
+            "[ScriptInfo] finished execute script: scripts.{}, cost: {:.3}s".format(
                 script, endtime - starttime
             )
         )
