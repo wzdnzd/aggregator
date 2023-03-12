@@ -44,6 +44,12 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
 
         # global exclude
         params["exclude"] = crawl_conf.get("exclude", "")
+        params["persist"] = crawl_conf.get("persist", {})
+        params["config"] = crawl_conf.get("config", {})
+        params["enable"] = crawl_conf.get("enable", True)
+
+        threshold = max(crawl_conf.get("threshold", 1), 1)
+        params["threshold"] = threshold
         spiders = deepcopy(crawl_conf)
 
         # spider's config for telegram
@@ -75,9 +81,11 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
         # spider's config for github
         github_conf = spiders.get("github", {})
         push_to = list(set(github_conf.get("push_to", [])))
+        spams = list(set(github_conf.get("spams", [])))
         if github_conf.pop("enable", True) and push_to:
-            github_conf["pages"] = max(github_conf.get("pages", 3), 3)
+            github_conf["pages"] = max(github_conf.get("pages", 1), 1)
             github_conf["push_to"] = push_to
+            github_conf["spams"] = spams
             params["github"] = github_conf
 
         # spider's config for github's repositories
