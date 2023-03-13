@@ -7,26 +7,27 @@ import json
 import multiprocessing
 import urllib
 import urllib.request
+from copy import deepcopy
 
 import push
 import utils
 from airport import AirPort
 from crawl import is_available
 from logger import logger
-from copy import deepcopy
+from urlvalidator import isurl
 
 from . import commons, scaner
 
 
-def register(domain: str, subtype: int = 1) -> AirPort:
+def register(domain: str, subtype: int = 1, coupon: str = "") -> AirPort:
     url = utils.extract_domain(url=domain, include_protocal=True)
-    if not url:
+    if not isurl(url=url):
         logger.error(
             f"[TempSubError] cannot register because domain=[{domain}] is invalidate"
         )
         return None
 
-    airport = AirPort(name=domain.split("//")[1], site=url, sub="")
+    airport = AirPort(name=domain.split("//")[1], site=url, sub="", coupon=coupon)
     if issspanel(domain=url):
         email = utils.random_chars(length=8, punctuation=False) + "@gmail.com"
         passwd = utils.random_chars(length=10, punctuation=True)
@@ -81,20 +82,15 @@ def fetchsub(params: dict) -> list:
             task = data.get("usables", {}).get(airport.ref, {})
             if not task:
                 task = data.get("unknowns", {}).get(airport.ref, {})
-            subtype = task.get("type", None)
-            taskconf = task.get("config", None)
-            if subtype and type(subtype) == int:
-                item["type"] = subtype
-            if taskconf and type(taskconf) == dict:
-                item["config"] = taskconf
+            task.update(item)
 
             if not airport.available or not airport.sub:
                 logger.warn(
                     f"[TempSubInfo] cannot get subscribe because domain=[{airport.ref}] forced validation or need pay"
                 )
-                unknowns[airport.ref] = item
+                unknowns[airport.ref] = task
             else:
-                exists[airport.ref] = item
+                exists[airport.ref] = task
 
         # persist subscribes
         payload = {"usables": exists, "unknowns": unknowns}
@@ -106,6 +102,9 @@ def fetchsub(params: dict) -> list:
 
     results = []
     for subscribe in exists.values():
+        if not subscribe.get("enable", True):
+            continue
+
         item = deepcopy(config)
         item["sub"] = subscribe.get("sub")
         if "config" in subscribe:
@@ -138,33 +137,41 @@ def load(fileid: str, retry: bool = False) -> tuple[dict, list, dict, dict]:
             data.get("unknowns", {}),
             [],
         )
-        if retry:
-            unknowns, unregisters = {}, [
-                [k, unknowns.get(k).get("type", 1)] for k in unknowns.keys()
-            ]
-
-        if not exists:
-            return exists, unregisters, unknowns, data
-
-        thread_num = min(len(exists), multiprocessing.cpu_count() * 5)
-        pool = multiprocessing.Pool(thread_num)
-        domains, subscribes = list(exists.keys()), [
-            v.get("sub", "") for v in exists.values()
-        ]
-        results = pool.map(is_available, subscribes)
-
         # 保存旧有配置
         rawdata = deepcopy(data)
+
+        if retry and unknowns:
+            for k in list(unknowns.keys()):
+                v = unknowns.get(k, {})
+                if v and v.get("enable", True):
+                    unregisters.append([k, v.get("type", 1), v.get("coupon", "")])
+                    unknowns.pop(k, None)
+
+        domains, subscribes = [], []
+        for k, v in exists.items():
+            if not v or not v.get("enable", True):
+                continue
+            domains.append(k)
+            subscribes.append(v.get("sub", ""))
+
+        if not domains:
+            return exists, unregisters, unknowns, rawdata
+
+        thread_num = min(len(domains), multiprocessing.cpu_count() * 5)
+        pool = multiprocessing.Pool(thread_num)
+        results = pool.map(is_available, subscribes)
 
         for i in range(len(results)):
             if not results[i]:
                 item = exists.pop(domains[i], {})
-                unregisters.append([domains[i], item.get("type", 1)])
+                unregisters.append(
+                    [domains[i], item.get("type", 1), item.get("coupon", "")]
+                )
 
         # 去重
         if unregisters:
-            data = dict(unregisters)
-            unregisters = [[k, v] for k, v in data.items()]
+            data = {x[0]: [x[1], x[2]] for x in unregisters}
+            unregisters = [[k, v[0], v[1]] for k, v in data.items()]
 
         return exists, unregisters, unknowns, rawdata
     except:

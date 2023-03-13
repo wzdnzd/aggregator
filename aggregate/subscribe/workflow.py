@@ -47,6 +47,9 @@ class TaskConfig:
     # 套餐续期配置
     renew: dict = None
 
+    # 优惠码
+    coupon: str = ""
+
     # 节点重命名规则
     rename: str = ""
 
@@ -76,6 +79,7 @@ def execute(task_conf: TaskConfig) -> list:
         exclude=task_conf.exclude,
         include=task_conf.include,
         liveness=task_conf.liveness,
+        coupon=task_conf.coupon,
     )
 
     logger.info(
