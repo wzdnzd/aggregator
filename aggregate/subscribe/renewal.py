@@ -67,6 +67,9 @@ class Plan:
 def get_cookies(
     domain: str, username: str, password: str, retry: int = 3
 ) -> tuple[str, str]:
+    if utils.isblank(domain) or utils.isblank(username) or utils.isblank(password):
+        return "", ""
+
     login_url = domain + "/api/v1/passport/auth/login"
     headers = HEADER
     headers["origin"] = domain
@@ -209,30 +212,54 @@ def payment(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
         return False
 
 
-def checkout(url: str, params: dict, headers: dict, retry: int = 3) -> bool:
+def checkout(
+    domain: str,
+    coupon: str,
+    headers: dict,
+    planid: int = -1,
+    retry: int = 3,
+    link: str = "",
+) -> dict:
+    if utils.isblank(domain) or utils.isblank(coupon):
+        return {}
+
+    link = "/api/v1/user/coupon/check" if utils.isblank(link) else link
     try:
-        data = urllib.parse.urlencode(params).encode(encoding="UTF8")
-        request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+        url = f"{domain}{link}"
+        params = {"code": coupon}
+        if type(planid) == int and planid >= 0:
+            params["plan_id"] = planid
+
+        payload = urllib.parse.urlencode(params).encode(encoding="UTF8")
+        request = urllib.request.Request(
+            url, data=payload, headers=headers, method="POST"
+        )
 
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
-        success = False
+        data = {}
         if response.getcode() == 200:
             result = json.loads(response.read().decode("UTF8"))
-            success = False if result.get("data", None) is None else True
+            data = result.get("data", {})
         else:
             logger.info(response.read().decode("UTF8"))
 
-        return success
-
+        return data
     except Exception as e:
         logger.error(e)
         retry -= 1
 
         if retry > 0:
-            return checkout(url, params, headers, retry)
+            return checkout(
+                domain=domain,
+                coupon=coupon,
+                headers=headers,
+                planid=planid,
+                retry=retry,
+                link=link,
+            )
 
         logger.error("[CheckError] URL: {}".format(utils.extract_domain(url)))
-        return False
+        return {}
 
 
 def get_payment_method(
@@ -413,7 +440,7 @@ def submit_ticket(
 
 
 def get_free_plan(
-    domain: str, cookies: str, authorization: str = "", retry: int = 3
+    domain: str, cookies: str, authorization: str = "", retry: int = 3, coupon: str = ""
 ) -> Plan:
     if not domain or (not cookies and not authorization):
         logger.error(
@@ -428,15 +455,22 @@ def get_free_plan(
     content = utils.http_get(url=url, headers=headers, retry=retry)
     if not content:
         return None
+
+    discount = None
+    if not utils.isblank(coupon):
+        discount = checkout(domain=domain, coupon=coupon, headers=headers, retry=retry)
+
     try:
         plans = []
         data = json.loads(content).get("data", [])
         for plan in data:
             # 查找时间最长的免费套餐
-            package = ""
+            package, planid = "", plan.get("id", -1)
             for p in PACKAGES:
                 price = plan.get(p, None)
-                if price is None or price > 0:
+                if not isfree(
+                    planid=str(planid), package=p, price=price, discount=discount
+                ):
                     continue
                 package = p
 
@@ -450,7 +484,7 @@ def get_free_plan(
 
             plans.append(
                 Plan(
-                    plan_id=plan.get("id", -1),
+                    plan_id=planid,
                     package=package,
                     renew=renew_enable,
                     reset=reset_enable,
@@ -468,6 +502,39 @@ def get_free_plan(
             f"cannot fetch free plans because response is empty, domain: {domain}"
         )
         return None
+
+
+def isfree(planid: str, package: str, price: float, discount: dict) -> bool:
+    # 不存在的套餐
+    if utils.isblank(planid) or utils.isblank(package) or price is None:
+        return False
+
+    # 套餐价格为0
+    if price <= 0:
+        return True
+
+    # 没有优惠且套餐价格大于0
+    if not discount and price > 0:
+        return False
+
+    # 限定套餐范围
+    planids = discount.get("limit_plan_ids", None)
+    # 限定周期
+    packages = discount.get("limit_period", None)
+
+    # 不在优惠范围内
+    if (planids and planid not in planids) or (packages and package not in packages):
+        return False
+
+    # 优惠类型 1代表实际金额，2代表比例
+    coupontype = discount.get("type", 1)
+    # 优惠额度
+    couponvalue = discount.get("value", 0)
+
+    # 如果优惠金额与套餐价相等或者优惠比例为100(%)，返回True
+    if coupontype == 1:
+        return couponvalue == price
+    return couponvalue == 100
 
 
 def get_subscribe_info(
@@ -599,9 +666,14 @@ def flow(
     }
 
     if coupon:
-        check_url = domain + params.get("check", "/api/v1/user/coupon/check")
+        link = params.get("check", "/api/v1/user/coupon/check")
         result = checkout(
-            check_url, {"code": coupon, "plan_id": plan_id}, headers, retry
+            domain=domain,
+            coupon=coupon,
+            headers=headers,
+            planid=plan_id,
+            retry=retry,
+            link=link,
         )
         if not result:
             logger.info("failed to renewal because coupon is valid")
@@ -624,8 +696,14 @@ def add_traffic_flow(domain: str, params: dict) -> str:
         logger.error(f"[RenewalError] invalidate arguments")
         return ""
     try:
-        email = base64.b64decode(params.get("email", ""))
-        password = base64.b64decode(params.get("passwd", ""))
+        email = base64.b64decode(params.get("email", "")).decode()
+        password = base64.b64decode(params.get("passwd", "")).decode()
+        if utils.isblank(email) or utils.isblank(password):
+            logger.info(
+                f"[RenewalError] email or password cannot be empty, domain: {domain}"
+            )
+            return ""
+
         cookies, authorization = get_cookies(
             domain=domain, username=email, password=password
         )

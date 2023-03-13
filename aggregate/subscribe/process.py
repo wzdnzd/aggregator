@@ -197,6 +197,7 @@ def assign(
         exclude = site.get("exclude", "").strip()
         include = site.get("include", "").strip()
         liveness = site.get("liveness", True)
+        coupon = site.get("coupon", "").strip()
         allow_insecure = site.get("insecure", False)
         # 覆盖subconverter默认exclude规则
         ignoreder = site.get("ignorede", False)
@@ -226,7 +227,7 @@ def assign(
         for i in range(num):
             index = -1 if num == 1 else i + 1
             sub = subscribes[i] if subscribes else ""
-            renew = {}
+            renew = {} if utils.isblank(coupon) else {"coupon_code": coupon}
             globalid += 1
             if accounts:
                 renew.update(accounts[i])
@@ -247,6 +248,7 @@ def assign(
                 exclude=exclude,
                 include=include,
                 liveness=liveness,
+                coupon=coupon,
                 allow_insecure=allow_insecure,
                 ignorede=ignoreder,
             )

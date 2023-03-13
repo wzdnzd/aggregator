@@ -19,6 +19,7 @@ import typing
 import urllib
 import urllib.parse
 import urllib.request
+from copy import deepcopy
 from datetime import datetime
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
@@ -71,6 +72,10 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         return []
 
     try:
+        pushconf = conf.get("persist", {})
+        pushtool = push.get_instance()
+        should_persist = pushtool.validate(push_conf=pushconf)
+
         tasks, threshold = {}, conf.get("threshold", 1)
         google_spider = conf.get("google", {})
         if google_spider:
@@ -108,10 +113,16 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         datasets, peristedtasks = [], {}
         if scripts:
             datasets = batch_call(scripts)
+            if datasets:
+                for item in datasets:
+                    if not item or type(item) != dict:
+                        continue
 
-        pushconf = conf.get("persist", {})
-        pushtool = push.get_instance()
-        should_persist = pushtool.validate(push_conf=pushconf)
+                    task = deepcopy(item)
+                    sub = task.pop("sub", "")
+                    remark(source=task, defeat=0, discovered=True)
+                    peristedtasks[sub] = task
+
         if should_persist:
             folderid = pushconf.get("folderid", "")
             fileid = pushconf.get("fileid", "")
@@ -167,7 +178,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 p.join()
 
             datasets.extend(list(availables))
-            peristedtasks = dict(potentials)
+            peristedtasks.update(dict(potentials))
 
         logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscribes")
 
@@ -649,12 +660,25 @@ def validate(
             discovered = True
 
         if reachable or (discovered and defeat <= threshold and not expired):
-            params["defeat"] = defeat
-            params["discovered"] = discovered
+            remark(source=params, defeat=defeat, discovered=True)
             potentials[url] = params
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
             semaphore.release()
+
+
+def remark(source: dict, defeat: int = 0, discovered: bool = True) -> None:
+    if (
+        not source
+        or type(source) != dict
+        or type(defeat) != int
+        or defeat < 0
+        or type(discovered) != bool
+    ):
+        return
+
+    source["defeat"] = defeat
+    source["discovered"] = discovered
 
 
 def check_status(

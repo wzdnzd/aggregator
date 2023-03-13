@@ -73,6 +73,7 @@ class AirPort:
         exclude: str = "",
         include: str = "",
         liveness: bool = True,
+        coupon: str = "",
     ):
         if site.endswith("/"):
             site = site[: len(site) - 1]
@@ -101,6 +102,7 @@ class AirPort:
         self.exclude = exclude
         self.include = include
         self.liveness = liveness
+        self.coupon = "" if utils.isblank(coupon) else coupon
         self.headers = {"User-Agent": utils.USER_AGENT, "Referer": self.ref}
         self.username = ""
         self.password = ""
@@ -243,7 +245,11 @@ class AirPort:
         retry: int = 3,
     ) -> bool:
         plan = renewal.get_free_plan(
-            domain=self.ref, cookies=cookies, authorization=authorization, retry=retry
+            domain=self.ref,
+            cookies=cookies,
+            authorization=authorization,
+            retry=retry,
+            coupon=self.coupon,
         )
 
         if not plan:
@@ -263,7 +269,7 @@ class AirPort:
             "package": plan.package,
             "plan_id": plan.plan_id,
             "method": method,
-            "coupon_code": "",
+            "coupon_code": self.coupon,
         }
 
         success = renewal.flow(
@@ -275,9 +281,7 @@ class AirPort:
         )
 
         if success and (plan.renew or plan.reset):
-            logger.info(
-                f"[RegisterSuccess] register successed, domain: {self.ref}, address: {email}, passwd: {password}"
-            )
+            logger.info(f"[RegisterSuccess] register successed, domain: {self.ref}")
 
         return success
 
