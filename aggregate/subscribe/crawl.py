@@ -679,6 +679,8 @@ def remark(source: dict, defeat: int = 0, discovered: bool = True) -> None:
 
     source["defeat"] = defeat
     source["discovered"] = discovered
+    if utils.isblank(source.get("origin", "")):
+        source["origin"] = Origin.TEMPORARY.name
 
 
 def check_status(
@@ -719,7 +721,7 @@ def check_status(
                     elif "total" == words[0].strip():
                         total = eval(words[1])
                     elif "expire" == words[0].strip():
-                        expire = eval(words[1])
+                        expire = None if utils.isblank(words[1]) else eval(words[1])
 
                 # 剩余流量大于 ${remain} GB 并且未过期则返回 True，否则返回 False
                 return (
