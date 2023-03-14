@@ -51,6 +51,7 @@ def fetchsub(params: dict) -> list:
 
     config = params.get("config", {})
     fileid = params.get("persist", "")
+    threshold = max(params.get("threshold", 1), 1)
     if not fileid or not config or type(config) != dict or not config.get("push_to"):
         logger.error(
             f"[TempSubError] cannot fetch subscribes bcause not found arguments 'persist' or 'push_to'"
@@ -74,22 +75,33 @@ def fetchsub(params: dict) -> list:
             if not airport:
                 continue
 
-            item = {
-                "sub": airport.sub,
-                "username": airport.username,
-                "password": airport.password,
-            }
             task = data.get("usables", {}).get(airport.ref, {})
             if not task:
                 task = data.get("unknowns", {}).get(airport.ref, {})
-            task.update(item)
 
             if not airport.available or not airport.sub:
-                logger.warn(
+                logger.error(
                     f"[TempSubInfo] cannot get subscribe because domain=[{airport.ref}] forced validation or need pay"
                 )
+                if not utils.isblank(airport.sub):
+                    logger.warn(
+                        f"[TempSubInfo] renew error, domain: {airport.ref} username: {airport.username} password: {airport.password} sub: {airport.sub}"
+                    )
+
+                defeat = task.get("defeat", 0) + 1
+                if defeat > threshold:
+                    task["enable"] = False
+                task["defeat"] = defeat
                 unknowns[airport.ref] = task
             else:
+                task.update(
+                    {
+                        "sub": airport.sub,
+                        "username": airport.username,
+                        "password": airport.password,
+                        "defeat": 0,
+                    }
+                )
                 exists[airport.ref] = task
 
         # persist subscribes
@@ -144,7 +156,11 @@ def load(fileid: str, retry: bool = False) -> tuple[dict, list, dict, dict]:
             for k in list(unknowns.keys()):
                 v = unknowns.get(k, {})
                 if v and v.get("enable", True):
-                    unregisters.append([k, v.get("type", 1), v.get("coupon", "")])
+                    # 包含订阅，再次检测，否则重新注册
+                    if not utils.isblank(v.get("sub", "")):
+                        exists[k] = v
+                    else:
+                        unregisters.append([k, v.get("type", 1), v.get("coupon", "")])
                     unknowns.pop(k, None)
 
         domains, subscribes = [], []
