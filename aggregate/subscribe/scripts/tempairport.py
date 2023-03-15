@@ -127,6 +127,7 @@ def fetchsub(params: dict) -> list:
                 url=item["sub"], include_protocal=False
             ).replace(".", "-")
         item["push_to"] = list(set(item.get("push_to", [])))
+        item["saved"] = True
         results.append(item)
 
     logger.info(f"[TempSubInfo] fetchsub finished, found {len(results)} subscribes")
