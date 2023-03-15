@@ -115,7 +115,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             datasets = batch_call(scripts)
             if datasets:
                 for item in datasets:
-                    if not item or type(item) != dict:
+                    if not item or type(item) != dict or item.pop("saved", False):
                         continue
 
                     task = deepcopy(item)
@@ -658,6 +658,9 @@ def validate(
             # reset defeat to 0
             defeat = 0
             discovered = True
+
+        if item.pop("saved", False):
+            return
 
         if reachable or (discovered and defeat <= threshold and not expired):
             remark(source=params, defeat=defeat, discovered=True)
