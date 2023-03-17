@@ -659,7 +659,7 @@ def validate(
             defeat = 0
             discovered = True
 
-        if item.pop("saved", False):
+        if params.pop("saved", False):
             return
 
         if reachable or (discovered and defeat <= threshold and not expired):
