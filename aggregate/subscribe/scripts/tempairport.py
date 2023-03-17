@@ -169,14 +169,14 @@ def load(fileid: str, retry: bool = False) -> tuple[dict, list, dict, dict]:
             if not v or not v.get("enable", True):
                 continue
             domains.append(k)
-            subscribes.append(v.get("sub", ""))
+            subscribes.append([v.get("sub", ""), 2, 0.5, 1.0])
 
         if not domains:
             return exists, unregisters, unknowns, rawdata
 
         thread_num = min(len(domains), multiprocessing.cpu_count() * 5)
         pool = multiprocessing.Pool(thread_num)
-        results = pool.map(is_available, subscribes)
+        results = pool.starmap(is_available, subscribes)
 
         for i in range(len(results)):
             if not results[i]:
