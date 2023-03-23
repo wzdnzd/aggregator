@@ -388,6 +388,7 @@ def scan(params: dict) -> list:
     config["sub"] = [pushtool.raw_url(fileid=fileid)]
     config["name"] = "loophole" if not config.get("name", "") else config.get("name")
     config["push_to"] = list(set(config["push_to"]))
+    config["saved"] = True
 
     logger.info(f"[ScanerInfo] scan finished, found {len(proxies)} proxies")
     return [config]

@@ -124,6 +124,7 @@ def getrss(params: dict) -> list:
     config["sub"] = subscribes
     config["name"] = "okgg" if not config.get("name", "") else config.get("name", "")
     config["push_to"] = list(set(config["push_to"]))
+    config["saved"] = True
 
     logger.info(f"[V2RayFreeInfo] getrss finished, found {len(subscribes)} subscribes")
     return [config]

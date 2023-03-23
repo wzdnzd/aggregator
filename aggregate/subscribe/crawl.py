@@ -119,9 +119,16 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                         continue
 
                     task = deepcopy(item)
-                    sub = task.pop("sub", "")
-                    remark(source=task, defeat=0, discovered=True)
-                    peristedtasks[sub] = task
+                    subs = task.pop("sub", None)
+                    if type(subs) not in [str, list]:
+                        continue
+                    if type(subs) == str:
+                        subs = [subs]
+                    for sub in subs:
+                        if utils.isblank(sub):
+                            continue
+                        remark(source=task, defeat=0, discovered=True)
+                        peristedtasks[sub] = task
 
         if should_persist:
             folderid = pushconf.get("folderid", "")
@@ -189,6 +196,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         return datasets
     except:
         logger.error("[CrawlError] crawl from web error")
+        traceback.print_exc()
         return []
 
 
