@@ -157,7 +157,11 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         exclude = conf.get("exclude", "")
         taskconf = conf.get("config", {})
         with multiprocessing.Manager() as manager:
-            availables, potentials = manager.list(), manager.dict()
+            availables, unknowns, potentials = (
+                manager.list(),
+                manager.list(),
+                manager.dict(),
+            )
             processes = []
             semaphore = multiprocessing.Semaphore(max(thread, 1))
             time.sleep(random.randint(1, 3))
@@ -173,6 +177,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                         key,
                         value,
                         availables,
+                        unknowns,
                         potentials,
                         semaphore,
                         exclude,
@@ -186,6 +191,11 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
             datasets.extend(list(availables))
             peristedtasks.update(dict(potentials))
+
+            if len(unknowns) > 0:
+                logger.warn(
+                    f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {list(unknowns)}"
+                )
 
         logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscribes")
 
@@ -267,9 +277,8 @@ def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
     tasks = list(itertools.chain.from_iterable(results))
     subscribes = multi_thread_crawl(func=crawl_telegram_page, params=tasks)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(
-        f"[TelegramCrawl] finished crawl from Telegram, time: {endtime}, subscribes: {list(subscribes.keys())}"
-    )
+    logger.info(f"[TelegramCrawl] finished crawl from Telegram, time: {endtime}")
+    logger.debug(f"[TelegramCrawl] subscriptions: {list(subscribes.keys())}")
     return subscribes
 
 
@@ -338,9 +347,8 @@ def crawl_github_repo(repos: dict):
 
     subscribes = multi_thread_crawl(func=crawl_single_repo, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(
-        f"[RepoCrawl] finished crawl from Repositorie, time: {endtime}, subscribes: {list(subscribes.keys())}"
-    )
+    logger.info(f"[RepoCrawl] finished crawl from Repositorie, time: {endtime}")
+    logger.debug(f"[RepoCrawl] subscriptions: {list(subscribes.keys())}")
     return subscribes
 
 
@@ -381,9 +389,8 @@ def crawl_google(
         time.sleep(interval)
 
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(
-        f"[GoogleCrawl] finished crawl from Google, time: {endtime}, subscribes: {list(collections.keys())}"
-    )
+    logger.info(f"[GoogleCrawl] finished crawl from Google, time: {endtime}")
+    logger.debug(f"[GoogleCrawl] subscriptions: {list(collections.keys())}")
     return collections
 
 
@@ -420,24 +427,48 @@ def search_github(page: int, cookie: str, searchtype: str, sortedby: str) -> str
     return content
 
 
-def search_github_issues(page: int, cookie: str) -> list:
-    content = search_github(
-        page=page, cookie=cookie, searchtype="Issues", sortedby="updated"
-    )
+# def search_github_issues(page: int, cookie: str) -> list:
+#     content = search_github(
+#         page=page, cookie=cookie, searchtype="Issues", sortedby="updated"
+#     )
+#     if utils.isblank(content):
+#         return []
+
+#     try:
+#         regex = 'href="(/.*/.*/issues/\d+)">'
+#         groups = re.findall(regex, content, flags=re.I)
+#         links = list(set(groups))
+#         links = [f"https://github.com{x}" for x in links]
+#         return links
+#     except:
+#         return []
+
+
+def search_github_issues(page: int) -> list:
+    page = min(max(page, 1), 100)
+    url = f"https://api.github.com/search/issues?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=created&order=desc&per_page={page}"
+    content = utils.http_get(url=url)
     if utils.isblank(content):
         return []
-
     try:
-        regex = 'href="(/.*/.*/issues/\d+)">'
-        groups = re.findall(regex, content, flags=re.I)
-        links = list(set(groups))
-        links = [f"https://github.com{x}" for x in links]
-        return links
+        items, links = json.loads(content).get("items", []), set()
+        for item in items:
+            link = item.get("html_url", "")
+            if utils.isblank(link):
+                continue
+            links.add(link)
+
+        return list(links)
     except:
+        logger.error("[GithubIssuesCrawl] occur error when search issues from github")
+        traceback.print_exc()
         return []
 
 
 def search_github_code(page: int, cookie: str, excludes: list = []) -> list:
+    """
+    curl -Ls -o response.json -H "Authorization: Bearer <token>" https://api.github.com/search/code?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=indexed&order=desc&per_page=30
+    """
     content = search_github(
         page=page, cookie=cookie, searchtype="Code", sortedby="indexed"
     )
@@ -498,7 +529,8 @@ def crawl_github(
 
     params = [[x, cookie, spams] for x in pages]
     links = batchextract_github_pages(params=params)
-    links.extend(search_github_issues(page=1, cookie=cookie))
+    # links.extend(search_github_issues(page=1, cookie=cookie))
+    links.extend(search_github_issues(page=5))
     if links:
         page_tasks = {}
         for link in links:
@@ -511,9 +543,8 @@ def crawl_github(
         )
 
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(
-        f"[GithubCrawl] finished crawl from Github, time: {endtime}, subscribes: {list(subscribes.keys())}"
-    )
+    logger.info(f"[GithubCrawl] finished crawl from Github, time: {endtime}")
+    logger.debug(f"[GithubCrawl] subscriptions: {list(subscribes.keys())}")
 
     return subscribes
 
@@ -560,9 +591,8 @@ def crawl_pages(pages: dict, silent: bool = False) -> dict:
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if not silent:
-        logger.info(
-            f"[PageCrawl] finished crawl from Page, time: {endtime}, subscribes: {list(subscribes.keys())}"
-        )
+        logger.info(f"[PageCrawl] finished crawl from Page, time: {endtime}")
+        logger.debug(f"[PageCrawl] subscriptions: {list(subscribes.keys())}")
 
     return subscribes
 
@@ -640,6 +670,7 @@ def validate(
     url: str,
     params: dict,
     availables: ListProxy,
+    unknows: ListProxy,
     potentials: DictProxy,
     semaphore: Semaphore,
     exclude: str = "",
@@ -673,6 +704,8 @@ def validate(
         if reachable or (discovered and defeat <= threshold and not expired):
             remark(source=params, defeat=defeat, discovered=True)
             potentials[url] = params
+        elif not expired:
+            unknows.append(url)
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
             semaphore.release()
