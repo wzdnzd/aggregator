@@ -582,18 +582,19 @@ class AirPort:
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
                     )
 
-                # name = re.sub(r"\[[^\[]*\]|\([^\(]*\)|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」", "", name)
+                # name = re.sub(r"\[[^\[]*\]|\([^\(]*\)|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|（[^（]*）|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]", " ", name)
                 name = re.sub(
-                    r"\[[^\[]*\]|\([^\(]*\)|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|（[^（]*）|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
+                    r"\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
                     " ",
                     name,
                 )
                 name = (
                     re.sub("\s+", " ", name)
                     .replace("_", "-")
+                    .replace("+", "-")
                     .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
                 )
-                name = re.sub("-+", "-", name)
+                name = re.sub(r"((\s+)?-(\s+)?)+", "-", name)
                 if not name:
                     continue
 
