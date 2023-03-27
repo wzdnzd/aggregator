@@ -27,6 +27,7 @@ from multiprocessing.synchronize import Semaphore
 import airport
 import push
 import utils
+import yaml
 from logger import logger
 from origin import Origin
 from urlvalidator import isurl
@@ -404,7 +405,7 @@ def crawl_github_page(
 
 
 def search_github(page: int, cookie: str, searchtype: str, sortedby: str) -> str:
-    if page <= 0 or not cookie:
+    if page <= 0 or utils.isblank(cookie):
         return ""
 
     searchtype = "Code" if utils.isblank(searchtype) else searchtype
@@ -427,26 +428,37 @@ def search_github(page: int, cookie: str, searchtype: str, sortedby: str) -> str
     return content
 
 
-# def search_github_issues(page: int, cookie: str) -> list:
-#     content = search_github(
-#         page=page, cookie=cookie, searchtype="Issues", sortedby="updated"
-#     )
-#     if utils.isblank(content):
-#         return []
+def paging(start: int, end: int, peer_page: int) -> list[int]:
+    if start > end or peer_page <= 0:
+        return []
 
-#     try:
-#         regex = 'href="(/.*/.*/issues/\d+)">'
-#         groups = re.findall(regex, content, flags=re.I)
-#         links = list(set(groups))
-#         links = [f"https://github.com{x}" for x in links]
-#         return links
-#     except:
-#         return []
+    pages = []
+    for i in range(start, end + 1, peer_page):
+        pages.append(i // peer_page + 1)
+
+    return pages
 
 
-def search_github_issues(page: int) -> list:
-    page = min(max(page, 1), 100)
-    url = f"https://api.github.com/search/issues?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=created&order=desc&per_page={page}"
+def search_github_issues(page: int, cookie: str) -> list:
+    content = search_github(
+        page=page, cookie=cookie, searchtype="Issues", sortedby="created"
+    )
+    if utils.isblank(content):
+        return []
+
+    try:
+        regex = 'href="(/.*/.*/issues/\d+)">'
+        groups = re.findall(regex, content, flags=re.I)
+        links = list(set(groups))
+        links = [f"https://github.com{x}" for x in links]
+        return links
+    except:
+        return []
+
+
+def search_github_issues_byapi(peer_page: int = 50, page: int = 1) -> list:
+    peer_page, page = min(max(peer_page, 1), 100), max(1, page)
+    url = f"https://api.github.com/search/issues?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=created&order=desc&per_page={peer_page}&page={page}"
     content = utils.http_get(url=url)
     if utils.isblank(content):
         return []
@@ -465,10 +477,46 @@ def search_github_issues(page: int) -> list:
         return []
 
 
+def search_github_code_byapi(
+    token: str, peer_page: int = 50, page: int = 1, excludes: list = []
+) -> list:
+    """
+    curl -Ls -o response.json -H "Authorization: Bearer <token>" https://api.github.com/search/code?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=indexed&order=desc&per_page=30&page=1
+    """
+    if utils.isblank(token):
+        return []
+
+    peer_page, page = min(max(peer_page, 1), 100), max(1, page)
+    url = f"https://api.github.com/search/code?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=indexed&order=desc&per_page={peer_page}&page={page}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        # "X-GitHub-Api-Version": "2022-11-28"
+    }
+    content, links = utils.http_get(url=url, headers=headers), set()
+    if utils.isblank(content):
+        return []
+    try:
+        items = json.loads(content).get("items", [])
+        excludes = list(set(excludes))
+        for item in items:
+            if not item or type(item) != dict:
+                continue
+
+            link = item.get("html_url", "")
+            if utils.isblank(link):
+                continue
+
+            reponame = item.get("repository", {}).get("full_name", "")
+            if not intercept(text=reponame, excludes=excludes):
+                links.add(link)
+
+        return list(links)
+    except:
+        return []
+
+
 def search_github_code(page: int, cookie: str, excludes: list = []) -> list:
-    """
-    curl -Ls -o response.json -H "Authorization: Bearer <token>" https://api.github.com/search/code?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=indexed&order=desc&per_page=30
-    """
     content = search_github(
         page=page, cookie=cookie, searchtype="Code", sortedby="indexed"
     )
@@ -478,30 +526,40 @@ def search_github_code(page: int, cookie: str, excludes: list = []) -> list:
     try:
         regex = '<a href="(/.*/.*/blob/.*)#L\d+">\d+</a>'
         groups = re.findall(regex, content, flags=re.I)
-        uris, links = list(set(groups)) if groups else [], []
-        for uri in uris:
-            flag = True
-            for exclude in excludes:
-                if uri.startswith(exclude):
-                    flag = False
-                    break
-            if flag:
-                links.append(f"https://github.com{uri}")
+        uris, links = list(set(groups)) if groups else [], set()
+        excludes = list(set(excludes))
 
-        return links
+        for uri in uris:
+            if not intercept(text=uri, excludes=excludes):
+                links.add(f"https://github.com{uri}")
+
+        return list(links)
     except:
         return []
 
 
-def batchextract_github_pages(params: list) -> list:
-    if not params or type(params) != list:
+def intercept(text: str, excludes: list = []) -> bool:
+    if not excludes:
+        return False
+
+    for regex in excludes:
+        try:
+            if re.search(regex, text, flags=re.I):
+                return True
+        except:
+            logger.error(f"[GithubRepoIntercept] invalid regex pattern: {regex}")
+    return False
+
+
+def batchextract_github_pages(func: typing.Callable, params: list) -> list:
+    if not func or not params or type(params) != list:
         return []
 
     cpu_count = multiprocessing.cpu_count()
     num = len(params) if len(params) <= cpu_count else cpu_count
 
     pool = multiprocessing.Pool(num)
-    results = pool.starmap(search_github_code, params)
+    results = pool.starmap(func, params)
     pool.close()
     return list(set(itertools.chain.from_iterable(results)))
 
@@ -511,28 +569,39 @@ def crawl_github(
 ) -> dict:
     # user_session=${any}
     cookie = os.environ.get("GH_COOKIE", "").strip()
-    if not cookie:
+    token = os.environ.get("GH_TOKEN", "").strip()
+    if utils.isblank(cookie) and utils.isblank(token):
         logger.error(
-            "[GithubCrawl] cannot start crawl from github because cookie is missing"
+            "[GithubCrawl] cannot start crawl from github because cookie and token is missing"
         )
         return {}
 
-    # 鉴于github搜索code不稳定，爬取两次
-    pages = [x for x in range(1, limits + 1)] * 2
-    exclude = "" if not exclude else exclude.strip()
-    spams = [x if x.startswith("/") else "/" + x for x in spams]
+    links, starttime = [], datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    method = "search on the page" if utils.isblank(token) else "rest api"
+    logger.info(
+        f"[GithubCrawl] start crawl from Github through {method}, time: {starttime}"
+    )
 
-    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[GithubCrawl] start crawl from Github, time: {starttime}")
-    # params = [[x, cookie, push_to, exclude] for x in pages]
-    # subscribes = multi_thread_crawl(func=crawl_github_page, params=params)
+    if utils.isblank(token):
+        # 鉴于github搜索code不稳定，爬取两次
+        pages = [x for x in range(1, limits + 1)] * 2
+        params = [[x, cookie, spams] for x in pages]
 
-    params = [[x, cookie, spams] for x in pages]
-    links = batchextract_github_pages(params=params)
-    # links.extend(search_github_issues(page=1, cookie=cookie))
-    links.extend(search_github_issues(page=5))
+        links.extend(batchextract_github_pages(func=search_github_code, params=params))
+        links.extend(search_github_issues(page=1, cookie=cookie))
+    else:
+        peer_page, count = 50, 10
+        pages = paging(start=0, end=limits * count + 1, peer_page=peer_page)
+        params = [[token, peer_page, x, spams] for x in pages] * 2
+        links.extend(
+            batchextract_github_pages(func=search_github_code_byapi, params=params)
+        )
+        links.extend(search_github_issues_byapi(peer_page=5, page=1))
+
     if links:
         page_tasks = {}
+        exclude = "" if not exclude else exclude.strip()
+
         for link in links:
             page_tasks[link] = {"push_to": push_to, "exclude": exclude}
         subscribes = crawl_pages(pages=page_tasks, silent=True)
@@ -768,11 +837,10 @@ def check_status(
                         expire = None if utils.isblank(words[1]) else eval(words[1])
 
                 # 剩余流量大于 ${remain} GB 并且未过期则返回 True，否则返回 False
-                return (
-                    total - (upload + download) > remain * pow(1024, 3)
-                    and (expire is None or expire - time.time() > spare_time * 3600),
-                    False,
+                flag = total - (upload + download) > remain * pow(1024, 3) and (
+                    expire is None or expire - time.time() > spare_time * 3600
                 )
+                return flag, not flag
         except:
             pass
 
@@ -781,11 +849,24 @@ def check_status(
             return False, True
         elif utils.isb64encode(content):
             return True, False
-        return re.search("proxies:", content) is not None, False
+
+        # return re.search("proxies:", content) is not None, False
+        try:
+            proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
+        except yaml.constructor.ConstructorError:
+            yaml.add_multi_constructor(
+                "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
+            )
+            proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
+        except:
+            proxies = []
+
+        flag = proxies is None or len(proxies) == 0
+        return not flag, flag
     except urllib.error.HTTPError as e:
         message = str(e.read(), encoding="utf8")
-        expired = "token is error" in message
-        if e.code in [403, 503] and not expired:
+        expired = e.code == 404 or "token is error" in message
+        if not expired and e.code in [403, 503]:
             return check_status(
                 url=url, retry=retry - 1, remain=remain, spare_time=spare_time
             )
