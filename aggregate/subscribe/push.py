@@ -53,7 +53,7 @@ class PushTo(object):
             request = urllib.request.Request(
                 url=url, data=data, headers=headers, method=self.method
             )
-            response = urllib.request.urlopen(request, timeout=15, context=utils.CTX)
+            response = urllib.request.urlopen(request, timeout=30, context=utils.CTX)
             if self._is_success(response):
                 logger.info(
                     f"[PushSuccess] push subscribes information to {self.name} successed, group=[{group}]"
@@ -196,27 +196,6 @@ class PushToFarsEE(PushTo):
         return f"{self.api_address}/{fileid}"
 
 
-class PushToDrift(PushTo):
-    """waitting for public api"""
-
-    def __init__(self, token: str) -> None:
-        super().__init__(token=token)
-        self.name = "drift.lol"
-        self.api_address = "https://www.drift.lol"
-
-    def validate(self, push_conf: dict) -> bool:
-        return super().validate(push_conf)
-
-    def filter_push(self, push_conf: dict) -> dict:
-        return super().filter_push(push_conf)
-
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
-        return super().raw_url(fileid, folderid, username)
-
-    def _generate_payload(self, content: str, push_conf: dict) -> tuple[str, str, dict]:
-        return super()._generate_payload(content, push_conf)
-
-
 class PushToDevbin(PushToPaste):
     """https://devbin.dev"""
 
@@ -313,7 +292,25 @@ class PushToPastefy(PushToDevbin):
         return f"https://pastefy.ga/{fileid}/raw"
 
 
-PUSHTYPE = Enum("PUSHTYPE", ("pastefy.ga", "devbin.dev", "paste.gg"))
+class PushToDrift(PushToPastefy):
+    """waitting for public api"""
+
+    def __init__(self, token: str) -> None:
+        super().__init__(token=token)
+        self.name = "drift.vercel"
+        self.api_address = "https://pastebin.enjoyit.ml/api/file"
+
+    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+        if not fileid:
+            return ""
+
+        return f"{self.api_address}/raw/{fileid}"
+
+    def _is_success(self, response: HTTPResponse) -> bool:
+        return response and response.getcode() in [200, 204]
+
+
+PUSHTYPE = Enum("PUSHTYPE", ("pastebin.enjoyit.ml", "pastefy.ga", "paste.gg"))
 
 
 def get_instance() -> PushTo:
@@ -335,8 +332,7 @@ def get_instance() -> PushTo:
 
     push_type = confirm_pushtype()
     if push_type == 1:
-        return PushToPastefy(token=token)
+        return PushToDrift(token=token)
     elif push_type == 2:
-        return PushToDevbin(token=token)
-
+        return PushToPastefy(token=token)
     return PushToPaste(token=token)
