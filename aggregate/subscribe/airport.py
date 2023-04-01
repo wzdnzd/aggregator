@@ -8,6 +8,7 @@ import json
 import os
 import random
 import re
+import string
 import time
 import traceback
 import urllib
@@ -596,7 +597,7 @@ class AirPort:
                 )
                 name = re.sub(r"((\s+)?-(\s+)?)+", "-", name)
                 if not name:
-                    continue
+                    name = f"{self.name[0]}{self.name[-1]}-{''.join(random.sample(string.ascii_uppercase, 3))}"
 
                 item["name"] = name.upper()
 
