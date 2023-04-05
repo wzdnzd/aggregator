@@ -915,6 +915,9 @@ set "%~1=0"
 call :trim force "%~2"
 if "!force!" == "" set "force=0"
 
+@REM has been integrated in clash.meta
+if "!clashmeta!" == "1" exit /b
+
 @REM check if required
 call :istunenabled enabled
 if "!enabled!" == "0" exit /b
