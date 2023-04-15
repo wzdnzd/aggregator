@@ -315,11 +315,11 @@ PUSHTYPE = Enum("PUSHTYPE", ("pastebin.enjoyit.ml", "pastefy.ga", "paste.gg"))
 
 def get_instance() -> PushTo:
     def confirm_pushtype() -> int:
-        domian = utils.extract_domain(
+        domain = utils.extract_domain(
             url=os.environ.get("SUBSCRIBE_CONF", "").strip(), include_protocal=False
         )
         for item in PUSHTYPE:
-            if domian == item.name:
+            if domain == item.name:
                 return item.value
 
         return 1
