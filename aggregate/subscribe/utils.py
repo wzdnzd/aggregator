@@ -246,3 +246,21 @@ def isb64encode(content: str, padding: bool = True) -> bool:
 
 def isblank(text: str) -> bool:
     return not text or type(text) != str or not text.strip()
+
+
+def load_dotenv() -> None:
+    path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    filename = os.path.join(path, ".env")
+
+    if not os.path.exists(filename) or os.path.isdir(filename):
+        return
+
+    with open(filename, mode="r", encoding="utf8") as f:
+        for line in f.readlines():
+            content = line.strip()
+            if not content or content.startswith("#") or "=" not in content:
+                continue
+            words = content.split("=", maxsplit=1)
+            k, v = words[0].strip(), words[1].strip()
+            if k and v:
+                os.environ[k] = v
