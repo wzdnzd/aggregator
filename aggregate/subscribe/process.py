@@ -480,6 +480,8 @@ def aggregate(args: argparse.Namespace):
 
 
 if __name__ == "__main__":
+    utils.load_dotenv()
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
