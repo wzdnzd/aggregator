@@ -2,6 +2,8 @@ name: checkin
 on:
   schedule:
     - cron: "45 02 * * *"
+  pull_request:
+    branches: ["main"]
 
 jobs:
   sync_with_upstream:
