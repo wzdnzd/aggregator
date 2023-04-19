@@ -1,9 +1,7 @@
 name: checkin
 on:
   schedule:
-    - cron: "45 02 * * *"
-  pull_request:
-    branches: ["main"]
+    - cron: "40 00 * * *"
 
 jobs:
   sync_with_upstream:
