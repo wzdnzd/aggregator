@@ -1,0 +1,131 @@
+{
+    "domains": [
+        {
+            "name": "",
+            "sub": [],
+            "domain": "",
+            "enable": true,
+            "rename": "",
+            "include": "",
+            "exclude": "",
+            "push_to": [],
+            "ignorede": true,
+            "liveness": true,
+            "tag": "",
+            "rate": 2.5,
+            "count": 2,
+            "coupon": "",
+            "insecure": false,
+            "renew": {
+                "account": [
+                    {
+                        "email": "",
+                        "passwd": "",
+                        "ticket": {
+                            "enable": true,
+                            "autoreset": false,
+                            "subject": "",
+                            "message": "",
+                            "level": 1
+                        }
+                    }
+                ],
+                "plan_id": 3,
+                "package": "",
+                "method": 1,
+                "coupon_code": ""
+            }
+        }
+    ],
+    "crawl": {
+        "enable": true,
+        "exclude": "",
+        "threshold": 5,
+        "persist": {
+            "username": "",
+            "folderid": "",
+            "fileid": ""
+        },
+        "config": {
+            "rename": "",
+            "include": "",
+            "exclude": "",
+            "xxxxxxx": ""
+        },
+        "telegram": {
+            "enable": true,
+            "pages": 5,
+            "exclude": "",
+            "users": {
+                "channel": {
+                    "include": "",
+                    "exclude": "",
+                    "config": {
+                        "rename": "",
+                        "xxxxxx": ""
+                    },
+                    "push_to": []
+                }
+            }
+        },
+        "google": {
+            "enable": false,
+            "exclude": "",
+            "push_to": []
+        },
+        "github": {
+            "enable": true,
+            "pages": 2,
+            "push_to": [],
+            "exclude": "",
+            "spams": []
+        },
+        "repositories": [
+            {
+                "enable": false,
+                "username": "",
+                "repo_name": "",
+                "commits": 3,
+                "exclude": "",
+                "push_to": []
+            }
+        ],
+        "pages": [
+            {
+                "enable": true,
+                "url": "",
+                "exclude": "",
+                "config": {
+                    "rename": ""
+                },
+                "push_to": []
+            }
+        ],
+        "scripts": [
+            {
+                "enable": false,
+                "script": "file#function",
+                "params": {
+                    "persist": "",
+                    "any": "xxx",
+                    "config": {
+                        "enable": true,
+                        "liveness": true,
+                        "exclude": "",
+                        "rename": "",
+                        "push_to": []
+                    }
+                }
+            }
+        ]
+    },
+    "push": {
+        "xxx": {
+            "username": "",
+            "folderid": "",
+            "fileid": "",
+            "target": "v2ray|mixed|clash|...",
+            "local": ""
+        }
+    }
+}

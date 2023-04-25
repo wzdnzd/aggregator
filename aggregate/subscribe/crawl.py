@@ -137,7 +137,15 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             username = pushconf.get("username", "")
             url = pushtool.raw_url(fileid=fileid, folderid=folderid, username=username)
             try:
-                content = utils.http_get(url=url)
+                url, content = url or "", ""
+                if not url.startswith(utils.FILEPATH_PROTOCAL):
+                    content = utils.http_get(url=url)
+                else:
+                    file = url.sub[len(utils.FILEPATH_PROTOCAL) - 1 :]
+                    if os.path.exists(file) and os.path.isfile(file):
+                        with open(file, "r", encoding="UTF8") as f:
+                            content = f.read()
+
                 if not utils.isblank(content):
                     oldsubs = json.loads(content)
 

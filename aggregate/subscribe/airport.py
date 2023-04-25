@@ -45,9 +45,6 @@ RENAME_SEPARATOR = "#@&#@"
 # 标记数字位数
 # SUFFIX_BITS = 2
 
-# 本地路径协议标识
-FILEPATH_PROTOCAL = "file:///"
-
 
 @dataclass
 class RegisterRequire:
@@ -80,7 +77,7 @@ class AirPort:
             site = site[: len(site) - 1]
 
         if sub.strip() != "":
-            if sub.startswith(FILEPATH_PROTOCAL):
+            if sub.startswith(utils.FILEPATH_PROTOCAL):
                 ref = sub[8:]
             else:
                 ref = utils.extract_domain(sub, include_protocal=True)
@@ -409,8 +406,8 @@ class AirPort:
             )
             return []
 
-        if self.sub.startswith(FILEPATH_PROTOCAL):
-            self.sub = self.sub[8:]
+        if self.sub.startswith(utils.FILEPATH_PROTOCAL):
+            self.sub = self.sub[len(utils.FILEPATH_PROTOCAL) - 1 :]
             if not os.path.exists(self.sub) or not os.path.isfile(self.sub):
                 logger.error(f"[ParseError] file: {self.sub} not found")
                 return []

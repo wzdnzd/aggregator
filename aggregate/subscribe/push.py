@@ -23,6 +23,22 @@ class PushTo(object):
         self.method = "PUT"
         self.token = "" if not token or not isinstance(token, str) else token
 
+    def _storage(self, content: str, filename: str, folder: str = "") -> bool:
+        if not content or not filename:
+            return False
+
+        basedir = os.path.abspath(os.environ.get("LOCAL_BASEDIR", ""))
+        try:
+            savepath = os.path.abspath(os.path.join(basedir, folder, filename))
+            os.makedirs(os.path.dirname(savepath), exist_ok=True)
+            with open(savepath, "w+", encoding="utf8") as f:
+                f.write(content)
+                f.flush()
+
+            return True
+        except:
+            return False
+
     def push_file(
         self, filepath: str, push_conf: dict, group: str = "", retry: int = 5
     ) -> bool:
@@ -44,6 +60,9 @@ class PushTo(object):
         if not self.validate(push_conf=push_conf):
             logger.error(f"[PushError] push config is invalidate, domain: {self.name}")
             return False
+
+        if push_conf.get("local", ""):
+            self._storage(content=content, filename=push_conf.get("local"))
 
         url, data, headers = self._generate_payload(
             content=content, push_conf=push_conf
@@ -97,7 +116,7 @@ class PushTo(object):
         raise NotImplementedError
 
 
-class PushToPaste(PushTo):
+class PushToPasteGG(PushTo):
     """https://paste.gg"""
 
     def __init__(self, token: str) -> None:
@@ -196,7 +215,7 @@ class PushToFarsEE(PushTo):
         return f"{self.api_address}/{fileid}"
 
 
-class PushToDevbin(PushToPaste):
+class PushToDevbin(PushToPasteGG):
     """https://devbin.dev"""
 
     def __init__(self, token: str) -> None:
@@ -297,7 +316,7 @@ class PushToDrift(PushToPastefy):
 
     def __init__(self, token: str) -> None:
         super().__init__(token=token)
-        self.name = "drift.vercel"
+        self.name = "drift"
         self.api_address = "https://pastebin.enjoyit.ml/api/file"
 
     def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
@@ -310,29 +329,58 @@ class PushToDrift(PushToPastefy):
         return response and response.getcode() in [200, 204]
 
 
+class PushToLocal(PushTo):
+    def __init__(self, basedir: str = "") -> None:
+        super().__init__(token="")
+        self.name = "local"
+
+    def validate(self, push_conf: dict) -> bool:
+        return push_conf is not None and push_conf.get("fileid", "")
+
+    def push_to(
+        self, content: str, push_conf: dict, group: str = "", retry: int = 5
+    ) -> bool:
+        folder = push_conf.get("folderid", "")
+        filename = push_conf.get("fileid", "")
+        success = self._storage(content=content, filename=filename, folder=folder)
+        message = "successed" if success else "failed"
+        logger.info(
+            f"[PushInfo] push subscribes information to {self.name} {message}, group=[{group}]"
+        )
+        return success
+
+    def filter_push(self, push_conf: dict) -> dict:
+        return {k: v for k, v in push_conf.items() if v.get("fileid", "")}
+
+    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+        filepath = os.path.abspath(os.path.join(folderid, fileid))
+        return f"{utils.FILEPATH_PROTOCAL}{filepath}"
+
+
 PUSHTYPE = Enum("PUSHTYPE", ("pastebin.enjoyit.ml", "pastefy.ga", "paste.gg"))
 
 
 def get_instance() -> PushTo:
     def confirm_pushtype() -> int:
-        domain = utils.extract_domain(
-            url=os.environ.get("SUBSCRIBE_CONF", "").strip(), include_protocal=False
-        )
+        subscription = os.environ.get("SUBSCRIBE_CONF", "").strip()
+        domain = utils.extract_domain(url=subscription, include_protocal=False)
         for item in PUSHTYPE:
             if domain == item.name:
                 return item.value
 
-        return 1
+        return 0
 
+    push_type = confirm_pushtype()
     token = os.environ.get("PUSH_TOKEN", "").strip()
-    if not token:
+    if push_type != 0 and not token:
         raise ValueError(
             f"[PushError] not found 'PUSH_TOKEN' in environment variables, please check it and try again"
         )
 
-    push_type = confirm_pushtype()
     if push_type == 1:
         return PushToDrift(token=token)
     elif push_type == 2:
         return PushToPastefy(token=token)
-    return PushToPaste(token=token)
+    elif push_type == 3:
+        return PushToPasteGG(token=token)
+    return PushToLocal()
