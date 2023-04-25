@@ -147,9 +147,11 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
                 logger.error(f"cannot fetch config from remote, url: {url}")
             else:
                 parse_config(json.loads(content))
-        elif os.path.exists(url) and os.path.isfile(url):
-            config = json.loads(open(url, "r", encoding="utf8").read())
-            parse_config(config)
+        else:
+            localfile = os.path.abspath(url)
+            if os.path.exists(localfile) and os.path.isfile(localfile):
+                config = json.loads(open(localfile, "r", encoding="utf8").read())
+                parse_config(config)
 
         # 从telegram抓取订阅信息
         if params:

@@ -27,6 +27,10 @@ CTX.verify_mode = ssl.CERT_NONE
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36 Edg/105.0.1343.27"
 
 
+# 本地路径协议标识
+FILEPATH_PROTOCAL = "file:///"
+
+
 def random_chars(length: int, punctuation: bool = False) -> str:
     length = max(length, 1)
     if punctuation:
@@ -260,6 +264,8 @@ def load_dotenv() -> None:
             content = line.strip()
             if not content or content.startswith("#") or "=" not in content:
                 continue
+
+            content = content.split("#", maxsplit=1)[0]
             words = content.split("=", maxsplit=1)
             k, v = words[0].strip(), words[1].strip()
             if k and v:
