@@ -532,7 +532,7 @@ def search_github_code(page: int, cookie: str, excludes: list = []) -> list:
         return []
 
     try:
-        regex = '<a href="(/.*/.*/blob/.*)#L\d+">\d+</a>'
+        regex = '<a href="(/\S+/blob/.*?)#L\d+"'
         groups = re.findall(regex, content, flags=re.I)
         uris, links = list(set(groups)) if groups else [], set()
         excludes = list(set(excludes))
@@ -599,7 +599,7 @@ def crawl_github(
         links.extend(search_github_issues(page=1, cookie=cookie))
     else:
         peer_page, count = 50, 10
-        pages = paging(start=0, end=limits * count + 1, peer_page=peer_page)
+        pages = paging(start=1, end=limits * count, peer_page=peer_page)
         params = [[token, peer_page, x, spams] for x in pages] * 2
         links.extend(
             batchextract_github_pages(func=search_github_code_byapi, params=params)
@@ -615,13 +615,11 @@ def crawl_github(
         subscribes = crawl_pages(pages=page_tasks, silent=True)
     else:
         subscribes = {}
-        logger.error(
-            "[GithubCrawl] cannot found any links for [/api/v1/client/subscribe?token=]"
-        )
 
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[GithubCrawl] finished crawl from Github, time: {endtime}")
-    logger.debug(f"[GithubCrawl] subscriptions: {list(subscribes.keys())}")
+    logger.info(
+        f"[GithubCrawl] finished crawl from Github, found {len(subscribes)} links need check, time: {endtime}"
+    )
 
     return subscribes
 

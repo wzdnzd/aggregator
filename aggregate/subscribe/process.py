@@ -144,7 +144,9 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
             headers = {"User-Agent": utils.USER_AGENT, "Referer": url}
             content = utils.http_get(url=url, headers=headers)
             if not content:
-                logger.error(f"cannot fetch config from remote, url: {url}")
+                logger.error(
+                    f"cannot fetch config from remote, url: {utils.mask_url(url=url)}"
+                )
             else:
                 parse_config(json.loads(content))
         else:
