@@ -58,7 +58,7 @@ def http_get(
         return ""
 
     if retry <= 0:
-        logger.debug(f"achieves max retry, url={url}")
+        logger.debug(f"achieves max retry, url={mask_url(url=url)}")
         return ""
 
     if not headers:
@@ -101,7 +101,7 @@ def http_get(
 
         return content
     except urllib.error.HTTPError as e:
-        logger.debug(f"request failed, url=[{url}], code: {e.code}")
+        logger.debug(f"request failed, url=[{mask_url(url=url)}], code: {e.code}")
         try:
             message = str(e.read(), encoding="utf8")
         except UnicodeDecodeError:
@@ -118,7 +118,7 @@ def http_get(
             )
         return ""
     except urllib.error.URLError as e:
-        logger.debug(f"request failed, url=[{url}], message: {e.reason}")
+        logger.debug(f"request failed, url=[{mask_url(url=url)}], message: {e.reason}")
         return ""
     except Exception as e:
         logger.error(e)
@@ -270,3 +270,11 @@ def load_dotenv() -> None:
             k, v = words[0].strip(), words[1].strip()
             if k and v:
                 os.environ[k] = v
+
+
+def mask_url(url: str) -> str:
+    # len('http://') equals 7
+    if isblank(url) or len(url) < 7:
+        return url
+
+    return url[:-7] + "*" * 7
