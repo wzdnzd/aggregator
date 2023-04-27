@@ -515,7 +515,7 @@ def search_github_code_byapi(
             if utils.isblank(link):
                 continue
 
-            reponame = item.get("repository", {}).get("full_name", "")
+            reponame = item.get("repository", {}).get("full_name", "") + "/"
             if not intercept(text=reponame, excludes=excludes):
                 links.add(link)
 
