@@ -304,6 +304,22 @@ def check(
                 break
 
         if alive:
+            # filter and check US(for speed) proxies as candidates for ChatGPT/OpenAI/New Bing/Google Bard
+            proxy_name = proxy.get("name", "")
+            if utils.PATTERN_AI.search(proxy_name):
+                try:
+                    request = urllib.request.Request(
+                        url=f"{base_url}https://chat.openai.com/favicon.ico",
+                        headers=utils.DEFAULT_HTTP_HEADERS,
+                    )
+                    response = urllib.request.urlopen(request, timeout=10, context=CTX)
+                    if response.getcode() == 200 and not proxy_name.endswith(
+                        utils.CHATGPT_FLAG
+                    ):
+                        proxy["name"] = f"{proxy_name}{utils.CHATGPT_FLAG}"
+                except Exception:
+                    pass
+
             sub = proxy.pop("sub", "")
             availables.append(proxy)
             if validates != None and sub:
