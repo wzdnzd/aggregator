@@ -31,6 +31,26 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTM
 FILEPATH_PROTOCAL = "file:///"
 
 
+# ChatGPT 标识
+CHATGPT_FLAG = "-GPT"
+
+
+# 筛选出美国候选节点供 Bard/ChatGPT/New Bing 使用（主要是Bard当前只支持美国和英国）
+PROXIES_US = "美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States"
+try:
+    PATTERN_AI = re.compile(
+        os.environ.get("CHATGPT_CANDIDATES", PROXIES_US), flags=re.I
+    )
+except:
+    PATTERN_AI = re.compile(PROXIES_US, flags=re.I)
+
+
+DEFAULT_HTTP_HEADERS = {
+    "User-Agent": USER_AGENT,
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+}
+
+
 def random_chars(length: int, punctuation: bool = False) -> str:
     length = max(length, 1)
     if punctuation:
@@ -61,11 +81,7 @@ def http_get(
         logger.debug(f"achieves max retry, url={mask_url(url=url)}")
         return ""
 
-    if not headers:
-        headers = {
-            "User-Agent": USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-        }
+    headers = DEFAULT_HTTP_HEADERS if not headers else headers
 
     interval = max(0, interval)
     try:
@@ -121,7 +137,7 @@ def http_get(
         logger.debug(f"request failed, url=[{mask_url(url=url)}], message: {e.reason}")
         return ""
     except Exception as e:
-        logger.error(e)
+        logger.debug(e)
         time.sleep(interval)
         return http_get(
             url=url,
