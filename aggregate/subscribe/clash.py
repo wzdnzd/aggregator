@@ -306,7 +306,7 @@ def check(
         if alive:
             # filter and check US(for speed) proxies as candidates for ChatGPT/OpenAI/New Bing/Google Bard
             proxy_name = proxy.get("name", "")
-            if utils.PATTERN_AI.search(proxy_name):
+            if utils.PATTERN_AI and utils.PATTERN_AI.search(proxy_name):
                 try:
                     request = urllib.request.Request(
                         url=f"{base_url}https://chat.openai.com/favicon.ico",
