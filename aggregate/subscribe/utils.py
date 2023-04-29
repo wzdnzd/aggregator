@@ -32,17 +32,19 @@ FILEPATH_PROTOCAL = "file:///"
 
 
 # ChatGPT 标识
-CHATGPT_FLAG = "-GPT"
+CHATGPT_FLAG = "-CHATGPT"
 
 
 # 筛选出美国候选节点供 Bard/ChatGPT/New Bing 使用（主要是Bard当前只支持美国和英国）
-PROXIES_US = "美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States"
+# PROXIES_US = "美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States"
 try:
-    PATTERN_AI = re.compile(
-        os.environ.get("CHATGPT_CANDIDATES", PROXIES_US), flags=re.I
+    PATTERN_AI = (
+        re.compile(os.environ.get("CHATGPT_CANDIDATES"), flags=re.I)
+        if os.environ.get("CHATGPT_CANDIDATES", "")
+        else None
     )
 except:
-    PATTERN_AI = re.compile(PROXIES_US, flags=re.I)
+    PATTERN_AI = None
 
 
 DEFAULT_HTTP_HEADERS = {
