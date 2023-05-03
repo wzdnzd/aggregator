@@ -764,7 +764,10 @@ def validate(
         defeat = params.get("defeat", 0) + 1
         discovered = params.get("discovered", False)
 
-        reachable, expired = check_status(url=url, retry=2, remain=5, spare_time=12)
+        # 过期后最多等待3天
+        reachable, expired = check_status(
+            url=url, retry=2, remain=5, spare_time=12, tolerance=72
+        )
         if reachable:
             item = {"name": naming_task(url), "sub": url, "debut": True}
             item.update(params)
@@ -803,18 +806,27 @@ def remark(source: dict, defeat: int = 0, discovered: bool = True) -> None:
 
 
 def check_status(
-    url: str, retry: int = 2, remain: float = 0, spare_time: float = 0
+    url: str,
+    retry: int = 2,
+    remain: float = 0,
+    spare_time: float = 0,
+    tolerance: float = 0,
 ) -> tuple[bool, bool]:
     """
     url: subscription link
     retry: number of retries
     remain: minimum remaining traffic flow
     spare_time: minimum remaining time
+    tolerance: waiting time after expiration
     """
     if not url or retry <= 0:
         return False, False
 
-    remain, spare_time = max(0, remain), max(spare_time, 0)
+    remain, spare_time, tolerance = (
+        max(0, remain),
+        max(spare_time, 0),
+        max(tolerance, 0),
+    )
     try:
         headers = {"User-Agent": "ClashforWindows"}
         request = urllib.request.Request(url=url, headers=headers)
@@ -846,7 +858,15 @@ def check_status(
                 flag = total - (upload + download) > remain * pow(1024, 3) and (
                     expire is None or expire - time.time() > spare_time * 3600
                 )
-                return flag, not flag
+                expired = (
+                    False
+                    if flag
+                    else (
+                        expire is not None
+                        and (expire + tolerance * 3600) <= time.time()
+                    )
+                )
+                return flag, expired
         except:
             pass
 
@@ -874,13 +894,21 @@ def check_status(
         expired = e.code == 404 or "token is error" in message
         if not expired and e.code in [403, 503]:
             return check_status(
-                url=url, retry=retry - 1, remain=remain, spare_time=spare_time
+                url=url,
+                retry=retry - 1,
+                remain=remain,
+                spare_time=spare_time,
+                tolerance=tolerance,
             )
 
         return False, expired
     except Exception as e:
         return check_status(
-            url=url, retry=retry - 1, remain=remain, spare_time=spare_time
+            url=url,
+            retry=retry - 1,
+            remain=remain,
+            spare_time=spare_time,
+            tolerance=tolerance,
         )
 
 
