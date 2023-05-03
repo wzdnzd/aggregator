@@ -1293,7 +1293,7 @@ if "!verifyconf!" == "1" (
     del /f /q "!testoutput!" >nul 2>nul
 
     @REM test config file
-    "!dest!\clash.exe" -d "!dest!" -t "!configfile!" > "!testoutput!"
+    "!dest!\clash.exe" -d "!dest!" -t -f "!configfile!" > "!testoutput!"
 
     @REM failed
     if !errorlevel! NEQ 0 (
