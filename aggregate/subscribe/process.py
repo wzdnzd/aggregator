@@ -88,6 +88,25 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
             github_conf["spams"] = spams
             params["github"] = github_conf
 
+        # spider's config for twitter
+        twitter_conf = spiders.get("twitter", {})
+        users = twitter_conf.pop("users", {})
+        if twitter_conf.pop("enable", True) and users:
+            enabled_users = {}
+            for k, v in users.items():
+                if (
+                    utils.isblank(k)
+                    or not v
+                    or type(v) != dict
+                    or not v.pop("enable", True)
+                ):
+                    continue
+
+                v["push_to"] = list(set(v.get("push_to", [])))
+                enabled_users[k] = v
+
+            params["twitter"] = enabled_users
+
         # spider's config for github's repositories
         repo_conf, repositories = spiders.get("repositories", []), {}
         for repo in repo_conf:
