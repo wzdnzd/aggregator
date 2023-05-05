@@ -106,6 +106,10 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         if repositories:
             tasks.update(crawl_github_repo(repos=repositories))
 
+        twitter_spider = conf.get("twitter", {})
+        if twitter_spider:
+            tasks.update(crawl_twitter(tasks=twitter_spider))
+
         pages = conf.get("pages", {})
         if pages:
             tasks.update(crawl_pages(pages=pages))
@@ -625,13 +629,17 @@ def crawl_github(
 
 
 def crawl_single_page(
-    url: str, push_to: list = [], exclude: str = "", config: dict = {}
+    url: str,
+    push_to: list = [],
+    exclude: str = "",
+    config: dict = {},
+    headers: dict = None,
 ) -> dict:
     if not url or not push_to:
         logger.error(f"[PageCrawl] cannot crawl from page: {url}")
         return {}
 
-    content = utils.http_get(url=url)
+    content = utils.http_get(url=url, headers=headers)
     if content == "":
         return {}
 
@@ -644,7 +652,7 @@ def crawl_single_page(
     )
 
 
-def crawl_pages(pages: dict, silent: bool = False) -> dict:
+def crawl_pages(pages: dict, silent: bool = False, headers: dict = None) -> dict:
     if not pages:
         return {}
 
@@ -661,13 +669,157 @@ def crawl_pages(pages: dict, silent: bool = False) -> dict:
         exclude = v.get("exclude", "").strip()
         config = v.get("config", {})
 
-        params.append([k, push_to, exclude, config])
+        params.append([k, push_to, exclude, config, headers])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if not silent:
         logger.info(f"[PageCrawl] finished crawl from Page, time: {endtime}")
         logger.debug(f"[PageCrawl] subscriptions: {list(subscribes.keys())}")
+
+    return subscribes
+
+
+def get_guest_token() -> str:
+    content = utils.http_get(url="https://twitter.com")
+    if not content:
+        return ""
+
+    matcher = re.findall("gt=([0-9]{19})", content, flags=re.I)
+    return matcher[0] if matcher else ""
+
+
+def username_to_id(username: str, headers: dict) -> str:
+    if utils.isblank(username):
+        return ""
+
+    if not headers or "X-Guest-Token" not in headers:
+        guest_token = get_guest_token()
+        if not guest_token:
+            return ""
+
+        headers = {
+            "User-Agent": utils.USER_AGENT,
+            "Authorization": "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
+            "X-Guest-Token": guest_token,
+            "Content-Type": "application/json",
+        }
+
+    variables = {
+        "screen_name": username.lower().strip(),
+        "withSafetyModeUserFields": True,
+    }
+    features = {
+        "blue_business_profile_image_shape_enabled": True,
+        "responsive_web_graphql_exclude_directive_enabled": True,
+        "verified_phone_label_enabled": False,
+        "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
+        "responsive_web_graphql_timeline_navigation_enabled": True,
+    }
+
+    payload = urllib.parse.urlencode(
+        {"variables": json.dumps(variables), "features": json.dumps(features)}
+    )
+    url = f"https://twitter.com/i/api/graphql/sLVLhk0bGj3MVFEKTdax1w/UserByScreenName?{payload}"
+    try:
+        content = utils.http_get(url=url, headers=headers)
+        if not content:
+            return ""
+
+        data = json.loads(content).get("data", {}).get("user", {}).get("result", "")
+        return data.get("rest_id", "")
+    except:
+        logger.error(f"[TwitterCrawl] cannot query uid by username=[{username}]")
+        return ""
+
+
+def crawl_twitter(tasks: dict) -> dict:
+    if not tasks:
+        return {}
+
+    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(f"[TwitterCrawl] start crawl from Twitter, time: {starttime}")
+
+    # extract X-Guest-Token
+    guest_token = get_guest_token()
+    if not guest_token:
+        logger.error(f"[TwitterCrawl] cannot extract X-Guest-Token from twitter")
+        return {}
+
+    headers = {
+        "User-Agent": utils.USER_AGENT,
+        "Authorization": "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
+        "X-Guest-Token": guest_token,
+        "Content-Type": "application/json",
+    }
+
+    features = {
+        "blue_business_profile_image_shape_enabled": True,
+        "responsive_web_graphql_exclude_directive_enabled": True,
+        "verified_phone_label_enabled": False,
+        "responsive_web_graphql_timeline_navigation_enabled": True,
+        "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
+        "tweetypie_unmention_optimization_enabled": True,
+        "vibe_api_enabled": True,
+        "responsive_web_edit_tweet_api_enabled": True,
+        "graphql_is_translatable_rweb_tweet_is_translatable_enabled": True,
+        "view_counts_everywhere_api_enabled": True,
+        "longform_notetweets_consumption_enabled": True,
+        "tweet_awards_web_tipping_enabled": False,
+        "freedom_of_speech_not_reach_fetch_enabled": True,
+        "standardized_nudges_misinfo": True,
+        "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled": False,
+        "interactive_text_enabled": True,
+        "responsive_web_text_conversations_enabled": False,
+        "longform_notetweets_rich_text_read_enabled": True,
+        "responsive_web_enhance_cards_enabled": False,
+    }
+
+    candidates, pages = {}, {}
+    for k, v in tasks.items():
+        if utils.isblank(k) or not v or type(v) != dict:
+            continue
+        candidates[k] = v
+
+    if not candidates:
+        return {}
+
+    # username to uid
+    params = [[k, headers] for k in candidates.keys()]
+    cpu_count = multiprocessing.cpu_count()
+    count = len(params) if len(params) <= cpu_count else cpu_count
+    pool = multiprocessing.Pool(count)
+    uids = pool.starmap(username_to_id, params)
+    pool.close()
+
+    for i in range(len(uids)):
+        uid = uids[i]
+        if not uid:
+            continue
+
+        config = candidates.get(params[i][0])
+        count = config.pop("num", 10)
+        variables = {
+            "userId": uid,
+            "count": min(max(count, 1), 100),
+            "includePromotedContent": False,
+            "withClientEventToken": False,
+            "withBirdwatchNotes": False,
+            "withVoice": True,
+            "withV2Timeline": True,
+        }
+
+        payload = urllib.parse.urlencode(
+            {"variables": json.dumps(variables), "features": json.dumps(features)}
+        )
+        url = f"https://twitter.com/i/api/graphql/P7qs2Sf7vu1LDKbzDW9FSA/UserMedia?{payload}"
+        pages[url] = config
+
+    subscribes = crawl_pages(pages=pages, silent=True, headers=headers)
+    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    logger.info(
+        f"[TwitterCrawl] finished crawl from Twitter, found {len(subscribes)} subscriptions, time: {endtime}"
+    )
 
     return subscribes
 

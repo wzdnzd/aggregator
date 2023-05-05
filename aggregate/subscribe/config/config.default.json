@@ -80,6 +80,21 @@
             "exclude": "",
             "spams": []
         },
+        "twitter": {
+            "enable": true,
+            "users": {
+                "username": {
+                    "enable": true,
+                    "num": 30,
+                    "exclude": "",
+                    "config": {
+                        "rename": "",
+                        "xxxxxx": ""
+                    },
+                    "push_to": []
+                }
+            }
+        },
         "repositories": [
             {
                 "enable": false,
