@@ -838,7 +838,10 @@ def extract_subscribes(
         return {}
     try:
         limits, collections = max(1, limits), {}
-        regex = "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+        sub_regex = "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+        extra_regex = "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/sub\?(?:\S+)?target=\S+"
+
+        regex = f"{sub_regex}|{extra_regex}"
 
         if include:
             try:
@@ -862,27 +865,48 @@ def extract_subscribes(
         if reversed:
             subscribes.reverse()
 
-        for s in subscribes:
-            try:
-                if include and not re.match(
-                    "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+.*",
-                    s,
-                ):
+        for sub in subscribes:
+            items = [sub]
+            # subconverter url
+            if "url=" in sub:
+                qs, items = urllib.parse.urlparse(sub.replace("&amp;", "&")).query, []
+                urls = urllib.parse.parse_qs(qs).get("url", [])
+                if not urls:
                     continue
 
-                if exclude and re.search(exclude, s):
-                    continue
-            except:
-                logger.error(
-                    f"[ExtractError] maybe pattern 'include' or 'exclude' exists some problems, include: {include}\texclude: {exclude}"
-                )
+                for url in urls:
+                    if utils.isblank(url):
+                        continue
 
-            # 强制使用https协议
-            # s = s.replace("http://", "https://", 1).strip()
-            params = {"push_to": push_to, "origin": source}
-            if config:
-                params.update(config)
-            collections[s] = params
+                    items.extend(
+                        [
+                            x
+                            for x in url.split("|")
+                            if not re.match(extra_regex, x, flags=re.I)
+                        ]
+                    )
+
+            for s in items:
+                try:
+                    if include and not re.match(
+                        "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+.*",
+                        s,
+                    ):
+                        continue
+
+                    if exclude and re.search(exclude, s):
+                        continue
+                except:
+                    logger.error(
+                        f"[ExtractError] maybe pattern 'include' or 'exclude' exists some problems, include: {include}\texclude: {exclude}"
+                    )
+
+                # 强制使用https协议
+                # s = s.replace("http://", "https://", 1).strip()
+                params = {"push_to": push_to, "origin": source}
+                if config:
+                    params.update(config)
+                collections[s] = params
 
             if len(collections) >= limits:
                 break
