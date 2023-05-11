@@ -72,69 +72,81 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
     if not conf or not conf.get("enable", True):
         return []
 
+    mode, runnable = crawlable()
+    datasets, peristedtasks = [], {}
     try:
         pushconf = conf.get("persist", {})
         pushtool = push.get_instance()
         should_persist = pushtool.validate(push_conf=pushconf)
-
         tasks, threshold = {}, conf.get("threshold", 1)
-        google_spider = conf.get("google", {})
-        if google_spider:
-            push_to = google_spider.get("push_to", [])
-            exclude = google_spider.get("exclude", "")
-            tasks.update(crawl_google(qdr=7, push_to=push_to, exclude=exclude))
 
-        github_spider = conf.get("github", {})
-        if github_spider and github_spider.get("push_to", []):
-            push_to = github_spider.get("push_to")
-            pages = github_spider.get("pages", 1)
-            exclude = github_spider.get("exclude", "")
-            spams = github_spider.get("spams", [])
-            tasks.update(
-                crawl_github(
-                    limits=pages, push_to=push_to, exclude=exclude, spams=spams
+        if runnable:
+            # Google
+            google_spider = conf.get("google", {})
+            if google_spider:
+                push_to = google_spider.get("push_to", [])
+                exclude = google_spider.get("exclude", "")
+                tasks.update(crawl_google(qdr=7, push_to=push_to, exclude=exclude))
+
+            # Telegram
+            telegram_spider = conf.get("telegram", {})
+            if telegram_spider and telegram_spider.get("users", {}):
+                users = telegram_spider.get("users")
+                pages = max(telegram_spider.get("pages", 1), 1)
+                tasks.update(crawl_telegram(users=users, pages=pages))
+
+            # Twitter
+            twitter_spider = conf.get("twitter", {})
+            if twitter_spider:
+                tasks.update(crawl_twitter(tasks=twitter_spider))
+
+        # skip crawl if mode == 2
+        if mode != 2:
+            # Github
+            github_spider = conf.get("github", {})
+            if github_spider and github_spider.get("push_to", []):
+                push_to = github_spider.get("push_to")
+                pages = github_spider.get("pages", 1)
+                exclude = github_spider.get("exclude", "")
+                spams = github_spider.get("spams", [])
+                tasks.update(
+                    crawl_github(
+                        limits=pages, push_to=push_to, exclude=exclude, spams=spams
+                    )
                 )
-            )
 
-        telegram_spider = conf.get("telegram", {})
-        if telegram_spider and telegram_spider.get("users", {}):
-            users = telegram_spider.get("users")
-            pages = max(telegram_spider.get("pages", 1), 1)
-            tasks.update(crawl_telegram(users=users, pages=pages))
+            # Github Repository
+            repositories = conf.get("repositories", {})
+            if repositories:
+                tasks.update(crawl_github_repo(repos=repositories))
 
-        repositories = conf.get("repositories", {})
-        if repositories:
-            tasks.update(crawl_github_repo(repos=repositories))
+            # Page
+            pages = conf.get("pages", {})
+            if pages:
+                tasks.update(crawl_pages(pages=pages))
 
-        twitter_spider = conf.get("twitter", {})
-        if twitter_spider:
-            tasks.update(crawl_twitter(tasks=twitter_spider))
-
-        pages = conf.get("pages", {})
-        if pages:
-            tasks.update(crawl_pages(pages=pages))
-
-        scripts = conf.get("scripts", {})
-        datasets, peristedtasks = [], {}
-        if scripts:
-            datasets = batch_call(scripts)
-            if datasets:
-                for item in datasets:
-                    if not item or type(item) != dict or item.pop("saved", False):
-                        continue
-
-                    task = deepcopy(item)
-                    subs = task.pop("sub", None)
-                    if type(subs) not in [str, list]:
-                        continue
-                    if type(subs) == str:
-                        subs = [subs]
-                    for sub in subs:
-                        if utils.isblank(sub):
+            # Scripts
+            scripts = conf.get("scripts", {})
+            if scripts:
+                datasets = batch_call(scripts)
+                if datasets:
+                    for item in datasets:
+                        if not item or type(item) != dict or item.pop("saved", False):
                             continue
-                        remark(source=task, defeat=0, discovered=True)
-                        peristedtasks[sub] = task
 
+                        task = deepcopy(item)
+                        subs = task.pop("sub", None)
+                        if type(subs) not in [str, list]:
+                            continue
+                        if type(subs) == str:
+                            subs = [subs]
+                        for sub in subs:
+                            if utils.isblank(sub):
+                                continue
+                            remark(source=task, defeat=0, discovered=True)
+                            peristedtasks[sub] = task
+
+        # Remain
         if should_persist:
             folderid = pushconf.get("folderid", "")
             fileid = pushconf.get("fileid", "")
@@ -215,12 +227,18 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         if should_persist and peristedtasks:
             content = json.dumps(peristedtasks)
             pushtool.push_to(content=content, push_conf=pushconf, group="crwal")
-
-        return datasets
     except:
         logger.error("[CrawlError] crawl from web error")
         traceback.print_exc()
-        return []
+
+    # only crawl if mode == 1
+    if mode == 1:
+        logger.warning(
+            f"skip aggregate and exit process because mode=1 represents only crawling subscriptions"
+        )
+        sys.exit(0)
+
+    return datasets
 
 
 def generate_telegram_task(channel: str, config: dict, pages: int, limits: int):
@@ -674,14 +692,55 @@ def crawl_pages(pages: dict, silent: bool = False, headers: dict = None) -> dict
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if not silent:
-        logger.info(f"[PageCrawl] finished crawl from Page, time: {endtime}")
-        logger.debug(f"[PageCrawl] subscriptions: {list(subscribes.keys())}")
+        logger.info(
+            f"[PageCrawl] finished crawl from Page, found {len(subscribes)} sites, time: {endtime}"
+        )
 
     return subscribes
 
 
+def extract_twitter_cookies(retry: int = 2) -> str:
+    if retry <= 0:
+        return ""
+
+    headers = None
+    try:
+        request = urllib.request.Request(
+            url="https://twitter.com/", headers=utils.DEFAULT_HTTP_HEADERS
+        )
+        response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+        headers = response.headers
+    except urllib.error.HTTPError as e:
+        if e.code != 302:
+            return extract_twitter_cookies(retry - 1)
+
+        headers = e.headers
+    except (urllib.error.URLError, TimeoutError):
+        return ""
+
+    if not headers or "set-cookie" not in headers:
+        return ""
+
+    regex = "(guest_id|guest_id_ads|guest_id_marketing|personalization_id)=(.+?);"
+    content = ";".join(headers.get_all("set-cookie", ""))
+    groups = re.findall(regex, content, flags=re.I)
+    cookies = ";".join(["=".join(x) for x in groups]).strip()
+
+    return cookies
+
+
 def get_guest_token() -> str:
-    content = utils.http_get(url="https://twitter.com")
+    cookies = extract_twitter_cookies(retry=2)
+    if not cookies:
+        logger.error(f"[TwitterCrawl] cannot extract Twitter cookies")
+        return ""
+
+    headers = {
+        "User-Agent": utils.USER_AGENT,
+        "Cookie": cookies,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    }
+    content = utils.http_get(url="https://twitter.com/", headers=headers)
     if not content:
         return ""
 
@@ -875,7 +934,7 @@ def extract_subscribes(
                     continue
 
                 for url in urls:
-                    if utils.isblank(url):
+                    if not utils.isurl(url):
                         continue
 
                     items.extend(
@@ -1301,3 +1360,14 @@ def execute_script(script: str, params: dict = {}) -> list:
             f"[ScriptError] occur error run script: {script}, message: \n{traceback.format_exc()}"
         )
         return []
+
+
+def crawlable() -> tuple[int, bool]:
+    # 0: crawl and aggregate | 1: crawl only | 2: aggregate only
+    mode = os.environ.get("RUN_MODE", "0")
+    mode = 0 if not mode.isdigit() else min(max(int(mode), 0), 2)
+
+    accessible = os.environ.get("ACCESSIBLE", "true") in ["true", "1"]
+    runnable = False if mode == 2 else accessible
+
+    return mode, runnable

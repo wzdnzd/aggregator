@@ -135,7 +135,7 @@ def http_get(
                 interval=interval,
             )
         return ""
-    except urllib.error.URLError as e:
+    except (urllib.error.URLError, TimeoutError) as e:
         logger.debug(f"request failed, url=[{mask_url(url=url)}], message: {e.reason}")
         return ""
     except Exception as e:
