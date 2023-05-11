@@ -174,12 +174,18 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
                 config = json.loads(open(localfile, "r", encoding="utf8").read())
                 parse_config(config)
 
-        # 从telegram抓取订阅信息
+        # execute crawl tasks
         if params:
             result = crawl.batch_crawl(conf=params)
             sites.extend(result)
+    except SystemExit as e:
+        if e.code != 0:
+            logger.error("parse configuration failed due to process abnormally exits")
+
+        sys.exit(e.code)
     except:
         logger.error("occur error when load task config")
+        sys.exit(0)
 
     return sites, push_conf, crawl_conf, update_conf, delay
 
