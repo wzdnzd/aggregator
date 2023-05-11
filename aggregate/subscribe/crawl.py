@@ -31,6 +31,7 @@ import yaml
 from logger import logger
 from origin import Origin
 from urlvalidator import isurl
+from yaml.constructor import ConstructorError
 
 SEPARATOR = "-"
 
@@ -308,8 +309,9 @@ def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
     tasks = list(itertools.chain.from_iterable(results))
     subscribes = multi_thread_crawl(func=crawl_telegram_page, params=tasks)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[TelegramCrawl] finished crawl from Telegram, time: {endtime}")
-    logger.debug(f"[TelegramCrawl] subscriptions: {list(subscribes.keys())}")
+    logger.info(
+        f"[TelegramCrawl] finished crawl from Telegram, found {len(subscribes)} subscriptions, time: {endtime}"
+    )
     return subscribes
 
 
@@ -378,8 +380,9 @@ def crawl_github_repo(repos: dict):
 
     subscribes = multi_thread_crawl(func=crawl_single_repo, params=params)
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[RepoCrawl] finished crawl from Repositorie, time: {endtime}")
-    logger.debug(f"[RepoCrawl] subscriptions: {list(subscribes.keys())}")
+    logger.info(
+        f"[RepoCrawl] finished crawl from Repositorie, found {len(subscribes)} links, time: {endtime}"
+    )
     return subscribes
 
 
@@ -404,6 +407,7 @@ def crawl_google(
     for start in range(0, limits, num):
         params["start"] = start
         content = utils.http_get(url=url, params=params)
+        content = re.sub(r"\?token(\\\\n)?\\\\u003d", "?token=", content, flags=re.I)
         regex = 'https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?(?:<em(?:\s+)?class="qkunPe">/?)?api/v1/client/subscribe\?token(?:</em>)?=[a-zA-Z0-9]{16,32}'
         subscribes = re.findall(regex, content)
         for s in subscribes:
@@ -420,8 +424,9 @@ def crawl_google(
         time.sleep(interval)
 
     endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[GoogleCrawl] finished crawl from Google, time: {endtime}")
-    logger.debug(f"[GoogleCrawl] subscriptions: {list(collections.keys())}")
+    logger.info(
+        f"[GoogleCrawl] finished crawl from Google, found {len(collections)} sites, time: {endtime}"
+    )
     return collections
 
 
@@ -1114,7 +1119,7 @@ def check_status(
         # return re.search("proxies:", content) is not None, False
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
-        except yaml.constructor.ConstructorError:
+        except ConstructorError:
             yaml.add_multi_constructor(
                 "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
             )
