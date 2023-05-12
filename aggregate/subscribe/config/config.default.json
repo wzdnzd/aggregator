@@ -33,7 +33,11 @@
                 "plan_id": 3,
                 "package": "",
                 "method": 1,
-                "coupon_code": ""
+                "coupon_code": "",
+                "chatgpt": {
+                    "regex": "",
+                    "operate": "IN"
+                }
             }
         }
     ],
