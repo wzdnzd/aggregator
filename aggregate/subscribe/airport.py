@@ -399,6 +399,7 @@ class AirPort:
         allow_insecure: bool = False,
         udp: bool = True,
         ignore_exclude: bool = False,
+        chatgpt: dict = None,
     ) -> list:
         if "" == self.sub:
             logger.error(
@@ -474,6 +475,12 @@ class AirPort:
                 f"[ParseError] cannot found any proxies, token: {token}, domain: {self.ref}"
             )
             return []
+
+        chatgpt = chatgpt if chatgpt and type(chatgpt) == dict else None
+        operate, pattern = "IN", ""
+        if chatgpt:
+            operate = utils.trim(chatgpt.get("operate", "IN")).upper()
+            pattern = utils.trim(chatgpt.get("regex", ""))
 
         try:
             if utils.isb64encode(text):
@@ -572,17 +579,32 @@ class AirPort:
                         else:
                             name = re.sub(self.rename, "", name, flags=re.I)
 
+                    # 标记需要进行ChatGPT连通性测试的节点
+                    flag = utils.CHATGPT_FLAG in name
+                    if not flag and pattern:
+                        match = re.search(pattern, name, flags=re.I)
+                        flag = match is None if operate != "IN" else match is not None
+
+                    if flag:
+                        name = re.sub(
+                            r"((\s+)?([\-\|_]+)?(\s+)?)?((Chat)?GPT)",
+                            " ",
+                            name,
+                            flags=re.I,
+                        )
+                        item["chatgpt"] = True
+
                     # 重命名带网址的节点
                     regex = "(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
-                    name = re.sub(regex, "", name)
+                    name = re.sub(regex, "", name, flags=re.I)
                 except:
                     logger.error(
-                        f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
+                        f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tchatgpt: {self.chatgpt}\tdomain: {self.ref}"
                     )
 
                 # name = re.sub(r"\[[^\[]*\]|\([^\(]*\)|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|（[^（]*）|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]", " ", name)
                 name = re.sub(
-                    r"((\s+)?([\-\|_]+)?(\s+)?)?((Chat)?GPT)|\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
+                    r"\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
                     " ",
                     name,
                     flags=re.I,

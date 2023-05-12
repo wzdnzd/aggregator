@@ -32,19 +32,7 @@ FILEPATH_PROTOCAL = "file:///"
 
 
 # ChatGPT 标识
-CHATGPT_FLAG = "-CHATGPT"
-
-
-# 筛选出美国候选节点供 Bard/ChatGPT/New Bing 使用（主要是Bard当前只支持美国和英国）
-# PROXIES_US = "美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|US|United States"
-try:
-    PATTERN_AI = (
-        re.compile(os.environ.get("CHATGPT_CANDIDATES"), flags=re.I)
-        if os.environ.get("CHATGPT_CANDIDATES", "")
-        else None
-    )
-except:
-    PATTERN_AI = None
+CHATGPT_FLAG = "-GPT"
 
 
 DEFAULT_HTTP_HEADERS = {
@@ -136,7 +124,8 @@ def http_get(
             )
         return ""
     except (urllib.error.URLError, TimeoutError) as e:
-        logger.debug(f"request failed, url=[{mask_url(url=url)}], message: {e.reason}")
+        message = "timeout" if isinstance(e, TimeoutError) else e.reason
+        logger.debug(f"request failed, url=[{mask_url(url=url)}], message: {message}")
         return ""
     except Exception as e:
         logger.debug(e)
@@ -268,6 +257,13 @@ def isb64encode(content: str, padding: bool = True) -> bool:
 
 def isblank(text: str) -> bool:
     return not text or type(text) != str or not text.strip()
+
+
+def trim(text: str) -> str:
+    if not text or type(text) != str:
+        return ""
+
+    return text.strip()
 
 
 def load_dotenv() -> None:

@@ -57,6 +57,9 @@ class TaskConfig:
     exclude: str = ""
     include: str = ""
 
+    # ChatGPT连通性测试节点过滤规则
+    chatgpt: dict = None
+
     # 是否检测节点存活状态
     liveness: bool = True
 
@@ -103,6 +106,7 @@ def execute(task_conf: TaskConfig) -> list:
         tag=task_conf.tag,
         allow_insecure=task_conf.allow_insecure,
         ignore_exclude=task_conf.ignorede,
+        chatgpt=task_conf.chatgpt,
     )
 
     logger.info(
@@ -135,6 +139,7 @@ def liveness_fillter(proxies: list) -> tuple[list, list]:
             checks.append(p)
         else:
             p.pop("sub", "")
+            p.pop("chatgpt", False)
             nochecks.append(p)
 
     return checks, nochecks

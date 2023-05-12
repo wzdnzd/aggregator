@@ -1369,10 +1369,10 @@ def execute_script(script: str, params: dict = {}) -> list:
 
 def crawlable() -> tuple[int, bool]:
     # 0: crawl and aggregate | 1: crawl only | 2: aggregate only
-    mode = os.environ.get("RUN_MODE", "0")
+    mode = os.environ.get("WORKFLOW_MODE", "0")
     mode = 0 if not mode.isdigit() else min(max(int(mode), 0), 2)
 
-    accessible = os.environ.get("ACCESSIBLE", "true") in ["true", "1"]
-    runnable = False if mode == 2 else accessible
+    reachable = os.environ.get("REACHABLE", "true") in ["true", "1"]
+    runnable = False if mode == 2 else reachable
 
     return mode, runnable

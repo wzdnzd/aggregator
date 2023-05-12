@@ -225,6 +225,7 @@ def assign(
         rename = site.get("rename", "")
         exclude = site.get("exclude", "").strip()
         include = site.get("include", "").strip()
+        chatgpt = site.get("chatgpt", {})
         liveness = site.get("liveness", True)
         coupon = site.get("coupon", "").strip()
         allow_insecure = site.get("insecure", False)
@@ -276,6 +277,7 @@ def assign(
                 rename=rename,
                 exclude=exclude,
                 include=include,
+                chatgpt=chatgpt,
                 liveness=liveness,
                 coupon=coupon,
                 allow_insecure=allow_insecure,
