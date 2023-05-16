@@ -75,6 +75,7 @@
         "google": {
             "enable": false,
             "exclude": "",
+            "notinurl": [],
             "push_to": []
         },
         "github": {
