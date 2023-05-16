@@ -36,6 +36,20 @@ from yaml.constructor import ConstructorError
 SEPARATOR = "-"
 
 
+def crawlable() -> tuple[int, bool]:
+    # 0: crawl and aggregate | 1: crawl only | 2: aggregate only
+    mode = os.environ.get("WORKFLOW_MODE", "0")
+    mode = 0 if not mode.isdigit() else min(max(int(mode), 0), 2)
+
+    reachable = os.environ.get("REACHABLE", "true") in ["true", "1"]
+    runnable = False if mode == 2 else reachable
+
+    return mode, runnable
+
+
+MODE, CONNECTABLE = crawlable()
+
+
 def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     try:
         from collections.abc import Iterable
@@ -73,7 +87,6 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
     if not conf or not conf.get("enable", True):
         return []
 
-    mode, runnable = crawlable()
     datasets, peristedtasks = [], {}
     try:
         pushconf = conf.get("persist", {})
@@ -81,13 +94,18 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         should_persist = pushtool.validate(push_conf=pushconf)
         tasks, threshold = {}, conf.get("threshold", 1)
 
-        if runnable:
+        if CONNECTABLE:
             # Google
             google_spider = conf.get("google", {})
             if google_spider:
                 push_to = google_spider.get("push_to", [])
                 exclude = google_spider.get("exclude", "")
-                tasks.update(crawl_google(qdr=7, push_to=push_to, exclude=exclude))
+                notinurl = google_spider.get("notinurl", [])
+                tasks.update(
+                    crawl_google(
+                        qdr=7, push_to=push_to, exclude=exclude, notinurl=notinurl
+                    )
+                )
 
             # Telegram
             telegram_spider = conf.get("telegram", {})
@@ -102,7 +120,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 tasks.update(crawl_twitter(tasks=twitter_spider))
 
         # skip crawl if mode == 2
-        if mode != 2:
+        if MODE != 2:
             # Github
             github_spider = conf.get("github", {})
             if github_spider and github_spider.get("push_to", []):
@@ -233,7 +251,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         traceback.print_exc()
 
     # only crawl if mode == 1
-    if mode == 1:
+    if MODE == 1:
         logger.warning(
             f"skip aggregate and exit process because mode=1 represents only crawling subscriptions"
         )
@@ -392,11 +410,24 @@ def crawl_google(
     exclude: str = "",
     limits: int = 100,
     interval: int = 0,
+    notinurl: list = [],
 ) -> dict:
-    url = f"https://www.google.com/search?tbs=qdr:d{max(qdr, 1)}"
+    items, query = set(), urllib.parse.quote('"/api/v1/client/subscribe?token="')
+    if notinurl and type(notinurl) == list:
+        for text in notinurl:
+            text = utils.trim(text).lower()
+            if text and "+" not in text:
+                items.add(urllib.parse.quote(f"-site:{text}"))
+
+    reject = "+".join(list(items))
+    if reject:
+        # not search from some site, see: https://zhuanlan.zhihu.com/p/136076792
+        query = f"{query}+{reject}"
+
     num, limits = 100, max(1, limits)
+    url = f"https://www.google.com/search?q={query}&tbs=qdr:d{max(qdr, 1)}"
+
     params = {
-        "q": '"/api/v1/client/subscribe?token="',
         "hl": "zh-CN",
         "num": num,
     }
@@ -406,8 +437,8 @@ def crawl_google(
     collections = {}
     for start in range(0, limits, num):
         params["start"] = start
-        content = utils.http_get(url=url, params=params)
-        content = re.sub(r"\?token(\\\\n)?\\\\u003d", "?token=", content, flags=re.I)
+        content = re.sub(r"\\\\n", "", utils.http_get(url=url, params=params))
+        content = re.sub(r"\?token\\\\u003d", "?token=", content, flags=re.I)
         regex = 'https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?(?:<em(?:\s+)?class="qkunPe">/?)?api/v1/client/subscribe\?token(?:</em>)?=[a-zA-Z0-9]{16,32}'
         subscribes = re.findall(regex, content)
         for s in subscribes:
@@ -1022,7 +1053,7 @@ def validate(
         if reachable or (discovered and defeat <= threshold and not expired):
             remark(source=params, defeat=defeat, discovered=True)
             potentials[url] = params
-        elif not expired:
+        elif not CONNECTABLE and not expired:
             unknows.append(url)
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
@@ -1060,7 +1091,7 @@ def check_status(
     tolerance: waiting time after expiration
     """
     if not url or retry <= 0:
-        return False, False
+        return False, CONNECTABLE
 
     remain, spare_time, tolerance = (
         max(0, remain),
@@ -1072,7 +1103,7 @@ def check_status(
         request = urllib.request.Request(url=url, headers=headers)
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() != 200:
-            return False, False
+            return False, CONNECTABLE
 
         # 根据订阅信息判断是否有效
         try:
@@ -1114,6 +1145,7 @@ def check_status(
         if utils.isblank(content):
             return False, True
         elif utils.isb64encode(content):
+            # TODO: parse and detect whether the subscription has expired
             return True, False
 
         # return re.search("proxies:", content) is not None, False
@@ -1365,14 +1397,3 @@ def execute_script(script: str, params: dict = {}) -> list:
             f"[ScriptError] occur error run script: {script}, message: \n{traceback.format_exc()}"
         )
         return []
-
-
-def crawlable() -> tuple[int, bool]:
-    # 0: crawl and aggregate | 1: crawl only | 2: aggregate only
-    mode = os.environ.get("WORKFLOW_MODE", "0")
-    mode = 0 if not mode.isdigit() else min(max(int(mode), 0), 2)
-
-    reachable = os.environ.get("REACHABLE", "true") in ["true", "1"]
-    runnable = False if mode == 2 else reachable
-
-    return mode, runnable
