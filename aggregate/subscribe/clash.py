@@ -113,6 +113,18 @@ def filter_proxies(proxies: list) -> dict:
             if item["type"] == "ss":
                 if item["cipher"] not in ss_supported_ciphers:
                     continue
+                # https://github.com/Dreamacro/clash/blob/master/adapter/outbound/shadowsocks.go#L109
+                plugin = item.get("plugin", "")
+                if plugin not in ["", "obfs", "v2ray-plugin"]:
+                    continue
+                if plugin:
+                    option = item.get("plugin-opts", {}).get("mode", "")
+                    if (
+                        not option
+                        or (plugin == "v2ray-plugin" and option != "websocket")
+                        or (plugin == "obfs" and option not in ["tls", "http"])
+                    ):
+                        continue
             elif item["type"] == "ssr":
                 if item["cipher"] not in ss_supported_ciphers:
                     continue
