@@ -748,11 +748,11 @@ def extract_twitter_cookies(retry: int = 2) -> str:
         headers = response.headers
     except urllib.error.HTTPError as e:
         if e.code != 302:
-            return extract_twitter_cookies(retry - 1)
+            return extract_twitter_cookies(retry=retry - 1)
 
         headers = e.headers
     except (urllib.error.URLError, TimeoutError):
-        return ""
+        return extract_twitter_cookies(retry=retry - 1)
 
     if not headers or "set-cookie" not in headers:
         return ""
@@ -766,7 +766,7 @@ def extract_twitter_cookies(retry: int = 2) -> str:
 
 
 def get_guest_token() -> str:
-    cookies = extract_twitter_cookies(retry=2)
+    cookies = extract_twitter_cookies(retry=3)
     if not cookies:
         logger.error(f"[TwitterCrawl] cannot extract Twitter cookies")
         return ""
