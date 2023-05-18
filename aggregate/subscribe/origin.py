@@ -17,6 +17,7 @@ class ExpireInfo(object):
 class Origin(enum.Enum):
     OWNED = ExpireInfo(name="OWNED", expire=sys.maxsize)
     TELEGRAM = ExpireInfo(name="TELEGRAM", expire=3)
+    TWITTER = ExpireInfo(name="TWITTER", expire=3)
     TEMPORARY = ExpireInfo(name="TEMPORARY", expire=6)
     GOOGLE = ExpireInfo(name="GOOGLE", expire=10)
     GITHUB = ExpireInfo(name="GITHUB", expire=20)

@@ -3,7 +3,7 @@
 # @Author  : wzdnzd
 # @Time    : 2022-07-15
 
-import datetime
+import base64
 import importlib
 import itertools
 import json
@@ -20,7 +20,6 @@ import urllib
 import urllib.parse
 import urllib.request
 from copy import deepcopy
-from datetime import datetime
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
 
@@ -50,6 +49,12 @@ def crawlable() -> tuple[int, bool]:
 MODE, CONNECTABLE = crawlable()
 
 
+# whether to allow crawling a single proxy link
+SINGLE_PROXIES_ENV_NAME = "ALLOW_SINGLE_LINK"
+ALLOW_SINGLE_LINK = os.environ.get(SINGLE_PROXIES_ENV_NAME, "").lower() == "true"
+SINGLE_LINK_FLAG = "singlelink://"
+
+
 def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     try:
         from collections.abc import Iterable
@@ -69,14 +74,26 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
         results = pool.map(func, params)
     pool.close()
 
-    tasks = {}
+    funcname = getattr(func, "__name__", repr(func)).replace("_", "-")
+    tasks, uri = {}, f"{SINGLE_LINK_FLAG}{funcname}"
+
     for r in results:
         for k, v in r.items():
+            k = uri if k == SINGLE_LINK_FLAG else k
             item = tasks.get(k, {})
             item["origin"] = v.pop("origin", item.get("origin", ""))
             pts = item.get("push_to", [])
             pts.extend(v.pop("push_to", []))
             item["push_to"] = list(set(pts))
+
+            # merge proxies link
+            if k.startswith(SINGLE_LINK_FLAG):
+                newproxies = v.pop("proxies", [])
+                if newproxies and type(newproxies) == list:
+                    oldproxies = item.get("proxies", [])
+                    oldproxies.extend(newproxies)
+                    item["proxies"] = list(set(oldproxies))
+
             item.update(v)
             tasks[k] = item
 
@@ -89,9 +106,25 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
     datasets, peristedtasks = [], {}
     try:
-        pushconf = conf.get("persist", {})
+        persists = conf.get("persist", {})
+        subspushconf = persists.get("subs", {})
+        linkspushconf = persists.get("proxies", {})
+
         pushtool = push.get_instance()
-        should_persist = pushtool.validate(push_conf=pushconf)
+        should_persist = pushtool.validate(push_conf=subspushconf)
+        # skip tasks if mode == 1 and not set persistence
+        if MODE == 1 and not should_persist:
+            logger.warning(
+                f"[CrawlWarn] skip crawling tasks because the mode is set to crawl only but no valid persistence configuration is set"
+            )
+            sys.exit(0)
+
+        # allow if persistence configuration is valid
+        global ALLOW_SINGLE_LINK
+        enable = conf.get("singlelink", False)
+        ALLOW_SINGLE_LINK = enable and pushtool.validate(linkspushconf)
+        os.environ[SINGLE_PROXIES_ENV_NAME] = str(ALLOW_SINGLE_LINK)
+
         tasks, threshold = {}, conf.get("threshold", 1)
 
         if CONNECTABLE:
@@ -167,9 +200,9 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
         # Remain
         if should_persist:
-            folderid = pushconf.get("folderid", "")
-            fileid = pushconf.get("fileid", "")
-            username = pushconf.get("username", "")
+            folderid = subspushconf.get("folderid", "")
+            fileid = subspushconf.get("fileid", "")
+            username = subspushconf.get("username", "")
             url = pushtool.raw_url(fileid=fileid, folderid=folderid, username=username)
             try:
                 url, content = url or "", ""
@@ -201,18 +234,23 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         exclude = conf.get("exclude", "")
         taskconf = conf.get("config", {})
         with multiprocessing.Manager() as manager:
-            availables, unknowns, potentials = (
+            availables, unknowns, potentials, proxylinks = (
                 manager.list(),
                 manager.list(),
                 manager.dict(),
+                manager.list(),
             )
-            processes = []
+            processes, proxiesconf = [], {}
             semaphore = multiprocessing.Semaphore(max(thread, 1))
             time.sleep(random.randint(1, 3))
             for key, value in tasks.items():
                 for k, v in taskconf.items():
                     if k not in value:
                         value[k] = v
+
+                # generate single link's configuration
+                if key.startswith(SINGLE_LINK_FLAG):
+                    proxiesconf.update(value)
 
                 semaphore.acquire()
                 p = multiprocessing.Process(
@@ -223,6 +261,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                         availables,
                         unknowns,
                         potentials,
+                        proxylinks,
                         semaphore,
                         exclude,
                         threshold,
@@ -236,6 +275,35 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             datasets.extend(list(availables))
             peristedtasks.update(dict(potentials))
 
+            if ALLOW_SINGLE_LINK:
+                proxies = list(set(proxylinks))
+                logger.info(
+                    f"[CrawlInfo] crawl finished, found {len(proxies)} proxy links"
+                )
+                if len(proxies) > 0:
+                    try:
+                        content = base64.b64encode("\n".join(proxies).encode()).decode()
+                        success = pushtool.push_to(
+                            content=content, push_conf=linkspushconf, group="proxies"
+                        )
+                        if success:
+                            singlelink = pushtool.raw_url(
+                                linkspushconf.get("fileid"),
+                                linkspushconf.get("folderid", ""),
+                                linkspushconf.get("username", ""),
+                            )
+                            item = {
+                                "name": "singlelink",
+                                "sub": singlelink,
+                                "debut": True,
+                            }
+                            item.update(proxiesconf)
+                            datasets.append(item)
+                    except:
+                        logger.error(
+                            "[CrawlError] base64 encode error for proxies links"
+                        )
+
             if len(unknowns) > 0:
                 logger.warn(
                     f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {list(unknowns)}"
@@ -245,7 +313,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
         if should_persist and peristedtasks:
             content = json.dumps(peristedtasks)
-            pushtool.push_to(content=content, push_conf=pushconf, group="crwal")
+            pushtool.push_to(content=content, push_conf=subspushconf, group="crwal")
     except:
         logger.error("[CrawlError] crawl from web error")
         traceback.print_exc()
@@ -313,8 +381,7 @@ def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
         return {}
 
     pages, limits = max(pages, 1), max(1, limits)
-    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[TelegramCrawl] start crawl from Telegram, time: {starttime}")
+    starttime = time.time()
 
     params = [[k, v, pages, limits] for k, v in users.items()]
     cpu_count = multiprocessing.cpu_count()
@@ -326,9 +393,9 @@ def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
 
     tasks = list(itertools.chain.from_iterable(results))
     subscribes = multi_thread_crawl(func=crawl_telegram_page, params=tasks)
-    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[TelegramCrawl] finished crawl from Telegram, found {len(subscribes)} subscriptions, time: {endtime}"
+        f"[TelegramCrawl] finished crawl from Telegram, found {len(subscribes)} subscriptions, cost: {cost}"
     )
     return subscribes
 
@@ -383,8 +450,7 @@ def crawl_github_repo(repos: dict):
         return {}
     params = []
 
-    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[RepoCrawl] start crawl from Repositorie, time: {starttime}")
+    starttime = time.time()
     for _, v in repos.items():
         username = v.get("username", "").strip()
         repo_name = v.get("repo_name", "").strip()
@@ -397,9 +463,9 @@ def crawl_github_repo(repos: dict):
         params.append([username, repo_name, push_to, limits, exclude])
 
     subscribes = multi_thread_crawl(func=crawl_single_repo, params=params)
-    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[RepoCrawl] finished crawl from Repositorie, found {len(subscribes)} links, time: {endtime}"
+        f"[RepoCrawl] finished crawl from Repositorie, found {len(subscribes)} links, cost: {cost}"
     )
     return subscribes
 
@@ -432,8 +498,7 @@ def crawl_google(
         "num": num,
     }
 
-    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[GoogleCrawl] start crawl from Google, time: {starttime}")
+    starttime = time.time()
     collections = {}
     for start in range(0, limits, num):
         params["start"] = start
@@ -454,9 +519,9 @@ def crawl_google(
 
         time.sleep(interval)
 
-    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[GoogleCrawl] finished crawl from Google, found {len(collections)} sites, time: {endtime}"
+        f"[GoogleCrawl] finished crawl from Google, found {len(collections)} sites, cost: {cost}"
     )
     return collections
 
@@ -642,11 +707,8 @@ def crawl_github(
         )
         return {}
 
-    links, starttime = [], datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    links, starttime = [], time.time()
     method = "search on the page" if utils.isblank(token) else "rest api"
-    logger.info(
-        f"[GithubCrawl] start crawl from Github through {method}, time: {starttime}"
-    )
 
     if utils.isblank(token):
         # 鉴于github搜索code不稳定，爬取两次
@@ -674,9 +736,9 @@ def crawl_github(
     else:
         subscribes = {}
 
-    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[GithubCrawl] finished crawl from Github, found {len(subscribes)} links need check, time: {endtime}"
+        f"[GithubCrawl] finished crawl from Github through {method}, found {len(subscribes)} links need check, cost: {cost}"
     )
 
     return subscribes
@@ -710,11 +772,7 @@ def crawl_pages(pages: dict, silent: bool = False, headers: dict = None) -> dict
     if not pages:
         return {}
 
-    params = []
-    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    if not silent:
-        logger.info(f"[PageCrawl] start crawl from Page, time: {starttime}")
-
+    params, starttime = [], time.time()
     for k, v in pages.items():
         if not isurl(url=k):
             continue
@@ -726,10 +784,10 @@ def crawl_pages(pages: dict, silent: bool = False, headers: dict = None) -> dict
         params.append([k, push_to, exclude, config, headers])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
-    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if not silent:
+        cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(
-            f"[PageCrawl] finished crawl from Page, found {len(subscribes)} sites, time: {endtime}"
+            f"[PageCrawl] finished crawl from Page, found {len(subscribes)} sites, cost: {cost}"
         )
 
     return subscribes
@@ -832,11 +890,8 @@ def crawl_twitter(tasks: dict) -> dict:
     if not tasks:
         return {}
 
-    starttime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    logger.info(f"[TwitterCrawl] start crawl from Twitter, time: {starttime}")
-
     # extract X-Guest-Token
-    guest_token = get_guest_token()
+    guest_token, starttime = get_guest_token(), time.time()
     if not guest_token:
         logger.error(f"[TwitterCrawl] cannot extract X-Guest-Token from twitter")
         return {}
@@ -911,9 +966,9 @@ def crawl_twitter(tasks: dict) -> dict:
         pages[url] = config
 
     subscribes = crawl_pages(pages=pages, silent=True, headers=headers)
-    endtime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[TwitterCrawl] finished crawl from Twitter, found {len(subscribes)} subscriptions, time: {endtime}"
+        f"[TwitterCrawl] finished crawl from Twitter, found {len(subscribes)} subscriptions, cost: {cost}"
     )
 
     return subscribes
@@ -932,9 +987,10 @@ def extract_subscribes(
     if not content:
         return {}
     try:
-        limits, collections = max(1, limits), {}
+        limits, collections, proxies = max(1, limits), {}, []
         sub_regex = "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
         extra_regex = "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/sub\?(?:\S+)?target=\S+"
+        protocal_regex = "(?:vmess|trojan|ss|ssr|snell)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
 
         regex = f"{sub_regex}|{extra_regex}"
 
@@ -945,14 +1001,14 @@ def extract_subscribes(
                 else:
                     pattern = f"{regex}{include}"
 
-                subscribes = re.findall(pattern, content)
+                subscribes = re.findall(pattern, content, flags=re.I)
             except:
                 logger.error(
                     f"[ExtractError] maybe pattern 'include' exists some problems, include: {include}"
                 )
                 subscribes = re.findall(regex, content)
         else:
-            subscribes = re.findall(regex, content)
+            subscribes = re.findall(regex, content, flags=re.I)
 
         # 去重会打乱原本按日期排序的特性一致无法优先选择离当前时间较近的元素
         # subscribes = list(set(subscribes))
@@ -971,6 +1027,14 @@ def extract_subscribes(
 
                 for url in urls:
                     if not utils.isurl(url):
+                        if ALLOW_SINGLE_LINK:
+                            proxies.extend(
+                                [
+                                    x
+                                    for x in url.split("|")
+                                    if re.match(protocal_regex, x, flags=re.I)
+                                ]
+                            )
                         continue
 
                     items.extend(
@@ -1006,6 +1070,22 @@ def extract_subscribes(
             if len(collections) >= limits:
                 break
 
+        if ALLOW_SINGLE_LINK:
+            try:
+                groups = re.findall(protocal_regex, content, flags=re.I)
+                if groups:
+                    proxies.extend([x.lower().strip() for x in groups if x])
+                    params = {
+                        "push_to": push_to,
+                        "origin": source,
+                        "proxies": list(set(proxies)),
+                    }
+                    if config:
+                        params.update(config)
+                    collections[SINGLE_LINK_FLAG] = params
+            except:
+                logger.error(f"[ExtractError] failed to extract single proxy")
+
         return collections
     except:
         logger.error("[ExtractError] extract subscribe error")
@@ -1018,6 +1098,7 @@ def validate(
     availables: ListProxy,
     unknows: ListProxy,
     potentials: DictProxy,
+    proxylinks: ListProxy,
     semaphore: Semaphore,
     exclude: str = "",
     threshold: int = 1,
@@ -1029,6 +1110,13 @@ def validate(
             or not params.get("origin", "")
             or (exclude and re.search(exclude, url))
         ):
+            return
+
+        if url.startswith(SINGLE_LINK_FLAG):
+            proxies = params.get("proxies", [])
+            if proxies and type(proxies) == list:
+                proxylinks.extend(proxies)
+
             return
 
         threshold = max(threshold, 1)
