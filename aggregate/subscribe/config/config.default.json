@@ -45,10 +45,10 @@
         "enable": true,
         "exclude": "",
         "threshold": 5,
+        "singlelink": true,
         "persist": {
-            "username": "",
-            "folderid": "",
-            "fileid": ""
+            "subs": "crawledsubs",
+            "proxies": "crawledproxies"
         },
         "config": {
             "rename": "",
@@ -146,6 +146,17 @@
             "fileid": "",
             "target": "v2ray|mixed|clash|...",
             "local": ""
+        },
+        "crawledsubs": {
+            "username": "",
+            "folderid": "",
+            "fileid": "",
+            "local": ""
+        },
+        "crawledproxies": {
+            "username": "",
+            "folderid": "",
+            "fileid": ""
         }
     }
 }

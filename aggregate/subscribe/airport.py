@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import concurrent.futures
+from enum import Enum
 import json
 import os
 import random
@@ -44,6 +45,26 @@ RENAME_SEPARATOR = "#@&#@"
 
 # 标记数字位数
 # SUFFIX_BITS = 2
+
+
+class Category(Enum):
+    # 远程订阅
+    HTTP = 1
+
+    # 本地文件
+    FILE = 2
+
+    # 单个节点链接
+    LINK = 3
+
+
+def lookup(name: str) -> Category:
+    name = utils.trim(name)
+    for item in Category:
+        if item.name.lower() == name.lower():
+            return item
+
+    return Category.HTTP
 
 
 @dataclass

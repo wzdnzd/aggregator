@@ -44,9 +44,16 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
 
         # global exclude
         params["exclude"] = crawl_conf.get("exclude", "")
-        params["persist"] = crawl_conf.get("persist", {})
+
+        # persistence configuration
+        persist = {
+            k: push_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()
+        }
+        params["persist"] = persist
+
         params["config"] = crawl_conf.get("config", {})
         params["enable"] = crawl_conf.get("enable", True)
+        params["singlelink"] = crawl_conf.get("singlelink", False)
 
         threshold = max(crawl_conf.get("threshold", 1), 1)
         params["threshold"] = threshold
