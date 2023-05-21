@@ -311,7 +311,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
         logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscribes")
 
-        if should_persist and peristedtasks:
+        if MODE != 2 and should_persist and peristedtasks:
             content = json.dumps(peristedtasks)
             pushtool.push_to(content=content, push_conf=subspushconf, group="crwal")
     except:
@@ -542,7 +542,12 @@ def search_github(page: int, cookie: str, searchtype: str, sortedby: str) -> str
     searchtype = "Code" if utils.isblank(searchtype) else searchtype
     sortedby = "indexed" if utils.isblank(sortedby) else sortedby
 
-    url = f"https://github.com/search?o=desc&p={page}&q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&s={sortedby}&type={searchtype}"
+    # search with regex for code
+    query = "%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22"
+    if searchtype.lower() == "code":
+        query = "%2F%5C%2Fapi%5C%2Fv1%5C%2Fclient%5C%2Fsubscribe%5C%3Ftoken%3D%5Ba-zA-Z0-9%5D%7B8%2C32%7D%2F"
+
+    url = f"https://github.com/search?o=desc&p={page}&q={query}&s={sortedby}&type={searchtype}"
     headers = {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
         "Referer": "https://github.com",

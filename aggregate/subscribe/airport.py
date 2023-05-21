@@ -601,14 +601,16 @@ class AirPort:
                             name = re.sub(self.rename, "", name, flags=re.I)
 
                     # 标记需要进行ChatGPT连通性测试的节点
-                    flag = utils.CHATGPT_FLAG in name
+                    flag = re.search(
+                        f"{utils.CHATGPT_FLAG}|(Chat)?GPT", name, flags=re.I
+                    )
                     if not flag and pattern:
                         match = re.search(pattern, name, flags=re.I)
                         flag = match is None if operate != "IN" else match is not None
 
                     if flag:
                         name = re.sub(
-                            r"((\s+)?([\-\|_]+)?(\s+)?)?((Chat)?GPT)",
+                            r"((\s+)?([\-\|_]+)?(\s+)?)?(Chat)?GPT",
                             " ",
                             name,
                             flags=re.I,
