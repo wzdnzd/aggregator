@@ -50,16 +50,17 @@ def fetchsub(params: dict) -> list:
         return []
 
     config = params.get("config", {})
-    fileid = params.get("persist", "")
+    persist = params.get("persist", {})
+
     threshold = max(params.get("threshold", 1), 1)
-    if not fileid or not config or type(config) != dict or not config.get("push_to"):
+    if not persist or not config or type(config) != dict or not config.get("push_to"):
         logger.error(
             f"[TempSubError] cannot fetch subscribes bcause not found arguments 'persist' or 'push_to'"
         )
         return []
 
     exists, unregisters, unknowns, data = load(
-        fileid=fileid, retry=params.get("retry", True)
+        persist=persist, retry=params.get("retry", True)
     )
     if not exists and not unregisters and unknowns:
         logger.warn(f"[TempSubError] skip fetchsub because cannot get any valid config")
@@ -106,7 +107,7 @@ def fetchsub(params: dict) -> list:
 
         # persist subscribes
         payload = {"usables": exists, "unknowns": unknowns}
-        commons.persist(data=payload, fileid=fileid)
+        commons.persist(data=payload, persist=persist)
 
     if not exists:
         logger.info(f"[TempSubInfo] fetchsub finished, cannot found any subscribes")
@@ -134,11 +135,12 @@ def fetchsub(params: dict) -> list:
     return results
 
 
-def load(fileid: str, retry: bool = False) -> tuple[dict, list, dict, dict]:
-    if not fileid:
+def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
+    pushtool = push.get_instance()
+    if not pushtool.validate(push_conf=persist):
         return {}, [], {}, {}
 
-    url = push.get_instance().raw_url(fileid.strip())
+    url = pushtool.raw_url(push_conf=persist)
     try:
         content = utils.http_get(url=url)
         data = json.loads(content)

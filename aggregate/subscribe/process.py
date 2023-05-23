@@ -309,12 +309,7 @@ def assign(
     if remain and push_conf:
         for k, v in push_conf.items():
             taskids = groups.get(k, [])
-            folderid = v.get("folderid", "").strip()
-            fileid = v.get("fileid", "").strip()
-            username = v.get("username", "").strip()
-            subscribes = pushtool.raw_url(
-                fileid=fileid, folderid=folderid, username=username
-            )
+            subscribes = pushtool.raw_url(push_conf=v)
             if not taskids or not subscribes:
                 continue
 
