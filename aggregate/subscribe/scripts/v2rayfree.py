@@ -89,9 +89,9 @@ def getrss(params: dict) -> list:
         return []
 
     include = params.get("include", "").strip()
-    fileid = params.get("persist", "")
+    persist = params.get("persist", {})
 
-    exists = load(fileid=fileid)
+    exists = load(persist=persist)
     emails = [x for x in emails if x not in exists.keys()]
 
     cpu_count = multiprocessing.cpu_count()
@@ -103,7 +103,7 @@ def getrss(params: dict) -> list:
     exists.update(filter(data=dict(zip(emails, results))))
 
     # persist subscribes
-    commons.persist(data=exists, fileid=fileid)
+    commons.persist(data=exists, persist=persist)
 
     results = list(exists.values())
     results.extend(config.get("sub", []))
@@ -130,11 +130,12 @@ def getrss(params: dict) -> list:
     return [config]
 
 
-def load(fileid: str) -> dict:
-    if not fileid:
+def load(persist: dict) -> dict:
+    pushtool = push.get_instance()
+    if not pushtool.validate(persist):
         return {}
 
-    url = push.get_instance().raw_url(fileid.strip())
+    url = pushtool.raw_url(push_conf=persist)
     try:
         content = utils.http_get(url=url)
         data = json.loads(content)

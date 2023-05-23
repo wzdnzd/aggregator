@@ -200,10 +200,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
         # Remain
         if should_persist:
-            folderid = subspushconf.get("folderid", "")
-            fileid = subspushconf.get("fileid", "")
-            username = subspushconf.get("username", "")
-            url = pushtool.raw_url(fileid=fileid, folderid=folderid, username=username)
+            url = pushtool.raw_url(push_conf=subspushconf)
             try:
                 url, content = url or "", ""
                 if not url.startswith(utils.FILEPATH_PROTOCAL):
@@ -287,11 +284,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                             content=content, push_conf=linkspushconf, group="proxies"
                         )
                         if success:
-                            singlelink = pushtool.raw_url(
-                                linkspushconf.get("fileid"),
-                                linkspushconf.get("folderid", ""),
-                                linkspushconf.get("username", ""),
-                            )
+                            singlelink = pushtool.raw_url(push_conf=linkspushconf)
                             item = {
                                 "name": "singlelink",
                                 "sub": singlelink,

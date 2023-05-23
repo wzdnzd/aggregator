@@ -126,7 +126,9 @@
                 "enable": false,
                 "script": "file#function",
                 "params": {
-                    "persist": "",
+                    "persist": {
+                        "fileid": ""
+                    },
                     "any": "xxx",
                     "config": {
                         "enable": true,

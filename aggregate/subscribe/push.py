@@ -112,7 +112,7 @@ class PushTo(object):
     def filter_push(self, push_conf: dict) -> dict:
         raise NotImplementedError
 
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+    def raw_url(self, push_conf: dict) -> str:
         raise NotImplementedError
 
 
@@ -172,7 +172,14 @@ class PushToPasteGG(PushTo):
 
         return configs
 
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+    def raw_url(self, push_conf: dict) -> str:
+        if not push_conf or type(push_conf) != dict:
+            return ""
+
+        fileid = push_conf.get("fileid", "")
+        folderid = push_conf.get("folderid", "")
+        username = push_conf.get("username", "")
+
         if not fileid or not folderid or not username:
             return ""
 
@@ -211,7 +218,11 @@ class PushToFarsEE(PushTo):
 
         return configs
 
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+    def raw_url(self, push_conf: dict) -> str:
+        if not push_conf or type(push_conf) != dict or not push_conf.get("fileid", ""):
+            return ""
+
+        fileid = push_conf.get("fileid", "")
         return f"{self.api_address}/{fileid}"
 
 
@@ -260,9 +271,11 @@ class PushToDevbin(PushToPasteGG):
         # TODO: waitting for product enviroment api
         self.api_address = "https://beta.devbin.dev/api/v3/paste"
 
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
-        if not fileid:
+    def raw_url(self, push_conf: dict) -> str:
+        if not push_conf or type(push_conf) != dict or not push_conf.get("fileid", ""):
             return ""
+
+        fileid = push_conf.get("fileid", "")
 
         return f"https://devbin.dev/Raw/{fileid}"
 
@@ -304,7 +317,11 @@ class PushToPastefy(PushToDevbin):
             f"[PushError]: group=[{group}], name: {self.name}, error message: \n{traceback.format_exc()}"
         )
 
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+    def raw_url(self, push_conf: dict) -> str:
+        if not push_conf or type(push_conf) != dict:
+            return ""
+
+        fileid = utils.trim(push_conf.get("fileid", ""))
         if not fileid:
             return ""
 
@@ -319,8 +336,12 @@ class PushToDrift(PushToPastefy):
         self.name = "drift"
         self.api_address = "https://pastebin.enjoyit.ml/api/file"
 
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
-        if not fileid:
+    def raw_url(self, push_conf: dict) -> str:
+        if not push_conf or type(push_conf) != dict:
+            return ""
+
+        fileid = push_conf.get("fileid", "")
+        if utils.isblank(text=fileid):
             return ""
 
         return f"{self.api_address}/raw/{fileid}"
@@ -330,7 +351,7 @@ class PushToDrift(PushToPastefy):
 
 
 class PushToLocal(PushTo):
-    def __init__(self, basedir: str = "") -> None:
+    def __init__(self) -> None:
         super().__init__(token="")
         self.name = "local"
 
@@ -352,7 +373,12 @@ class PushToLocal(PushTo):
     def filter_push(self, push_conf: dict) -> dict:
         return {k: v for k, v in push_conf.items() if v.get("fileid", "")}
 
-    def raw_url(self, fileid: str, folderid: str = "", username: str = "") -> str:
+    def raw_url(self, push_conf: dict) -> str:
+        if not push_conf or type(push_conf) != dict:
+            return ""
+
+        fileid = push_conf.get("fileid", "")
+        folderid = push_conf.get("folderid", "")
         filepath = os.path.abspath(os.path.join(folderid, fileid))
         return f"{utils.FILEPATH_PROTOCAL}{filepath}"
 

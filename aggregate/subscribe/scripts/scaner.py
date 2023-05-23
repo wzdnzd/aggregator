@@ -354,10 +354,11 @@ def scan(params: dict) -> list:
         return []
 
     config = params.get("config", {})
-    fileid = params.get("persist", "")
+    persist = params.get("persist", {})
+    pushtool = push.get_instance()
 
     if (
-        utils.isblank(fileid)
+        not pushtool.validate(push_conf=persist)
         or not config
         or type(config) != dict
         or not config.get("push_to")
@@ -373,19 +374,18 @@ def scan(params: dict) -> list:
 
     results = pool.starmap(scanone, tasks)
     proxies = list(itertools.chain.from_iterable(results))
-    pushtool = push.get_instance()
     if proxies:
         content = yaml.dump(data={"proxies": proxies}, allow_unicode=True)
         pushtool.push_to(
             content=content,
-            push_conf={"fileid": fileid},
+            push_conf=persist,
             group="scaner",
         )
     else:
         domains = ",".join(x[0] for x in tasks)
         logger.info(f"[ScanerError] cannot found any proxies, domains=[{domains}]")
 
-    config["sub"] = [pushtool.raw_url(fileid=fileid)]
+    config["sub"] = [pushtool.raw_url(push_conf=persist)]
     config["name"] = "loophole" if not config.get("name", "") else config.get("name")
     config["push_to"] = list(set(config["push_to"]))
     config["saved"] = True
