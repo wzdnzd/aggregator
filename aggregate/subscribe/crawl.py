@@ -102,7 +102,13 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
 
 def batch_crawl(conf: dict, thread: int = 50) -> list:
     if not conf or not conf.get("enable", True):
-        return []
+        # only crawl if mode == 1
+        if MODE == 1:
+            logger.warning(f"exit process because mode=1 and crawling task is disabled")
+            sys.exit(0)
+
+        else:
+            return []
 
     datasets, peristedtasks = [], {}
     try:

@@ -35,6 +35,7 @@
                 "method": 1,
                 "coupon_code": "",
                 "chatgpt": {
+                    "enable": true,
                     "regex": "",
                     "operate": "IN"
                 }

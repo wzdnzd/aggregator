@@ -498,8 +498,9 @@ class AirPort:
             return []
 
         chatgpt = chatgpt if chatgpt and type(chatgpt) == dict else None
-        operate, pattern = "IN", ""
+        enable, operate, pattern = False, "IN", ""
         if chatgpt:
+            enable = chatgpt.get("enable", False)
             operate = utils.trim(chatgpt.get("operate", "IN")).upper()
             pattern = utils.trim(chatgpt.get("regex", ""))
 
@@ -601,12 +602,16 @@ class AirPort:
                             name = re.sub(self.rename, "", name, flags=re.I)
 
                     # 标记需要进行ChatGPT连通性测试的节点
-                    flag = re.search(
-                        f"{utils.CHATGPT_FLAG}|(Chat)?GPT", name, flags=re.I
+                    flag, detect = (
+                        enable
+                        or re.search(
+                            f"{utils.CHATGPT_FLAG}|(Chat)?GPT", name, flags=re.I
+                        ),
+                        True,
                     )
-                    if not flag and pattern:
+                    if flag and pattern:
                         match = re.search(pattern, name, flags=re.I)
-                        flag = match is None if operate != "IN" else match is not None
+                        detect = match is None if operate != "IN" else match is not None
 
                     if flag:
                         name = re.sub(
@@ -615,7 +620,7 @@ class AirPort:
                             name,
                             flags=re.I,
                         )
-                        item["chatgpt"] = True
+                        item["chatgpt"] = detect
 
                     # 重命名带网址的节点
                     regex = "(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
