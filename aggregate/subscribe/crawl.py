@@ -1185,11 +1185,6 @@ def check_status(
     if not url or retry <= 0:
         return False, CONNECTABLE
 
-    remain, spare_time, tolerance = (
-        max(0, remain),
-        max(spare_time, 0),
-        max(tolerance, 0),
-    )
     try:
         headers = {"User-Agent": "ClashforWindows"}
         request = urllib.request.Request(url=url, headers=headers)
@@ -1197,50 +1192,17 @@ def check_status(
         if response.getcode() != 200:
             return False, CONNECTABLE
 
-        # 根据订阅信息判断是否有效
-        try:
-            subscription = response.getheader("subscription-userinfo")
-            if subscription:
-                infos = subscription.split(";")
-                upload, download, total, expire = 0, 0, 0, None
-                for info in infos:
-                    words = info.split("=", maxsplit=1)
-                    if len(words) <= 1:
-                        continue
-
-                    if "upload" == words[0].strip():
-                        upload = eval(words[1])
-                    elif "download" == words[0].strip():
-                        download = eval(words[1])
-                    elif "total" == words[0].strip():
-                        total = eval(words[1])
-                    elif "expire" == words[0].strip():
-                        expire = None if utils.isblank(words[1]) else eval(words[1])
-
-                # 剩余流量大于 ${remain} GB 并且未过期则返回 True，否则返回 False
-                flag = total - (upload + download) > remain * pow(1024, 3) and (
-                    expire is None or expire - time.time() > spare_time * 3600
-                )
-                expired = (
-                    False
-                    if flag
-                    else (
-                        expire is not None
-                        and (expire + tolerance * 3600) <= time.time()
-                    )
-                )
-                return flag, expired
-        except:
-            pass
-
         content = str(response.read(), encoding="utf8")
         if utils.isblank(content):
             return False, True
-        elif utils.isb64encode(content):
-            # TODO: parse and detect whether the subscription has expired
-            return True, False
 
-        # return re.search("proxies:", content) is not None, False
+        # 订阅流量信息
+        subscription = response.getheader("subscription-userinfo")
+
+        if utils.isb64encode(content):
+            # parse and detect whether the subscription has expired
+            return is_expired(subscription)
+
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
         except ConstructorError:
@@ -1251,8 +1213,11 @@ def check_status(
         except:
             proxies = []
 
-        flag = proxies is None or len(proxies) == 0
-        return not flag, flag
+        if proxies is None or len(proxies) == 0:
+            return False, True
+
+        # 根据订阅信息判断是否有效
+        return is_expired(subscription)
     except urllib.error.HTTPError as e:
         message = str(e.read(), encoding="utf8")
         expired = e.code == 404 or "token is error" in message
@@ -1274,6 +1239,48 @@ def check_status(
             spare_time=spare_time,
             tolerance=tolerance,
         )
+
+
+def is_expired(
+    header: str, remain: float = 0, spare_time: float = 0, tolerance: float = 0
+) -> tuple[bool, bool]:
+    if utils.isblank(header):
+        return True, False
+
+    remain, spare_time, tolerance = (
+        max(0, remain),
+        max(spare_time, 0),
+        max(tolerance, 0),
+    )
+    try:
+        infos = header.split(";")
+        upload, download, total, expire = 0, 0, 0, None
+        for info in infos:
+            words = info.split("=", maxsplit=1)
+            if len(words) <= 1:
+                continue
+
+            if "upload" == words[0].strip():
+                upload = eval(words[1])
+            elif "download" == words[0].strip():
+                download = eval(words[1])
+            elif "total" == words[0].strip():
+                total = eval(words[1])
+            elif "expire" == words[0].strip():
+                expire = None if utils.isblank(words[1]) else eval(words[1])
+
+        # 剩余流量大于 ${remain} GB 并且未过期则返回 True，否则返回 False
+        flag = total - (upload + download) > remain * pow(1024, 3) and (
+            expire is None or expire - time.time() > spare_time * 3600
+        )
+        expired = (
+            False
+            if flag
+            else (expire is not None and (expire + tolerance * 3600) <= time.time())
+        )
+        return flag, expired
+    except:
+        return True, False
 
 
 def is_available(
