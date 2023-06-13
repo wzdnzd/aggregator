@@ -35,7 +35,7 @@ set "enableshortcut=0"
 
 @REM enable download config from remote
 set "enableremoteconf=0"
-set "remoteurl="
+set "remoteurl=https://pastebin.enjoyit.ml/api/file/raw/clg075nur0011k308fzojwl5x"
 
 @REM validate configuration files before starting
 set "verifyconf=0"
@@ -1735,7 +1735,8 @@ if "!clashmeta!" == "0" (
     )
 
     if "!yacd!" == "1" (
-        set "dashboardurl=https://github.com/haishanh/yacd/archive/refs/heads/gh-pages.zip"
+        @REM set "dashboardurl=https://github.com/haishanh/yacd/archive/refs/heads/gh-pages.zip"
+        set "dashboardurl=https://github.com/wzdnzd/Yacd/archive/refs/heads/gh-pages.zip"
         set "dashdirectory=yacd-gh-pages"
     )
 ) else (
@@ -1803,7 +1804,8 @@ if "!clashmeta!" == "0" (
     )
 
     if "!yacd!" == "1" (
-        set "dashboardurl=https://github.com/MetaCubeX/Yacd-meta/archive/refs/heads/gh-pages.zip"
+        @REM set "dashboardurl=https://github.com/MetaCubeX/Yacd-meta/archive/refs/heads/gh-pages.zip"
+        set "dashboardurl=https://github.com/wzdnzd/Yacd/archive/refs/heads/gh-pages.zip"
         set "dashdirectory=Yacd-meta-gh-pages"
     )
 )

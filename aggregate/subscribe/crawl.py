@@ -1193,7 +1193,9 @@ def check_status(
             return False, CONNECTABLE
 
         content = str(response.read(), encoding="utf8")
-        if utils.isblank(content):
+
+        # response text is too short, ignore
+        if len(content) < 32:
             return False, True
 
         # 订阅流量信息
