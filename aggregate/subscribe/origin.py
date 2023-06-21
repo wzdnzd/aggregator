@@ -19,6 +19,7 @@ class Origin(enum.Enum):
     TELEGRAM = ExpireInfo(name="TELEGRAM", expire=3)
     TWITTER = ExpireInfo(name="TWITTER", expire=3)
     TEMPORARY = ExpireInfo(name="TEMPORARY", expire=6)
+    PAGE = ExpireInfo(name="PAGE", expire=6)
     GOOGLE = ExpireInfo(name="GOOGLE", expire=10)
     GITHUB = ExpireInfo(name="GITHUB", expire=20)
     REPO = ExpireInfo(name="REPO", expire=60)
