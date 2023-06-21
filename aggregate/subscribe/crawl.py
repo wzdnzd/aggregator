@@ -181,7 +181,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             # Page
             pages = conf.get("pages", {})
             if pages:
-                tasks.update(crawl_pages(pages=pages))
+                tasks.update(crawl_pages(pages=pages, origin=Origin.PAGE.name))
 
             # Scripts
             scripts = conf.get("scripts", {})
@@ -736,7 +736,9 @@ def crawl_github(
 
         for link in links:
             page_tasks[link] = {"push_to": push_to, "exclude": exclude}
-        subscribes = crawl_pages(pages=page_tasks, silent=True)
+        subscribes = crawl_pages(
+            pages=page_tasks, silent=True, origin=Origin.GITHUB.name
+        )
     else:
         subscribes = {}
 
@@ -754,6 +756,7 @@ def crawl_single_page(
     exclude: str = "",
     config: dict = {},
     headers: dict = None,
+    origin: str = Origin.PAGE.name,
 ) -> dict:
     if not url or not push_to:
         logger.error(f"[PageCrawl] cannot crawl from page: {url}")
@@ -764,15 +767,16 @@ def crawl_single_page(
         return {}
 
     return extract_subscribes(
-        content=content,
-        push_to=push_to,
-        exclude=exclude,
-        source=Origin.TEMPORARY.name,
-        config=config,
+        content=content, push_to=push_to, exclude=exclude, config=config, source=origin
     )
 
 
-def crawl_pages(pages: dict, silent: bool = False, headers: dict = None) -> dict:
+def crawl_pages(
+    pages: dict,
+    silent: bool = False,
+    headers: dict = None,
+    origin: str = Origin.PAGE.name,
+) -> dict:
     if not pages:
         return {}
 
@@ -785,7 +789,7 @@ def crawl_pages(pages: dict, silent: bool = False, headers: dict = None) -> dict
         exclude = v.get("exclude", "").strip()
         config = v.get("config", {})
 
-        params.append([k, push_to, exclude, config, headers])
+        params.append([k, push_to, exclude, config, headers, origin])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
@@ -969,7 +973,9 @@ def crawl_twitter(tasks: dict) -> dict:
         url = f"https://twitter.com/i/api/graphql/P7qs2Sf7vu1LDKbzDW9FSA/UserMedia?{payload}"
         pages[url] = config
 
-    subscribes = crawl_pages(pages=pages, silent=True, headers=headers)
+    subscribes = crawl_pages(
+        pages=pages, silent=True, headers=headers, origin=Origin.TWITTER.name
+    )
     cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
         f"[TwitterCrawl] finished crawl from Twitter, found {len(subscribes)} subscriptions, cost: {cost}"
