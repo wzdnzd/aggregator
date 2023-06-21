@@ -16,6 +16,7 @@ import time
 import urllib
 import urllib.parse
 import urllib.request
+from urllib import parse
 
 from logger import logger
 from urlvalidator import isurl
@@ -292,3 +293,18 @@ def mask_url(url: str) -> str:
         return url
 
     return url[:-7] + "*" * 7
+
+
+def parse_token(url: str) -> str:
+    if not isurl(url):
+        return ""
+
+    result = parse.urlparse(url=url)
+    if result.query:
+        params = {k: v[0] for k, v in parse.parse_qs(result.query).items()}
+        if "token" in params:
+            return params.get("token", "")
+
+    group = re.findall(".*/link/([a-zA-Z0-9]+)", url, flags=re.I)
+    content = trim(group[0]) if group else ""
+    return content.lower() if content else url.lower()

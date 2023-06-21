@@ -131,7 +131,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         ALLOW_SINGLE_LINK = enable and pushtool.validate(linkspushconf)
         os.environ[SINGLE_PROXIES_ENV_NAME] = str(ALLOW_SINGLE_LINK)
 
-        tasks, threshold = {}, conf.get("threshold", 1)
+        records, threshold = {}, conf.get("threshold", 1)
 
         if CONNECTABLE:
             # Google
@@ -140,7 +140,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 push_to = google_spider.get("push_to", [])
                 exclude = google_spider.get("exclude", "")
                 notinurl = google_spider.get("notinurl", [])
-                tasks.update(
+                records.update(
                     crawl_google(
                         qdr=7, push_to=push_to, exclude=exclude, notinurl=notinurl
                     )
@@ -151,12 +151,12 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             if telegram_spider and telegram_spider.get("users", {}):
                 users = telegram_spider.get("users")
                 pages = max(telegram_spider.get("pages", 1), 1)
-                tasks.update(crawl_telegram(users=users, pages=pages))
+                records.update(crawl_telegram(users=users, pages=pages))
 
             # Twitter
             twitter_spider = conf.get("twitter", {})
             if twitter_spider:
-                tasks.update(crawl_twitter(tasks=twitter_spider))
+                records.update(crawl_twitter(tasks=twitter_spider))
 
         # skip crawl if mode == 2
         if MODE != 2:
@@ -167,7 +167,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 pages = github_spider.get("pages", 1)
                 exclude = github_spider.get("exclude", "")
                 spams = github_spider.get("spams", [])
-                tasks.update(
+                records.update(
                     crawl_github(
                         limits=pages, push_to=push_to, exclude=exclude, spams=spams
                     )
@@ -176,12 +176,12 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             # Github Repository
             repositories = conf.get("repositories", {})
             if repositories:
-                tasks.update(crawl_github_repo(repos=repositories))
+                records.update(crawl_github_repo(repos=repositories))
 
             # Page
             pages = conf.get("pages", {})
             if pages:
-                tasks.update(crawl_pages(pages=pages, origin=Origin.PAGE.name))
+                records.update(crawl_pages(pages=pages, origin=Origin.PAGE.name))
 
             # Scripts
             scripts = conf.get("scripts", {})
@@ -222,13 +222,15 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
                     # tasks.update(oldsubs)
                     for k, v in oldsubs.items():
-                        merged = dict(list(v.items()) + list(tasks.get(k, {}).items()))
-                        tasks[k] = merged
+                        merged = dict(
+                            list(v.items()) + list(records.get(k, {}).items())
+                        )
+                        records[k] = merged
             except:
                 logger.error("[CrawlError] load old subscriptions from remote error")
                 pass
 
-        if not tasks:
+        if not records:
             logger.debug(
                 "[CrawlInfo] cannot found any subscribe from Google/Telegram/Github and Page with crawler"
             )
@@ -236,6 +238,11 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
         exclude = conf.get("exclude", "")
         taskconf = conf.get("config", {})
+
+        # dedup by token
+        tokens = {utils.parse_token(k): k for k in records.keys()}
+        tasks = {k: records[k] for k in tokens.values()}
+
         with multiprocessing.Manager() as manager:
             availables, unknowns, potentials, proxylinks = (
                 manager.list(),
