@@ -760,6 +760,7 @@ def crawl_github(
 def crawl_single_page(
     url: str,
     push_to: list = [],
+    include: str = "",
     exclude: str = "",
     config: dict = {},
     headers: dict = None,
@@ -774,7 +775,12 @@ def crawl_single_page(
         return {}
 
     return extract_subscribes(
-        content=content, push_to=push_to, exclude=exclude, config=config, source=origin
+        content=content,
+        push_to=push_to,
+        include=include,
+        exclude=exclude,
+        config=config,
+        source=origin,
     )
 
 
@@ -793,10 +799,11 @@ def crawl_pages(
             continue
 
         push_to = v.get("push_to", [])
+        include = v.get("include", "").strip()
         exclude = v.get("exclude", "").strip()
         config = v.get("config", {})
 
-        params.append([k, push_to, exclude, config, headers, origin])
+        params.append([k, push_to, include, exclude, config, headers, origin])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
@@ -1209,7 +1216,7 @@ def check_status(
 
         # response text is too short, ignore
         if len(content) < 32:
-            return False, True
+            return False, False
 
         # 订阅流量信息
         subscription = response.getheader("subscription-userinfo")
@@ -1234,7 +1241,11 @@ def check_status(
         # 根据订阅信息判断是否有效
         return is_expired(subscription)
     except urllib.error.HTTPError as e:
-        message = str(e.read(), encoding="utf8")
+        try:
+            message = str(e.read(), encoding="utf8")
+        except:
+            message = ""
+
         expired = e.code == 404 or "token is error" in message
         if not expired and e.code in [403, 503]:
             return check_status(

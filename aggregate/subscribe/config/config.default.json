@@ -92,6 +92,7 @@
                 "username": {
                     "enable": true,
                     "num": 30,
+                    "include": "",
                     "exclude": "",
                     "config": {
                         "rename": "",
@@ -115,6 +116,7 @@
             {
                 "enable": true,
                 "url": "",
+                "include": "",
                 "exclude": "",
                 "config": {
                     "rename": ""
