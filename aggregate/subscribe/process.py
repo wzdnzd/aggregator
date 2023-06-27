@@ -204,7 +204,7 @@ def assign(
     remain: bool,
     pushtool: push.PushTo,
     push_conf: dict = {},
-) -> tuple[list, dict, list]:
+) -> tuple[list[TaskConfig], dict, list]:
     tasks, groups, arrays = [], {}, []
     retry, globalid = max(1, retry), 0
     for site in sites:
@@ -367,9 +367,14 @@ def aggregate(args: argparse.Namespace):
         pool.close()
 
         datasets = {}
-        for data in results:
+        for i in range(len(results)):
+            data = results[i]
             if not data or data[0] < 0 or not data[1]:
+                # not contain any proxy
+                if tasks[i] and tasks[i].sub:
+                    subscribes[tasks[i].sub] = False
                 continue
+
             datasets[data[0]] = data[1]
 
         for k, v in groups.items():
@@ -502,14 +507,12 @@ def aggregate(args: argparse.Namespace):
 
         config = {
             "domains": sites,
-            "spiders": crawl_conf,
+            "crawl": crawl_conf,
             "push": push_configs,
             "update": update_conf,
         }
 
-        workflow.refresh(
-            config=config, push=pushtool, alives=dict(subscribes), filepath=""
-        )
+        workflow.refresh(config=config, push=pushtool, alives=dict(subscribes))
 
 
 if __name__ == "__main__":

@@ -5,10 +5,12 @@
 
 import json
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 
 import renewal
+import utils
 from airport import AirPort
 from logger import logger
 from origin import Origin
@@ -268,6 +270,41 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> Non
         )
         return
 
+    # mark invalid crawled subscription
+    invalidsubs = None if not alives else [k for k, v in alives.items() if not v]
+    if invalidsubs:
+        crawledsub = config.get("crawl", {}).get("persist", {}).get("subs", "")
+        threshold = max(config.get("threshold", 1), 1)
+        pushconf = config.get("push", {}).get(crawledsub, {})
+        if push.validate(push_conf=pushconf):
+            url = push.raw_url(push_conf=pushconf)
+            content = utils.http_get(url=url)
+            try:
+                data, count = json.loads(content), 0
+                for sub in invalidsubs:
+                    record = data.pop(sub, None)
+                    if not record:
+                        continue
+
+                    defeat = record.get("defeat", 0) + 1
+                    count += 1
+                    if defeat <= threshold and standard_sub(url=sub):
+                        record["defeat"] = defeat
+                        data[sub] = record
+
+                if count > 0:
+                    content = json.dumps(data)
+                    push.push_to(
+                        content=content, push_conf=pushconf, group="crawled-remark"
+                    )
+                    logger.info(
+                        f"[UpdateInfo] removed {count} invalid crawled subscriptions"
+                    )
+            except:
+                logger.error(
+                    f"[UpdateError] remark invalid crawled subscriptions failed"
+                )
+
     update_conf = config.get("update", {})
     if not update_conf.get("enable", False):
         logger.debug("[UpdateError] skip update remote config because enable=[False]")
@@ -317,3 +354,8 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> Non
             f.flush()
 
     push.push_to(content=content, push_conf=update_conf, group="update")
+
+
+def standard_sub(url: str) -> bool:
+    regex = "https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+    return re.match(regex, url, flags=re.I) is not None
