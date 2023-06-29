@@ -16,14 +16,15 @@ import traceback
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Semaphore
 
-import yaml
-
-import clash
 import crawl
+import executable
 import utils
 import workflow
+import yaml
 from logger import logger
 from workflow import TaskConfig
+
+import clash
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -45,8 +46,7 @@ def assign(
                 domains.append(line)
 
     if not domains or overwrite:
-        # 参数 "channel" 请自行探索
-        urls = crawl.collect_airport(channel="", page_num=pages)
+        urls = crawl.collect_airport(channel="jichang_list", page_num=pages)
         domains.extend(urls)
         overwrite = True
 
@@ -83,7 +83,7 @@ def aggregate(args: argparse.Namespace):
         logger.error(f"config error, output: {args.output}")
         return
 
-    clash_bin, subconverter_bin = clash.which_bin()
+    clash_bin, subconverter_bin = executable.which_bin()
     tasks = assign(
         retry=3,
         bin_name=subconverter_bin,
@@ -173,6 +173,13 @@ def aggregate(args: argparse.Namespace):
             p.join()
 
         time.sleep(random.randint(1, 3))
+
+        # 关闭clash
+        try:
+            process.terminate()
+        except:
+            logger.error(f"terminate clash process error")
+
         if len(nodes) <= 0:
             logger.error(f"cannot fetch any proxy")
             sys.exit(0)
@@ -196,8 +203,7 @@ def aggregate(args: argparse.Namespace):
             filename=os.path.join(PATH, "valid-domains.txt"), lines=domains
         )
 
-        # 关闭clash
-        workflow.cleanup(process, workspace, [])
+        workflow.cleanup(workspace, [])
 
 
 if __name__ == "__main__":

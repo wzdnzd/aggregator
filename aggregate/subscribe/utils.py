@@ -69,7 +69,7 @@ def http_get(
         return ""
 
     if retry <= 0:
-        logger.debug(f"achieves max retry, url={mask_url(url=url)}")
+        logger.debug(f"achieves max retry, url={hide(url=url)}")
         return ""
 
     headers = DEFAULT_HTTP_HEADERS if not headers else headers
@@ -108,7 +108,7 @@ def http_get(
 
         return content
     except urllib.error.HTTPError as e:
-        logger.debug(f"request failed, url=[{mask_url(url=url)}], code: {e.code}")
+        logger.debug(f"request failed, url=[{hide(url=url)}], code: {e.code}")
         try:
             message = str(e.read(), encoding="utf8")
         except UnicodeDecodeError:
@@ -126,7 +126,7 @@ def http_get(
         return ""
     except (urllib.error.URLError, TimeoutError) as e:
         message = "timeout" if isinstance(e, TimeoutError) else e.reason
-        logger.debug(f"request failed, url=[{mask_url(url=url)}], message: {message}")
+        logger.debug(f"request failed, url=[{hide(url=url)}], message: {message}")
         return ""
     except Exception as e:
         logger.debug(e)
@@ -287,7 +287,7 @@ def load_dotenv() -> None:
                 os.environ[k] = v
 
 
-def mask_url(url: str) -> str:
+def hide(url: str) -> str:
     # len('http://') equals 7
     if isblank(url) or len(url) < 7:
         return url
@@ -308,3 +308,23 @@ def parse_token(url: str) -> str:
     group = re.findall(".*/link/([a-zA-Z0-9]+)", url, flags=re.I)
     content = trim(group[0]) if group else ""
     return content.lower() if content else url.lower()
+
+
+def mask(url: str) -> str:
+    url = trim(text=url)
+    try:
+        parse_result = urllib.parse.urlparse(url=url)
+        if "token=" in parse_result.query:
+            token = "".join(re.findall("token=([a-zA-Z0-9]+)", parse_result.query))
+            if len(token) >= 6:
+                token = token[:3] + "***" + token[-3:]
+            url = f"{parse_result.scheme}://{parse_result.netloc}/{parse_result.path}?token={token}"
+        else:
+            path, token = parse_result.path.rsplit("/", maxsplit=1)
+            if len(token) >= 6:
+                token = token[:3] + "***" + token[-3:]
+            url = f"{parse_result.scheme}://{parse_result.netloc}/{path}/{token}"
+    except:
+        logger.error(f"invalid url: {url}")
+
+    return url

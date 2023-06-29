@@ -15,6 +15,7 @@ import sys
 import time
 
 import crawl
+import executable
 import utils
 import workflow
 import yaml
@@ -152,7 +153,7 @@ def aggregate(args: argparse.Namespace):
         logger.error(f"config error, output: {args.output}")
         return
 
-    clash_bin, subconverter_bin = clash.which_bin()
+    clash_bin, subconverter_bin = executable.which_bin()
 
     sites, delay = load_configs(file=args.config)
     tasks = assign(sites, 3, subconverter_bin, args.remain, args.output, args.force)
@@ -231,6 +232,12 @@ def aggregate(args: argparse.Namespace):
 
             nochecks.extend(list(availables))
 
+            # 关闭clash
+            try:
+                process.terminate()
+            except:
+                logger.error(f"terminate clash process error")
+
     if len(nochecks) <= 0:
         logger.error(f"cannot fetch any proxy")
         sys.exit(0)
@@ -242,8 +249,7 @@ def aggregate(args: argparse.Namespace):
         yaml.dump(data, f, allow_unicode=True)
         logger.info(f"found {len(nochecks)} proxies, save it to {args.output}")
 
-    # 关闭clash
-    workflow.cleanup(process, workspace, [])
+    workflow.cleanup(workspace, [])
 
 
 if __name__ == "__main__":
@@ -290,7 +296,7 @@ if __name__ == "__main__":
         "--output",
         type=str,
         required=False,
-        default="",
+        default="D:\\Applications\\Clash\\nodepool\\mroxy.yaml",
         help="output file",
     )
 

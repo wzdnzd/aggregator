@@ -26,6 +26,7 @@ from multiprocessing.synchronize import Semaphore
 import airport
 import push
 import utils
+import workflow
 import yaml
 from logger import logger
 from origin import Origin
@@ -311,8 +312,9 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                         )
 
             if len(unknowns) > 0:
+                unknowns = [utils.mask(url=x) for x in unknowns]
                 logger.warn(
-                    f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {list(unknowns)}"
+                    f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {unknowns}"
                 )
 
         logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscribes")
@@ -1163,6 +1165,10 @@ def validate(
             return
 
         if reachable or (discovered and defeat <= threshold and not expired):
+            # don't storage temporary link shared by someone
+            if not workflow.standard_sub(url=url) and MODE != 1:
+                return
+
             remark(source=params, defeat=defeat, discovered=True)
             potentials[url] = params
         elif not CONNECTABLE and not expired:
