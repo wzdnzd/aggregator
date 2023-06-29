@@ -17,22 +17,25 @@ import sys
 import time
 from copy import deepcopy
 
-import yaml
-
-import clash
 import crawl
+import executable
 import push
-import subconverter
 import utils
 import workflow
+import yaml
 from logger import logger
 from origin import Origin
 from workflow import TaskConfig
 
+import clash
+import subconverter
+
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
-def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
+def load_configs(
+    url: str, only_check: bool = False
+) -> tuple[list, dict, dict, dict, int]:
     def parse_config(config: dict) -> None:
         sites.extend(config.get("domains", []))
         push_conf.update(config.get("push", {}))
@@ -41,6 +44,9 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
 
         nonlocal delay
         delay = min(delay, max(config.get("delay", sys.maxsize), 50))
+
+        if only_check:
+            return
 
         # global exclude
         params["exclude"] = crawl_conf.get("exclude", "")
@@ -171,7 +177,7 @@ def load_configs(url: str) -> tuple[list, dict, dict, dict, int]:
             content = utils.http_get(url=url, headers=headers)
             if not content:
                 logger.error(
-                    f"cannot fetch config from remote, url: {utils.mask_url(url=url)}"
+                    f"cannot fetch config from remote, url: {utils.hide(url=url)}"
                 )
             else:
                 parse_config(json.loads(content))
@@ -204,6 +210,7 @@ def assign(
     remain: bool,
     pushtool: push.PushTo,
     push_conf: dict = {},
+    only_check=False,
 ) -> tuple[list[TaskConfig], dict, list]:
     tasks, groups, arrays = [], {}, []
     retry, globalid = max(1, retry), 0
@@ -213,19 +220,19 @@ def assign(
 
         name = site.get("name", "").strip().lower()
         domain = site.get("domain", "").strip().lower()
-        subscribes = site.get("sub", "")
-        if isinstance(subscribes, str):
-            subscribes = [subscribes.strip()]
-        subscribes = [s for s in subscribes if s.strip() != ""]
-        if len(subscribes) >= 2:
-            subscribes = list(set(subscribes))
+        subscribe = site.get("sub", "")
+        if isinstance(subscribe, str):
+            subscribe = [subscribe.strip()]
+        subscribe = [s for s in subscribe if s.strip() != ""]
+        if len(subscribe) >= 2:
+            subscribe = list(set(subscribe))
 
         tag = site.get("tag", "").strip().upper()
         rate = float(site.get("rate", 3.0))
         num = min(max(1, int(site.get("count", 1))), 10)
 
         # 如果订阅链接不为空，num为订阅链接数
-        num = len(subscribes) if subscribes else num
+        num = len(subscribe) if subscribe else num
         push_names = site.get("push_to", [])
         errors = max(site.get("errors", 0), 0) + 1
         source = site.get("origin", "")
@@ -256,14 +263,14 @@ def assign(
         if (
             not site.get("enable", True)
             or "" == name
-            or ("" == domain and not subscribes)
+            or ("" == domain and not subscribe)
             or num <= 0
         ):
             continue
 
         for i in range(num):
             index = -1 if num == 1 else i + 1
-            sub = subscribes[i] if subscribes else ""
+            sub = subscribe[i] if subscribe else ""
             renew = {} if utils.isblank(coupon) else {"coupon_code": coupon}
             globalid += 1
             if accounts:
@@ -306,11 +313,15 @@ def assign(
                 taskids.append(globalid)
                 groups[push_name] = taskids
 
-    if remain and push_conf:
+    if (remain or only_check) and push_conf:
+        if only_check:
+            # clean all extra tasks
+            tasks, groups, globalid = [], {k: [] for k in groups.keys()}, 0
+
         for k, v in push_conf.items():
             taskids = groups.get(k, [])
-            subscribes = pushtool.raw_url(push_conf=v)
-            if not taskids or not subscribes:
+            subscribe = pushtool.raw_url(push_conf=v)
+            if k not in groups or not subscribe:
                 continue
 
             globalid += 1
@@ -318,7 +329,7 @@ def assign(
                 TaskConfig(
                     name=f"remains-{k}",
                     taskid=globalid,
-                    sub=subscribes,
+                    sub=subscribe,
                     index=-1,
                     retry=retry,
                     bin_name=bin_name,
@@ -334,9 +345,11 @@ def aggregate(args: argparse.Namespace):
         return
 
     pushtool = push.get_instance()
-    clash_bin, subconverter_bin = clash.which_bin()
+    clash_bin, subconverter_bin = executable.which_bin()
 
-    sites, push_configs, crawl_conf, update_conf, delay = load_configs(url=args.server)
+    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
+        url=args.server, only_check=args.onlycheck
+    )
     push_configs = pushtool.filter_push(push_configs)
     tasks, groups, sites = assign(
         sites=sites,
@@ -345,6 +358,7 @@ def aggregate(args: argparse.Namespace):
         remain=args.remain,
         pushtool=pushtool,
         push_conf=push_configs,
+        only_check=args.onlycheck,
     )
     if not tasks:
         logger.error("cannot found any valid config, exit")
@@ -394,52 +408,64 @@ def aggregate(args: argparse.Namespace):
             proxies = clash.generate_config(workspace, proxies, filename)
 
             # 过滤出需要检查可用性的节点
-            checks, nochecks = workflow.liveness_fillter(proxies=proxies)
-            if checks:
-                utils.chmod(binpath)
-                availables = manager.list()
-                logger.info(
-                    f"startup clash now, workspace: {workspace}, config: {filename}"
-                )
-                process = subprocess.Popen(
-                    [
-                        binpath,
-                        "-d",
-                        workspace,
-                        "-f",
-                        os.path.join(workspace, filename),
-                    ]
-                )
-
-                logger.info(
-                    f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}"
-                )
-
-                processes = []
-                semaphore = multiprocessing.Semaphore(args.num)
-                time.sleep(random.randint(3, 5))
-
-                for proxy in checks:
-                    semaphore.acquire()
-                    p = multiprocessing.Process(
-                        target=clash.check,
-                        args=(
-                            availables,
-                            proxy,
-                            clash.EXTERNAL_CONTROLLER,
-                            semaphore,
-                            args.timeout,
-                            args.url,
-                            delay,
-                            subscribes,
-                        ),
+            skip = utils.trim(os.environ.get("SKIP_ALIVE_CHECK", "false")).lower() in [
+                "true",
+                "1",
+            ]
+            nochecks = proxies
+            if not skip:
+                checks, nochecks = workflow.liveness_fillter(proxies=proxies)
+                if checks:
+                    utils.chmod(binpath)
+                    availables = manager.list()
+                    logger.info(
+                        f"startup clash now, workspace: {workspace}, config: {filename}"
                     )
-                    p.start()
-                    processes.append(p)
-                for p in processes:
-                    p.join()
+                    process = subprocess.Popen(
+                        [
+                            binpath,
+                            "-d",
+                            workspace,
+                            "-f",
+                            os.path.join(workspace, filename),
+                        ]
+                    )
 
-                nochecks.extend(list(availables))
+                    logger.info(
+                        f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}"
+                    )
+
+                    processes = []
+                    semaphore = multiprocessing.Semaphore(args.num)
+                    time.sleep(random.randint(3, 5))
+
+                    for proxy in checks:
+                        semaphore.acquire()
+                        p = multiprocessing.Process(
+                            target=clash.check,
+                            args=(
+                                availables,
+                                proxy,
+                                clash.EXTERNAL_CONTROLLER,
+                                semaphore,
+                                args.timeout,
+                                args.url,
+                                delay,
+                                subscribes,
+                            ),
+                        )
+                        p.start()
+                        processes.append(p)
+                    for p in processes:
+                        p.join()
+
+                    nochecks.extend(list(availables))
+
+                    # 关闭clash
+                    try:
+                        process.terminate()
+                    except:
+                        logger.error(f"terminate clash process error, group: {k}")
 
             if len(nochecks) <= 0:
                 logger.error(f"cannot fetch any proxy, group=[{k}]")
@@ -494,16 +520,14 @@ def aggregate(args: argparse.Namespace):
 
                     pushtool.push_to(content=content, push_conf=push_conf, group=k)
 
-                # 关闭clash
+                # 删除订阅转换文件及配置
                 workflow.cleanup(
-                    process,
                     os.path.join(PATH, "subconverter"),
                     [source_file, dest_file, "generate.ini"],
                 )
             else:
                 content = yaml.dump(data=data, allow_unicode=True)
                 pushtool.push_to(content=content, push_conf=push_conf, group=k)
-                workflow.cleanup(process)
 
         config = {
             "domains": sites,
@@ -563,6 +587,15 @@ if __name__ == "__main__":
         action="store_true",
         default=True,
         help="include remains proxies",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--only-check",
+        dest="onlycheck",
+        action="store_true",
+        default=False,
+        help="only check proxies are alive",
     )
 
     args = parser.parse_args()

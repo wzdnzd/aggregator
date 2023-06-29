@@ -147,11 +147,7 @@ def liveness_fillter(proxies: list) -> tuple[list, list]:
     return checks, nochecks
 
 
-def cleanup(
-    process: subprocess.Popen, filepath: str = "", filenames: list = []
-) -> None:
-    process.terminate()
-
+def cleanup(filepath: str = "", filenames: list = []) -> None:
     if not filepath or not filenames:
         return
 
@@ -298,7 +294,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> Non
                         content=content, push_conf=pushconf, group="crawled-remark"
                     )
                     logger.info(
-                        f"[UpdateInfo] removed {count} invalid crawled subscriptions"
+                        f"[UpdateInfo] found {count} invalid crawled subscriptions"
                     )
             except:
                 logger.error(
