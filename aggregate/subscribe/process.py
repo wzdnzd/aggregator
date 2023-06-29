@@ -348,17 +348,17 @@ def aggregate(args: argparse.Namespace):
     clash_bin, subconverter_bin = executable.which_bin()
 
     sites, push_configs, crawl_conf, update_conf, delay = load_configs(
-        url=args.server, only_check=args.onlycheck
+        url=args.server, only_check=args.check
     )
     push_configs = pushtool.filter_push(push_configs)
     tasks, groups, sites = assign(
         sites=sites,
         retry=3,
         bin_name=subconverter_bin,
-        remain=args.remain,
+        remain=not args.overwrite,
         pushtool=pushtool,
         push_conf=push_configs,
-        only_check=args.onlycheck,
+        only_check=args.check,
     )
     if not tasks:
         logger.error("cannot found any valid config, exit")
@@ -581,18 +581,18 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-r",
-        "--remain",
-        dest="remain",
+        "-o",
+        "--overwrite",
+        dest="overwrite",
         action="store_true",
-        default=True,
+        default=False,
         help="include remains proxies",
     )
 
     parser.add_argument(
-        "-o",
-        "--only-check",
-        dest="onlycheck",
+        "-c",
+        "--check",
+        dest="check",
         action="store_true",
         default=False,
         help="only check proxies are alive",

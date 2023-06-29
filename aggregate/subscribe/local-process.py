@@ -305,7 +305,7 @@ if __name__ == "__main__":
         "--remain",
         dest="remain",
         action="store_true",
-        default=True,
+        default=False,
         help="include remains proxies",
     )
 
