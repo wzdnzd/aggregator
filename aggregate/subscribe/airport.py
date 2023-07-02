@@ -489,28 +489,12 @@ class AirPort:
             pattern = utils.trim(chatgpt.get("regex", ""))
 
         try:
-            if utils.isb64encode(text):
-                chars = utils.random_chars(length=3, punctuation=False)
-                artifact = f"{self.name}-{chars}"
-                nodes = self.decode(
-                    text=text,
-                    artifact=artifact,
-                    program=bin_name,
-                    ignore=ignore_exclude,
-                )
-            else:
-                if not re.search("proxies:", text):
-                    logger.error(
-                        f"[ParseError] fetch proxies error, domain: {self.ref}"
-                    )
-                    return []
-                try:
-                    nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
-                except yaml.constructor.ConstructorError:
-                    yaml.add_multi_constructor(
-                        "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
-                    )
-                    nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
+            chars = utils.random_chars(length=3, punctuation=False)
+            artifact = f"{self.name}-{chars}"
+
+            nodes = self.decode(
+                text=text, artifact=artifact, program=bin_name, ignore=ignore_exclude
+            )
 
             if not nodes:
                 logger.info(f"cannot found any proxy, domain: {self.ref}")
@@ -575,7 +559,6 @@ class AirPort:
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tchatgpt: {pattern}\tdomain: {self.ref}"
                     )
 
-                # name = re.sub(r"\[[^\[]*\]|\([^\(]*\)|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|（[^（]*）|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]", " ", name)
                 name = re.sub(
                     r"\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
                     " ",
@@ -584,7 +567,7 @@ class AirPort:
                 ).strip()
 
                 name = (
-                    re.sub("\s+", " ", name)
+                    re.sub("\s+|\r", " ", name)
                     .replace("_", "-")
                     .replace("+", "-")
                     .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
@@ -597,23 +580,6 @@ class AirPort:
 
                 if "" != tag.strip():
                     item["name"] = tag.strip().upper() + "-" + item["name"]
-
-                    # 方便标记已有节点，最多留999天
-                    # if not re.match(f".*-{tag}\d+$", item["name"]):
-                    #     item["name"] = "{}-{}".format(
-                    #         item.get("name"), tag + "1".zfill(SUFFIX_BITS)
-                    #     )
-                    # else:
-                    #     words = item["name"].rsplit(f"-{tag}")
-                    #     if not words[1].isdigit():
-                    #         continue
-                    #     num = int(words[1]) + 1
-                    #     if num > pow(10, SUFFIX_BITS) - 1:
-                    #         continue
-
-                    #     num = str(num).zfill(SUFFIX_BITS)
-                    #     name = words[0] + f"-{tag}{num}"
-                    #     item["name"] = name
 
                 # 方便过滤无效订阅
                 item["sub"] = self.sub
@@ -636,57 +602,72 @@ class AirPort:
             return []
 
     @staticmethod
-    def decode(text: str, artifact: str, program: str, ignore: bool = False) -> list:
-        text = utils.trim(text=text)
-        artifact = utils.trim(text=artifact)
-
-        if not text or not artifact:
+    def decode(
+        text: str, program: str, artifact: str = "", ignore: bool = False
+    ) -> list:
+        text, nodes = utils.trim(text=text), []
+        if not text:
             return []
 
-        v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
-        clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
+        if utils.isb64encode(text):
+            artifact = utils.trim(text=artifact)
+            if not artifact:
+                artifact = utils.random_chars(length=6, punctuation=False)
 
-        with open(v2ray_file, "w+") as f:
-            f.write(text)
-            f.flush()
+            v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
+            clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
 
-        generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
-        success = subconverter.generate_conf(
-            generate_conf,
-            artifact,
-            f"{artifact}.txt",
-            f"{artifact}.yaml",
-            "clash",
-            ignore,
-        )
-        if not success:
-            logger.error("cannot generate subconverter config file")
-            return []
+            with open(v2ray_file, "w+") as f:
+                f.write(text)
+                f.flush()
 
-        time.sleep(random.random())
-        success = subconverter.convert(binname=program, artifact=artifact)
-        logger.info(
-            f"subconverter completed, artifact: [{artifact}]\tsuccess=[{success}]"
-        )
+            generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
+            success = subconverter.generate_conf(
+                generate_conf,
+                artifact,
+                f"{artifact}.txt",
+                f"{artifact}.yaml",
+                "clash",
+                ignore,
+            )
+            if not success:
+                logger.error("cannot generate subconverter config file")
+                return []
 
-        os.remove(v2ray_file)
-        if not success:
-            return []
+            time.sleep(random.random())
+            success = subconverter.convert(binname=program, artifact=artifact)
+            logger.info(
+                f"subconverter completed, artifact: [{artifact}]\tsuccess=[{success}]"
+            )
 
-        nodes = []
-        with open(clash_file, "r", encoding="utf8") as reader:
+            os.remove(v2ray_file)
+            if not success:
+                return []
+
+            with open(clash_file, "r", encoding="utf8") as reader:
+                try:
+                    config = yaml.load(reader, Loader=yaml.SafeLoader)
+                except yaml.constructor.ConstructorError:
+                    reader.seek(0, 0)
+                    yaml.add_multi_constructor(
+                        "str",
+                        lambda loader, suffix, node: None,
+                        Loader=yaml.SafeLoader,
+                    )
+                    config = yaml.load(reader, Loader=yaml.SafeLoader)
+                nodes = config.get("proxies", [])
+
+            # 已经读取，可以删除
+            os.remove(clash_file)
+        else:
+            if not re.search("proxies:", text):
+                return []
             try:
-                config = yaml.load(reader, Loader=yaml.SafeLoader)
+                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
             except yaml.constructor.ConstructorError:
-                reader.seek(0, 0)
                 yaml.add_multi_constructor(
-                    "str",
-                    lambda loader, suffix, node: None,
-                    Loader=yaml.SafeLoader,
+                    "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
                 )
-                config = yaml.load(reader, Loader=yaml.SafeLoader)
-            nodes = config.get("proxies", [])
+                nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
 
-        # 已经读取，可以删除
-        os.remove(clash_file)
         return nodes

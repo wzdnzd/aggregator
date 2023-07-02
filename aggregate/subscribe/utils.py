@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import gzip
+import json
 import os
 import platform
 import random
@@ -13,9 +14,12 @@ import string
 import subprocess
 import sys
 import time
+import typing
 import urllib
 import urllib.parse
 import urllib.request
+import uuid
+from http.client import HTTPMessage, HTTPResponse
 from urllib import parse
 
 from logger import logger
@@ -328,3 +332,72 @@ def mask(url: str) -> str:
         logger.error(f"invalid url: {url}")
 
     return url
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def http_error_302(
+        self,
+        req: urllib.request.Request,
+        fp: typing.IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+    ) -> typing.IO[bytes]:
+        return fp
+
+
+def http_post(
+    url: str,
+    headers: dict = None,
+    params: dict = {},
+    retry: int = 3,
+    timeout: float = 6,
+    allow_redirects: bool = True,
+) -> HTTPResponse:
+    if params is None or type(params) != dict or retry <= 0:
+        return None
+
+    timeout, retry = max(timeout, 1), retry - 1
+    if not headers:
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Content-Type": "application/json",
+        }
+    try:
+        data = json.dumps(params).encode(encoding="UTF8")
+        request = urllib.request.Request(
+            url=url, data=data, headers=headers, method="POST"
+        )
+        if allow_redirects:
+            return urllib.request.urlopen(request, timeout=timeout, context=CTX)
+
+        opener = urllib.request.build_opener(NoRedirect)
+        return opener.open(request, timeout=timeout)
+    except Exception:
+        time.sleep(random.random())
+        return http_post(
+            url=url,
+            headers=headers,
+            params=params,
+            retry=retry,
+            allow_redirects=allow_redirects,
+        )
+
+
+def verify_uuid(text: str) -> bool:
+    if not text or type(text) != str:
+        return False
+
+    try:
+        _ = uuid.UUID(text)
+        return True
+    except ValueError:
+        return False
+
+
+def is_number(num: str) -> bool:
+    try:
+        float(num)
+        return True
+    except ValueError:
+        return False

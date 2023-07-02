@@ -28,14 +28,14 @@ set "batname=%~nx0"
 
 @REM microsoft terminal displays differently from cmd and powershell
 @REM call :ismsterminal msterminal
-set "msterminal=1"
+set "msterminal=0"
 
 @REM enable create shortcut 
-set "enableshortcut=0"
+set "enableshortcut=1"
 
 @REM enable download config from remote
 set "enableremoteconf=0"
-set "remoteurl=https://pastebin.enjoyit.ml/api/file/raw/clg075nur0011k308fzojwl5x"
+set "remoteurl="
 
 @REM validate configuration files before starting
 set "verifyconf=0"
@@ -942,10 +942,10 @@ call :trim force "%~2"
 if "!force!" == "" set "force=1"
 
 if "!force!" == "1" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 检查并更新订阅，仅刷新 "http" 类型的订阅
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 检查并更新订阅，仅刷新 %ESC%[!warncolor!mHTTP%ESC%[0m 类型的订阅
 )
 
-call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com" "!force!" subfiles
+call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com cp.cloudflare.com" "!force!" subfiles
 set "%~1=!subfiles!"
 goto :eof
 
@@ -1884,13 +1884,12 @@ if "!rawurl!" == "" goto :eof
 set proxy_urls[0]=https://ghproxy.com
 set proxy_urls[1]=https://gh-proxy.com
 set proxy_urls[2]=https://github.moeyy.xyz
-set proxy_urls[3]=https://gh.gh2233.ml
-set proxy_urls[4]=https://gh.ddlc.top
-set proxy_urls[5]=https://ghps.cc
-set proxy_urls[6]=https://hub.gitmirror.com
+set proxy_urls[3]=https://gh.ddlc.top
+set proxy_urls[4]=https://ghps.cc
+set proxy_urls[5]=https://hub.gitmirror.com
 
 @REM random [0, 5]
-set /a num=!random! %% 7
+set /a num=!random! %% 6
 set "ghproxy=!proxy_urls[%num%]!"
 
 @REM github proxy
@@ -2080,10 +2079,10 @@ call :trim force "%~1"
 if "!force!" == "" set "force=1"
 
 if "!force!" == "1" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始检查并更新类型为 "http" 的代理规则
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始检查并更新类型为 %ESC%[!warncolor!mHTTP%ESC%[0m 的代理规则
 )
 
-call :filerefresh changed "^\s+behavior:\s+.*" "www.gstatic.com" "!force!" rulefiles
+call :filerefresh changed "^\s+behavior:\s+.*" "www.gstatic.com cp.cloudflare.com" "!force!" rulefiles
 goto :eof
 
 
@@ -2094,7 +2093,7 @@ set "regex=%~2"
 set "%~5="
 
 call :trim filter "%~3"
-if "!filter!" == "" set "filter=www.gstatic.com"
+if "!filter!" == "" set "filter=www.gstatic.com cp.cloudflare.com"
 
 call :trim force "%~4"
 if "!force!" == "" set "force=1"
@@ -2125,7 +2124,7 @@ if not exist "!tempfile!" (
 for /f "tokens=1* delims=:" %%i in ('findstr /i /r /c:"^[ ][ ]*url:[ ][ ]*http.*://.*" !tempfile!') do (
     call :trim propertity %%i
     if "!propertity:~0,1!" NEQ "#" (
-        @echo "%%j" | findstr "!filter!" >nul 2>nul || set "texturls=!texturls!,%%j"
+        @echo "%%j" | findstr /i "!filter!" >nul 2>nul || set "texturls=!texturls!,%%j"
     )
 )
 
@@ -2234,9 +2233,6 @@ if "!dashboard!" == "" (
 )
 
 @REM exists
-@REM self-use, no automatic updates required
-set "force=0"
-
 if exist "!dashboard!\index.html" if "!force!" == "0" goto :eof
 call :makedirs success "!dashboard!"
 

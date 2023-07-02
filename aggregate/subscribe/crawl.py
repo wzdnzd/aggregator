@@ -1516,7 +1516,7 @@ def execute_script(script: str, params: dict = {}) -> list:
 
         endtime = time.time()
         logger.info(
-            "[ScriptInfo] finished execute script: scripts.{}, cost: {:.3}s".format(
+            "[ScriptInfo] finished execute script: scripts.{}, cost: {:.2f}s".format(
                 script, endtime - starttime
             )
         )
