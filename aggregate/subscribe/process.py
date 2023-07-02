@@ -412,7 +412,7 @@ def aggregate(args: argparse.Namespace):
                 "true",
                 "1",
             ]
-            nochecks = proxies
+            nochecks, starttime = proxies, time.time()
             if not skip:
                 checks, nochecks = workflow.liveness_fillter(proxies=proxies)
                 if checks:
@@ -467,11 +467,14 @@ def aggregate(args: argparse.Namespace):
                     except:
                         logger.error(f"terminate clash process error, group: {k}")
 
+            cost = "{:.2f}s".format(time.time() - starttime)
             if len(nochecks) <= 0:
-                logger.error(f"cannot fetch any proxy, group=[{k}]")
+                logger.error(f"cannot fetch any proxy, group=[{k}], cost: {cost}")
                 continue
 
-            logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}")
+            logger.info(
+                f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}"
+            )
 
             data = {"proxies": nochecks}
             push_conf = push_configs.get(k, {})

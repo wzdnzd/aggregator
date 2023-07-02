@@ -61,3 +61,7 @@ def convert(binname: str, artifact: str = "") -> bool:
         args.append(artifact)
 
     return utils.cmd(args)
+
+
+def getpath() -> str:
+    return os.path.join(PATH, "subconverter")

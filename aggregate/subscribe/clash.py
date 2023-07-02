@@ -107,6 +107,13 @@ def filter_proxies(proxies: list) -> dict:
     unique_proxies = []
     for item in proxies:
         try:
+            # check uuid
+            if "uuid" in item and not utils.verify_uuid(item.get("uuid")):
+                continue
+
+            if "tfo" in item and item.get("tfo") not in [False, True]:
+                continue
+
             authentication = "password"
             item["port"] = int(item["port"])
             if item["type"] == "ss":
@@ -136,6 +143,10 @@ def filter_proxies(proxies: list) -> dict:
                 if "udp" in item and item["udp"] not in [False, True]:
                     continue
                 if "tls" in item and item["tls"] not in [False, True]:
+                    continue
+                if item.get("network", "ws") in ["h2", "grpc"] and not item.get(
+                    "tls", False
+                ):
                     continue
                 if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
                     False,
@@ -179,7 +190,11 @@ def filter_proxies(proxies: list) -> dict:
             else:
                 continue
 
-            if not item[authentication] or proxies_exists(item, unique_proxies):
+            if (
+                not item[authentication]
+                or utils.is_number(item[authentication])
+                or proxies_exists(item, unique_proxies)
+            ):
                 continue
 
             unique_proxies.append(item)
