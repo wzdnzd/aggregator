@@ -4,7 +4,6 @@
 # @Time    : 2023-06-30
 
 import base64
-import datetime
 import itertools
 import json
 import multiprocessing
@@ -12,6 +11,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from http.client import IncompleteRead
 
 import push
@@ -24,13 +24,41 @@ from logger import logger
 
 import subconverter
 
+# outbind type
 SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "http", "socks5"]
 
+# date format
+DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-def current_date() -> str:
-    timezone = datetime.timezone(datetime.timedelta(hours=8), name="Asia/Shanghai")
-    now = datetime.datetime.utcnow().replace(tzinfo=timezone.utc).astimezone(timezone)
-    return str(now.date())
+# last modified key name
+LAST_MODIFIED = "lastModified"
+
+
+def current_time(utc: bool = True) -> datetime:
+    now = datetime.utcnow()
+    if not utc:
+        tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
+        now = now.replace(tzinfo=tz.utc).astimezone(tz)
+
+    return now
+
+
+def get_dates(last: datetime) -> list[str]:
+    last, dates = last if last else current_time(utc=True), []
+
+    # change timezone to Asia/Shanghai
+    # tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
+    # start = (last.replace(tzinfo=tz.utc).astimezone(tz).replace(hour=0, minute=0, second=0))
+    # end = current_time(utc=False).replace(hour=23, minute=59, second=59)
+
+    start = last.replace(hour=0, minute=0, second=0)
+    end = current_time(utc=True).replace(hour=23, minute=59, second=59)
+
+    while start <= end:
+        dates.append(start.strftime("%Y-%m-%d"))
+        start += timedelta(days=1)
+
+    return dates
 
 
 def detect(proxies: list, nopublic: bool, exclude: str) -> bool:
@@ -43,6 +71,21 @@ def detect(proxies: list, nopublic: bool, exclude: str) -> bool:
         for x in proxies
         if x and type(x) == dict
     )
+
+
+def last_history(url: str, interval: int = 12) -> datetime:
+    last = current_time(utc=True) + timedelta(hours=-abs(int(interval)))
+    content = utils.http_get(url=url)
+    if content:
+        modified = ""
+        try:
+            modified = json.loads(content).get(LAST_MODIFIED, "")
+            if modified:
+                last = datetime.strptime(modified, DATE_FORMAT) + timedelta(minutes=-10)
+        except Exception:
+            logger.error(f"[V2RaySE] invalid date format: {modified}")
+
+    return last
 
 
 def fetchone(url: str, nopublic: bool = True, exclude: str = "") -> list:
@@ -68,26 +111,44 @@ def fetch(params: dict) -> list:
         return []
 
     domain = utils.extract_domain(params.get("url", ""), include_protocal=True)
-    persist = params.get("persist", {})
-    pushtool = push.get_instance()
-    if not pushtool.validate(persist):
-        logger.error(f"[V2RaySE] invalid persist config, please check it and try again")
+    if not domain:
+        logger.error(f"[V2RaySE] skip collect data due to parameter 'url' missing")
         return []
 
-    if not domain:
-        domain = "https://oss.v2rayse.com"
-
-    dates = params.get("dates", [])
-    if not dates or type(dates) != list:
-        dates = [current_date()]
+    persist = params.get("persist", {})
+    pushtool = push.get_instance()
+    if (
+        not persist
+        or type(persist) != dict
+        or not pushtool.validate(persist.get("proxies", {}))
+    ):
+        logger.error(f"[V2RaySE] invalid persist config, please check it and try again")
+        return []
 
     yamlonly = params.get("yamlonly", False)
     nopublic = params.get("nopublic", True)
     exclude = params.get("exclude", "")
     support = set(params.get("types", SUPPORT_TYPE))
+    interval = max(1, int(params.get("interval", 12)))
+
+    # storage config
+    proxies_store = persist.get("proxies", {})
+    modified_store = persist.get("modified", {})
+
+    history_url = pushtool.raw_url(push_conf=modified_store)
+    last = last_history(url=history_url, interval=interval)
+
+    dates = params.get("dates", [])
+    if not dates or type(dates) != list:
+        dates = get_dates(last=last)
+
+    begin = current_time(utc=True).strftime(DATE_FORMAT)
+    logger.info(
+        f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]"
+    )
 
     url, proxies = f"{domain}/minio/webrpc", []
-    for date in dates:
+    for date in sorted(list(set(dates)), reverse=True):
         date = utils.trim(date)
         if not date:
             logger.error(f"[V2RaySE] skip crawl because date: {date} is invalid")
@@ -126,11 +187,25 @@ def fetch(params: dict) -> list:
                 pass
 
             objects = json.loads(content).get("result", {}).get("objects", [])
+            if objects is None:
+                logger.error(f"[V2RaySE] folder {date} not exists")
+                continue
+
             for item in objects:
                 if not item or (
                     yamlonly and "text/yaml" not in item.get("contentType", "")
                 ):
                     continue
+
+                if "lastModified" in item:
+                    try:
+                        modified = datetime.fromisoformat(
+                            item.get("lastModified", "")[:-1]
+                        )
+                        if modified < last:
+                            continue
+                    except:
+                        pass
 
                 name = item.get("name", "")
                 files.append([f"{domain}/proxies/{name}", nopublic, exclude])
@@ -174,14 +249,14 @@ def fetch(params: dict) -> list:
 
     success = subconverter.generate_conf(generate, artifact, source, dest, "mixed")
     if not success:
-        logger.error(f"[V2raySE] cannot generate subconverter config file")
+        logger.error(f"[V2RaySE] cannot generate subconverter config file")
         content = yaml.dump(data=data, allow_unicode=True)
     else:
         _, program = which_bin()
         if subconverter.convert(binname=program, artifact=artifact):
             filepath = os.path.join(datapath, dest)
             if not os.path.exists(filepath) or not os.path.isfile(filepath):
-                logger.error(f"[V2raySE] converted file {filepath} not found")
+                logger.error(f"[V2RaySE] converted file {filepath} not found")
                 return []
 
             with open(filepath, "r", encoding="utf8") as f:
@@ -193,20 +268,27 @@ def fetch(params: dict) -> list:
                     )
                 except Exception as e:
                     logger.error(
-                        f"[V2raySE] base64 encode converted data error, message: {str(e)}"
+                        f"[V2RaySE] base64 encode converted data error, message: {str(e)}"
                     )
                     return []
 
         # clean workspace
         workflow.cleanup(datapath, filenames=[source, dest, "generate.ini"])
 
-    success = pushtool.push_to(content=content, push_conf=persist, group="v2rayse")
+    success = pushtool.push_to(
+        content=content, push_conf=proxies_store, group="v2rayse"
+    )
     if not success:
         logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies")
         return []
 
+    # save last modified time
+    if pushtool.validate(push_conf=modified_store):
+        content = json.dumps({LAST_MODIFIED: begin})
+        pushtool.push_to(content=content, push_conf=modified_store, group="modified")
+
     config = params.get("config", {})
-    config["sub"] = pushtool.raw_url(push_conf=persist)
+    config["sub"] = pushtool.raw_url(push_conf=proxies_store)
     config["saved"] = True
     config["name"] = "v2rayse" if not config.get("name", "") else config.get("name")
     config["push_to"] = list(set(config.get("push_to", [])))
