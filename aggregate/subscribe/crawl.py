@@ -57,19 +57,14 @@ SINGLE_LINK_FLAG = "singlelink://"
 
 
 def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
-    try:
-        from collections.abc import Iterable
-    except ImportError:
-        from collections import Iterable
-
-    if not func or not params:
+    if not func or not params or type(params) != list:
         return {}
 
     cpu_count = multiprocessing.cpu_count()
     num = len(params) if len(params) <= cpu_count else cpu_count
 
     pool = multiprocessing.Pool(num)
-    if isinstance(params, Iterable):
+    if type(params[0]) == list or type(params[0]) == tuple:
         results = pool.starmap(func, params)
     else:
         results = pool.map(func, params)
