@@ -28,13 +28,13 @@ set "batname=%~nx0"
 
 @REM microsoft terminal displays differently from cmd and powershell
 @REM call :ismsterminal msterminal
-set "msterminal=0"
+set "msterminal=1"
 
 @REM enable create shortcut 
 set "enableshortcut=1"
 
 @REM enable download config from remote
-set "enableremoteconf=0"
+set "enableremoteconf=1"
 set "remoteurl="
 
 @REM validate configuration files before starting
@@ -211,7 +211,7 @@ if "!conflocation!" NEQ "!conflocation: =!" (
 
 if "!isweblink!" == "1" (
     if exist "!conflocation!" (
-        set "tips=[%ESC%[!warncolor!m警告%ESC%[0m] %ESC%[!warncolor!m已存在%ESC%[0m配置文件 "%ESC%[!warncolor!m!conflocation!%ESC%[0m" 会被%ESC%[91m覆盖%ESC%[0m，是否继续？ (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)？"
+        set "tips=[%ESC%[!warncolor!m警告%ESC%[0m] %ESC%[!warncolor!m已存在%ESC%[0m配置文件 "%ESC%[!warncolor!m!conflocation!%ESC%[0m" 会被%ESC%[91m覆盖%ESC%[0m，是否继续？ (%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
         if "!msterminal!" == "1" (
             choice /t 6 /d n /n /m "!tips!"
         ) else (
@@ -282,7 +282,7 @@ goto :eof
 
 @REM Initialize network proxy
 :initialize
-set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 网络代理程序将在目录 "%ESC%[!warncolor!m!dest!%ESC%[0m" 安装并运行，是否继续？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)？"
+set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 网络代理程序将在目录 "%ESC%[!warncolor!m!dest!%ESC%[0m" 安装并运行，是否继续？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
 if "!msterminal!" == "1" (
     choice /t 5 /d n /n /m "!tips!"
 ) else (
@@ -308,7 +308,7 @@ set "alpha=0"
 call :checkconnect available 0
 set "lazycheck=0"
 if "!available!" == "1" (
-    set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 代理网络运行%ESC%[!infocolor!m正常%ESC%[0m，%ESC%[91m不存在%ESC%[0m问题，是否继续？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)？"
+    set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 代理网络运行%ESC%[!infocolor!m正常%ESC%[0m，%ESC%[91m不存在%ESC%[0m问题，是否继续？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
     if "!msterminal!" == "1" (
         choice /t 5 /d n /n /m "!tips!"
     ) else (
@@ -786,6 +786,9 @@ set "%~1=0"
 set "content="
 set "needgeosite=0"
 
+@REM yacd dashboard
+if "!yacd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\registerSW.js" (set "yacd=1")
+
 @REM force use clash.premium
 if "!clashpremium!" == "1" (
     set "clashmeta=0"
@@ -1060,7 +1063,7 @@ if exist "!configfile!" (
     call :extractport port
     if "!port!" == "" goto :eof
 
-    set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 系统代理%ESC%[91m未配置%ESC%[0m，是否设置？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)？"
+    set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 系统代理%ESC%[91m未配置%ESC%[0m，是否设置？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
     if "!msterminal!" == "1" (
         choice /t 5 /d y /n /m "!tips!"
     ) else (
@@ -1173,6 +1176,10 @@ goto :eof
 set "%~1="
 call :trim outenable "%~2"
 if "!outenable!" == "" set "outenable=1"
+
+@REM deprecated and no longer needed, so set it to 0
+set "outenable=0"
+
 if "!outenable!" == "1" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 clash.exe、域名及 IP 地址等数据
 )
@@ -1184,6 +1191,8 @@ if "!clashurl!" NEQ "" (
     if /i "!clashurl:~0,8!" NEQ "https://" (
         @echo [%ESC%[91m错误%ESC%[0m] clash.exe 下载地址解析失败："!clashurl!"
     ) else (
+        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\clash.exe%ESC%[0m
+
         curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\clash.zip" "!clashurl!"
 
         if exist "!temp!\clash.zip" (
@@ -1209,6 +1218,8 @@ if "!clashurl!" NEQ "" (
 
 @REM download Country.mmdb
 if "!countryurl!" NEQ "" (
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\!countryfile!%ESC%[0m
+
     curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!countryfile!" "!countryurl!"
     if exist "!temp!\!countryfile!" (
         if "!dfiles!" == "" (
@@ -1223,6 +1234,8 @@ if "!countryurl!" NEQ "" (
 
 @REM download GeoSite.dat
 if "!geositeurl!" NEQ "" (
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\!geositefile!%ESC%[0m
+
     curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geositefile!" "!geositeurl!"
 
     if exist "!temp!\!geositefile!" (
@@ -1238,6 +1251,8 @@ if "!geositeurl!" NEQ "" (
 
 @REM download GeoIP.dat
 if "!geoipurl!" NEQ "" (
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\!geoipfile!%ESC%[0m
+
     curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geoipfile!" "!geoipurl!"
 
     if exist "!temp!\!geoipfile!" (
@@ -1511,7 +1526,7 @@ if "!verifyconf!" == "1" (
             del /f /q "!testoutput!" >nul 2>nul
         )
 
-        if "!messages!" == "" set "messages=文件校验失败，%ESC%[!warncolor!mclash.exe%ESC%[0m 或配置文件 %ESC%[!warncolor!m!configfile!%ESC%[0m存在问题"
+        if "!messages!" == "" set "messages=文件校验失败，%ESC%[!warncolor!mclash.exe%ESC%[0m 或配置文件 %ESC%[!warncolor!m!configfile!%ESC%[0m 存在问题"
         @echo [%ESC%[91m错误%ESC%[0m] 网络代理启动%ESC%[91m失败%ESC%[0m，配置文件 "%ESC%[!warncolor!m!configfile!%ESC%[0m" 存在错误
         @echo [%ESC%[91m错误%ESC%[0m] 错误信息："!messages!"
         exit /b 1
@@ -1528,9 +1543,32 @@ for /l %%i in (1,1,6) do (
     @REM check running status
     call :isrunning status
     if "!status!" == "1" (
-        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序启动%ESC%[!infocolor!m成功%ESC%[0m
-        call :postprocess
-        exit /b
+        @REM abnormal detect
+        call :abnormal state
+
+        if "!state!" == "1" (
+            set "tips=[%ESC%[!warncolor!m警告%ESC%[0m] 代理进程%ESC%[91m异常%ESC%[0m，需%ESC%[91m删除并重新下载%ESC%[0m %ESC%[!warncolor!m!dest!\clash.exe%ESC%[0m，是否继续？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
+            if "!msterminal!" == "1" (
+                choice /t 5 /d y /n /m "!tips!"
+            ) else (
+                set /p "=!tips!" <nul
+                choice /t 5 /d y /n
+            )
+            if !errorlevel! == 1 (
+                @REM delete exist clash.exe
+                del /f /q "!dest!\clash.exe" >nul 2>nul
+
+                @REM download and restart
+                goto :restartprogram
+            ) else (
+                @echo [%ESC%[91m错误%ESC%[0m] 代理程序启动%ESC%[91m失败%ESC%[0m，请检查代理程序 %ESC%[!warncolor!m!dest!\clash.exe%ESC%[0m 是否完好
+                goto :eof
+            )
+        ) else (
+            @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序启动%ESC%[!infocolor!m成功%ESC%[0m
+            call :postprocess
+            exit /b
+        )
     ) else (
         @REM waiting
         timeout /t 1 /nobreak >nul 2>nul
@@ -1589,7 +1627,7 @@ if "!proxyport!" == "" set "proxyport=7890"
 @REM set proxy
 set "proxyserver=127.0.0.1:!proxyport!"
 if "!proxyserver!" NEQ "!server!" (
-    set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 系统代理%ESC%[91m未配置%ESC%[0m，是否设置？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)？"
+    set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 系统代理%ESC%[91m未配置%ESC%[0m，是否设置？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
     if "!msterminal!" == "1" (
         choice /t 5 /d y /n /m "!tips!"
     ) else (
@@ -1689,6 +1727,24 @@ tasklist | findstr /i "clash.exe" >nul 2>nul && set "%~1=1" || set "%~1=0"
 goto :eof
 
 
+@REM check clash.exe process is normal
+:abnormal <result>
+set "%~1=1"
+
+@REM memory usage
+set "usage="
+
+for /f "tokens=5 delims= " %%a in ('tasklist /nh ^|findstr /i clash.exe') do set "usage=%%a"
+if "!usage!" NEQ "" (
+    @REM remove comma from number
+    set "usage=!usage:,=!"
+
+    if !usage! GTR 5120 (set "%~1=0")
+)
+
+goto :eof
+
+
 @REM get donwload url
 :confirmurl <force> <enabled>
 @REM country data
@@ -1707,7 +1763,7 @@ set "geositefile=GeoSite.dat"
 set "geoipfile=GeoIP.dat"
 
 @REM dashboard url
-set "dashboardurl=https://github.com/Dreamacro/clash-dashboard/archive/refs/heads/gh-pages.zip"
+set "dashboardurl=https://github.com/wzdnzd/clash-dashboard/archive/refs/heads/gh-pages.zip"
 set "dashdirectory=clash-dashboard-gh-pages"
 
 set "clashurl="
@@ -2378,7 +2434,7 @@ if "!status!" == "0" (
     goto :eof
 )
 
-set "tips=[%ESC%[!warncolor!m警告%ESC%[0m] 此操作将会关闭代理网络，是否继续？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m)？"
+set "tips=[%ESC%[!warncolor!m警告%ESC%[0m] 此操作将会关闭代理网络，是否继续？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
 if "!msterminal!" == "1" (
     choice /t 6 /d y /n /m "!tips!"
 ) else (
