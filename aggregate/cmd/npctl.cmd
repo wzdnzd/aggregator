@@ -34,7 +34,7 @@ set "msterminal=1"
 set "enableshortcut=1"
 
 @REM enable download config from remote
-set "enableremoteconf=1"
+set "enableremoteconf=0"
 set "remoteurl="
 
 @REM validate configuration files before starting
@@ -1191,7 +1191,7 @@ if "!clashurl!" NEQ "" (
     if /i "!clashurl:~0,8!" NEQ "https://" (
         @echo [%ESC%[91m错误%ESC%[0m] clash.exe 下载地址解析失败："!clashurl!"
     ) else (
-        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\clash.exe%ESC%[0m
+        @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!mclash.exe%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
         curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\clash.zip" "!clashurl!"
 
@@ -1218,7 +1218,7 @@ if "!clashurl!" NEQ "" (
 
 @REM download Country.mmdb
 if "!countryurl!" NEQ "" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\!countryfile!%ESC%[0m
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!countryfile!%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
     curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!countryfile!" "!countryurl!"
     if exist "!temp!\!countryfile!" (
@@ -1234,7 +1234,7 @@ if "!countryurl!" NEQ "" (
 
 @REM download GeoSite.dat
 if "!geositeurl!" NEQ "" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\!geositefile!%ESC%[0m
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!geositefile!%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
     curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geositefile!" "!geositeurl!"
 
@@ -1251,7 +1251,7 @@ if "!geositeurl!" NEQ "" (
 
 @REM download GeoIP.dat
 if "!geoipurl!" NEQ "" (
-    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!dest!\!geoipfile!%ESC%[0m
+    @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!geoipfile!%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
     curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geoipfile!" "!geoipurl!"
 
