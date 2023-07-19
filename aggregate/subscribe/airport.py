@@ -4,7 +4,6 @@
 # @Time    : 2022-07-15
 
 import concurrent.futures
-from enum import Enum
 import json
 import os
 import random
@@ -16,6 +15,7 @@ import urllib
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from enum import Enum
 
 import mailtm
 import renewal
@@ -24,6 +24,7 @@ import yaml
 from logger import logger
 
 import subconverter
+from clash import verify
 
 EMAILS_DOMAINS = [
     "gmail.com",
@@ -660,14 +661,15 @@ class AirPort:
             # 已经读取，可以删除
             os.remove(clash_file)
         else:
-            if not re.search("proxies:", text):
-                return []
-            try:
-                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
-            except yaml.constructor.ConstructorError:
-                yaml.add_multi_constructor(
-                    "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
-                )
-                nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
+            if re.search("proxies:", text):
+                try:
+                    proxies = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
+                except yaml.constructor.ConstructorError:
+                    yaml.add_multi_constructor(
+                        "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
+                    )
+                    proxies = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
+
+                nodes = [x for x in proxies if verify(x)]
 
         return nodes
