@@ -8,11 +8,9 @@ import json
 
 # import multiprocessing
 import os
-import platform
 import random
 import ssl
 import string
-import sys
 import urllib
 import urllib.parse
 import urllib.request
@@ -21,7 +19,6 @@ from multiprocessing.synchronize import Semaphore
 
 import utils
 import yaml
-from logger import logger
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -54,39 +51,6 @@ def generate_config(path: str, proxies: list, filename: str) -> list:
 
 
 def filter_proxies(proxies: list) -> dict:
-    ss_supported_ciphers = [
-        "aes-128-gcm",
-        "aes-192-gcm",
-        "aes-256-gcm",
-        "aes-128-cfb",
-        "aes-192-cfb",
-        "aes-256-cfb",
-        "aes-128-ctr",
-        "aes-192-ctr",
-        "aes-256-ctr",
-        "rc4-md5",
-        "chacha20-ietf",
-        "xchacha20",
-        "chacha20-ietf-poly1305",
-        "xchacha20-ietf-poly1305",
-    ]
-    ssr_supported_obfs = [
-        "plain",
-        "http_simple",
-        "http_post",
-        "random_head",
-        "tls1.2_ticket_auth",
-        "tls1.2_ticket_fastauth",
-    ]
-    ssr_supported_protocol = [
-        "origin",
-        "auth_sha1_v4",
-        "auth_aes128_md5",
-        "auth_aes128_sha1",
-        "auth_chain_a",
-        "auth_chain_b",
-    ]
-    vmess_supported_ciphers = ["auto", "aes-128-gcm", "chacha20-poly1305", "none"]
     config = {
         "proxies": [],
         "proxy-groups": [
@@ -106,100 +70,8 @@ def filter_proxies(proxies: list) -> dict:
     sorted(proxies, key=lambda p: p.get("name", ""))
     unique_proxies = []
     for item in proxies:
-        try:
-            # check uuid
-            if "uuid" in item and not utils.verify_uuid(item.get("uuid")):
-                continue
-
-            if "tfo" in item and item.get("tfo") not in [False, True]:
-                continue
-
-            authentication = "password"
-            item["port"] = int(item["port"])
-            if item["type"] == "ss":
-                if item["cipher"] not in ss_supported_ciphers:
-                    continue
-                # https://github.com/Dreamacro/clash/blob/master/adapter/outbound/shadowsocks.go#L109
-                plugin = item.get("plugin", "")
-                if plugin not in ["", "obfs", "v2ray-plugin"]:
-                    continue
-                if plugin:
-                    option = item.get("plugin-opts", {}).get("mode", "")
-                    if (
-                        not option
-                        or (plugin == "v2ray-plugin" and option != "websocket")
-                        or (plugin == "obfs" and option not in ["tls", "http"])
-                    ):
-                        continue
-            elif item["type"] == "ssr":
-                if item["cipher"] not in ss_supported_ciphers:
-                    continue
-                if item["obfs"] not in ssr_supported_obfs:
-                    continue
-                if item["protocol"] not in ssr_supported_protocol:
-                    continue
-            elif item["type"] == "vmess":
-                authentication = "uuid"
-                if "udp" in item and item["udp"] not in [False, True]:
-                    continue
-                if "tls" in item and item["tls"] not in [False, True]:
-                    continue
-                if item.get("network", "ws") in ["h2", "grpc"] and not item.get(
-                    "tls", False
-                ):
-                    continue
-                if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                    False,
-                    True,
-                ]:
-                    continue
-                if item["cipher"] not in vmess_supported_ciphers:
-                    continue
-            elif item["type"] == "trojan":
-                if "udp" in item and item["udp"] not in [False, True]:
-                    continue
-                if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                    False,
-                    True,
-                ]:
-                    continue
-            elif item["type"] == "snell":
-                authentication = "psk"
-                if "udp" in item and item["udp"] not in [False, True]:
-                    continue
-                if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                    False,
-                    True,
-                ]:
-                    continue
-            elif item["type"] == "http":
-                authentication = "userpass"
-                if "tls" in item and item["tls"] not in [False, True]:
-                    continue
-            elif item["type"] == "socks5":
-                authentication = "userpass"
-                if "tls" in item and item["tls"] not in [False, True]:
-                    continue
-                if "udp" in item and item["udp"] not in [False, True]:
-                    continue
-                if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                    False,
-                    True,
-                ]:
-                    continue
-            else:
-                continue
-
-            if (
-                not item[authentication]
-                or utils.is_number(item[authentication])
-                or proxies_exists(item, unique_proxies)
-            ):
-                continue
-
+        if verify(item) and not proxies_exists(item, unique_proxies):
             unique_proxies.append(item)
-        except:
-            continue
 
     # 防止多个代理节点名字相同导致clash配置错误
     groups, unique_names = {}, set()
@@ -288,6 +160,153 @@ def proxies_exists(proxy: dict, proxies: list) -> bool:
         )
 
     return duplicate
+
+
+SS_SUPPORTED_CIPHERS = [
+    "aes-128-gcm",
+    "aes-192-gcm",
+    "aes-256-gcm",
+    "aes-128-cfb",
+    "aes-192-cfb",
+    "aes-256-cfb",
+    "aes-128-ctr",
+    "aes-192-ctr",
+    "aes-256-ctr",
+    "rc4-md5",
+    "chacha20-ietf",
+    "xchacha20",
+    "chacha20-ietf-poly1305",
+    "xchacha20-ietf-poly1305",
+]
+SSR_SUPPORTED_OBFS = [
+    "plain",
+    "http_simple",
+    "http_post",
+    "random_head",
+    "tls1.2_ticket_auth",
+    "tls1.2_ticket_fastauth",
+]
+SSR_SUPPORTED_PROTOCOL = [
+    "origin",
+    "auth_sha1_v4",
+    "auth_aes128_md5",
+    "auth_aes128_sha1",
+    "auth_chain_a",
+    "auth_chain_b",
+]
+VMESS_SUPPORTED_CIPHERS = ["auto", "aes-128-gcm", "chacha20-poly1305", "none"]
+
+
+def verify(item: dict) -> bool:
+    if not item or type(item) != dict:
+        return False
+
+    try:
+        # check uuid
+        if "uuid" in item and not utils.verify_uuid(item.get("uuid")):
+            return False
+
+        if "tfo" in item and item.get("tfo") not in [False, True]:
+            return False
+
+        authentication = "password"
+        item["port"] = int(item["port"])
+        if item["type"] == "ss":
+            if item["cipher"] not in SS_SUPPORTED_CIPHERS:
+                return False
+            # https://github.com/Dreamacro/clash/blob/master/adapter/outbound/shadowsocks.go#L109
+            plugin = item.get("plugin", "")
+            if plugin not in ["", "obfs", "v2ray-plugin"]:
+                return False
+            if plugin:
+                option = item.get("plugin-opts", {}).get("mode", "")
+                if (
+                    not option
+                    or (plugin == "v2ray-plugin" and option != "websocket")
+                    or (plugin == "obfs" and option not in ["tls", "http"])
+                ):
+                    return False
+        elif item["type"] == "ssr":
+            if item["cipher"] not in SS_SUPPORTED_CIPHERS:
+                return False
+            if item["obfs"] not in SSR_SUPPORTED_OBFS:
+                return False
+            if item["protocol"] not in SSR_SUPPORTED_PROTOCOL:
+                return False
+        elif item["type"] == "vmess":
+            authentication = "uuid"
+            if "udp" in item and item["udp"] not in [False, True]:
+                return False
+            if "tls" in item and item["tls"] not in [False, True]:
+                return False
+            if item.get("network", "ws") in ["h2", "grpc"] and not item.get(
+                "tls", False
+            ):
+                return False
+            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
+                False,
+                True,
+            ]:
+                return False
+            if item["cipher"] not in VMESS_SUPPORTED_CIPHERS:
+                return False
+
+            # https://dreamacro.github.io/clash/zh_CN/configuration/configuration-reference.html
+            if "h2-opts" in item:
+                h2_opts = item.get("h2-opts", {})
+                if not h2_opts or type(h2_opts) != dict:
+                    return False
+                if "host" in h2_opts and type(h2_opts["host"]) != list:
+                    return False
+            elif "http-opts" in item:
+                http_opts = item.get("http-opts", {})
+                if not http_opts or type(http_opts) != dict:
+                    return False
+                if "path" in http_opts and type(http_opts["path"]) != list:
+                    return False
+                if "headers" in http_opts and type(http_opts["headers"]) != list:
+                    return False
+        elif item["type"] == "trojan":
+            if "udp" in item and item["udp"] not in [False, True]:
+                return False
+            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
+                False,
+                True,
+            ]:
+                return False
+        elif item["type"] == "snell":
+            authentication = "psk"
+            if "udp" in item and item["udp"] not in [False, True]:
+                return False
+            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
+                False,
+                True,
+            ]:
+                return False
+        elif item["type"] == "http":
+            authentication = "userpass"
+            if "tls" in item and item["tls"] not in [False, True]:
+                return False
+        elif item["type"] == "socks5":
+            authentication = "userpass"
+            if "tls" in item and item["tls"] not in [False, True]:
+                return False
+            if "udp" in item and item["udp"] not in [False, True]:
+                return False
+            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
+                False,
+                True,
+            ]:
+                return False
+        else:
+            return False
+
+        if not item[authentication] or utils.is_number(item[authentication]):
+            return False
+
+        return True
+    except:
+        return False
 
 
 def check(
