@@ -143,6 +143,7 @@ class PushToPasteGG(PushTo):
         headers = {
             "Authorization": f"Key {self.token}",
             "Content-Type": "application/json",
+            "User-Agent": utils.USER_AGENT,
         }
         data = json.dumps({"content": {"format": "text", "value": content}}).encode(
             "UTF8"
