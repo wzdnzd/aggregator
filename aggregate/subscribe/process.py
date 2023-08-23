@@ -589,7 +589,7 @@ if __name__ == "__main__":
         dest="overwrite",
         action="store_true",
         default=False,
-        help="include remains proxies",
+        help="exclude remains proxies",
     )
 
     parser.add_argument(

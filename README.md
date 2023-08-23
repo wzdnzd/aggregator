@@ -9,7 +9,8 @@
 > + `auto-checkin.py`用于基于SS-Panel搭建的机场签到，`renewal.py`用于基于V2Board搭建的机场订阅续期
 > + 支持`Python2` 和 `Python3`
 > + 目前不支持任何带有验证码（登陆或签到时需要输入验证码）功能的机场
-> + 对于本项目来说，签到是最不起眼的一个小功能
+> + 对于本项目来说，签到是最不起眼的一个小功能。如果你喜欢探索，你将获得如下成果。
+<img width="1168" alt="a" src="https://github.com/wzdnzd/aggregator/assets/8565764/f75b8057-fa86-4d5c-a19f-fe3100ca853f">
 
 ## 免责申明
 + 本项目仅用作学习爬虫技术，请勿滥用。
