@@ -1,7 +1,7 @@
 # 内容：Spotify
 # 数量：9条
 USER-AGENT,Spotify*
-DOMAIN-KEYWORD,-spotify-com
+DOMAIN-KEYWORD,-spotify-
 DOMAIN-KEYWORD,spotify.com
 DOMAIN-SUFFIX,pscdn.co
 DOMAIN-SUFFIX,scdn.co

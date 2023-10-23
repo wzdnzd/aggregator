@@ -125,12 +125,10 @@ DOMAIN-SUFFIX,3dns-3.adobe.com
 DOMAIN-SUFFIX,activate-sea.adobe.com
 DOMAIN-SUFFIX,activate-sjc0.adobe.com
 DOMAIN-SUFFIX,activate.adobe.com
-DOMAIN-SUFFIX,activate.wip3.adobe.com
 DOMAIN-SUFFIX,adobe-dns-2.adobe.com
 DOMAIN-SUFFIX,adobe-dns-3.adobe.com
 DOMAIN-SUFFIX,adobe-dns.adobe.com
 DOMAIN-SUFFIX,ereg.adobe.com
-DOMAIN-SUFFIX,ereg.wip3.adobe.com
 DOMAIN-SUFFIX,geo2.adobe.com
 DOMAIN-SUFFIX,hl2rcv.adobe.com
 DOMAIN-SUFFIX,hlrcv.stage.adobe.com
@@ -188,10 +186,8 @@ DOMAIN-SUFFIX,baichuan.baidu.com
 DOMAIN-SUFFIX,baidu9635.com
 DOMAIN-SUFFIX,baidustatic.com
 DOMAIN-SUFFIX,baidutv.baidu.com
-DOMAIN-SUFFIX,baikebcs.bdimg.com
 DOMAIN-SUFFIX,banlv.baidu.com
 DOMAIN-SUFFIX,bar.baidu.com
-DOMAIN-SUFFIX,bdimg.share.baidu.com
 DOMAIN-SUFFIX,bdplus.baidu.com
 DOMAIN-SUFFIX,btlaunch.baidu.com
 DOMAIN-SUFFIX,c.baidu.cn
@@ -209,7 +205,6 @@ DOMAIN-SUFFIX,click.bes.baidu.com
 DOMAIN-SUFFIX,click.hm.baidu.com
 DOMAIN-SUFFIX,click.qianqian.com
 DOMAIN-SUFFIX,cm.baidu.com
-DOMAIN-SUFFIX,cm.pos.baidu.com
 DOMAIN-SUFFIX,cpro.baidu.cn
 DOMAIN-SUFFIX,cpro.baidu.com
 DOMAIN-SUFFIX,cpro.baidustatic.com
@@ -312,13 +307,10 @@ DOMAIN-SUFFIX,rp.baidu.cn
 DOMAIN-SUFFIX,rp.baidu.com
 DOMAIN-SUFFIX,rplog.baidu.com
 DOMAIN-SUFFIX,s.baidu.com
-DOMAIN-SUFFIX,s.cpro.baidu.com
-DOMAIN-SUFFIX,sa.tuisong.baidu.com
 DOMAIN-SUFFIX,sclick.baidu.com
 DOMAIN-SUFFIX,sestat.baidu.com
 DOMAIN-SUFFIX,shadu.baidu.com
 DOMAIN-SUFFIX,share.baidu.com
-DOMAIN-SUFFIX,snippet.pos.baidu.com
 DOMAIN-SUFFIX,sobar.baidu.com
 DOMAIN-SUFFIX,sobartop.baidu.com
 DOMAIN-SUFFIX,spcode.baidu.cn
@@ -335,7 +327,6 @@ DOMAIN-SUFFIX,tracker.baidu.com
 DOMAIN-SUFFIX,tuijian.baidu.com
 DOMAIN-SUFFIX,tuisong.baidu.cn
 DOMAIN-SUFFIX,tuisong.baidu.com
-DOMAIN-SUFFIX,uat1.bfsspadserver.8le8le.com
 DOMAIN-SUFFIX,ubmcmm.baidustatic.com
 DOMAIN-SUFFIX,ucstat.baidu.cn
 DOMAIN-SUFFIX,ucstat.baidu.com
@@ -360,7 +351,6 @@ DOMAIN-SUFFIX,wenku-cms.bj.bcebos.com
 DOMAIN-SUFFIX,wisepush.video.baidu.com
 DOMAIN-SUFFIX,wm.baidu.cn
 DOMAIN-SUFFIX,wm.baidu.com
-DOMAIN-SUFFIX,wn.pos.baidu.com
 DOMAIN-SUFFIX,znsv.baidu.cn
 DOMAIN-SUFFIX,znsv.baidu.com
 DOMAIN-SUFFIX,zz.bdstatic.com
@@ -415,7 +405,11 @@ DOMAIN-SUFFIX,dsp.toutiao.com
 DOMAIN-SUFFIX,ic.snssdk.com
 DOMAIN-SUFFIX,log.snssdk.com
 DOMAIN-SUFFIX,nativeapp.toutiao.com
+DOMAIN-SUFFIX,pangolin-sdk-toutiao-b.com
+DOMAIN-SUFFIX,pangolin-sdk-toutiao.com
+DOMAIN-SUFFIX,pangolin.snssdk.com
 DOMAIN-SUFFIX,partner.toutiao.com
+DOMAIN-SUFFIX,pglstatp-toutiao.com
 DOMAIN-SUFFIX,sm.toutiao.com
 
 # Dangdang
@@ -567,7 +561,6 @@ DOMAIN-SUFFIX,dvb.pandora.xiaomi.com
 DOMAIN-SUFFIX,jellyfish.pandora.xiaomi.com
 DOMAIN-SUFFIX,migc.g.mi.com
 DOMAIN-SUFFIX,migcreport.g.mi.com
-DOMAIN-SUFFIX,mis.g.mi.com
 DOMAIN-SUFFIX,notice.game.xiaomi.com
 DOMAIN-SUFFIX,ppurifier.game.xiaomi.com
 DOMAIN-SUFFIX,r.browser.miui.com
@@ -576,7 +569,6 @@ DOMAIN-SUFFIX,shenghuo.xiaomi.com
 DOMAIN-SUFFIX,stat.pandora.xiaomi.com
 DOMAIN-SUFFIX,union.mi.com
 DOMAIN-SUFFIX,wtradv.market.xiaomi.com
-DOMAIN-SUFFIX,xmpush.xiaomi.com
 
 # Moji
 DOMAIN-SUFFIX,ad.api.moji.com
@@ -803,8 +795,6 @@ DOMAIN-SUFFIX,yads.yahoo.co.jp
 DOMAIN-SUFFIX,ybp.yahoo.com
 
 # Zhihu
-DOMAIN-SUFFIX,sugar.zhihu.com
-DOMAIN-SUFFIX,zhihu-web-analytics.zhihu.com
 
 # Ads in Video apps 下面都是 ********************
 
@@ -1022,7 +1012,6 @@ DOMAIN-SUFFIX,azabu-u.ac.jp
 DOMAIN-SUFFIX,couchcoaster.jp
 DOMAIN-SUFFIX,delivery.dmkt-sp.jp
 DOMAIN-SUFFIX,ehg-youtube.hitbox.com
-DOMAIN-SUFFIX,m-78.jp
 DOMAIN-SUFFIX,nichibenren.or.jp
 DOMAIN-SUFFIX,nicorette.co.kr
 DOMAIN-SUFFIX,ssl-youtube.2cnt.net
@@ -1035,8 +1024,6 @@ DOMAIN-SUFFIX,ads.cdn.tvb.com
 DOMAIN-SUFFIX,ads.wasu.tv
 DOMAIN-SUFFIX,afp.wasu.tv
 DOMAIN-SUFFIX,c.algovid.com
-DOMAIN-SUFFIX,cc.xtgreat.com
-DOMAIN-SUFFIX,d.dsp.imageter.com
 DOMAIN-SUFFIX,gg.jtertp.com
 DOMAIN-SUFFIX,gridsum-vd.cntv.cn
 DOMAIN-SUFFIX,kwflvcdn.000dn.com

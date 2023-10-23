@@ -1,6 +1,9 @@
 # Forum
 DOMAIN-SUFFIX,bitcointalk.org
 
+# Wallet
+DOMAIN-SUFFIX,debank.com
+
 # Exchange
 DOMAIN-SUFFIX,aex.com
 DOMAIN-SUFFIX,bibox.com
@@ -21,7 +24,7 @@ DOMAIN-SUFFIX,korbit.co.kr
 DOMAIN-SUFFIX,kraken.com
 DOMAIN-SUFFIX,kucoin.com
 DOMAIN-SUFFIX,liquid.com
-DOMAIN-SUFFIX,okex.com
+DOMAIN-SUFFIX,pancakeswap.finance
 DOMAIN-SUFFIX,poloniex.com
 DOMAIN-SUFFIX,sushi.com
 DOMAIN-SUFFIX,uniswap.org
@@ -33,13 +36,19 @@ DOMAIN-SUFFIX,binance.com
 DOMAIN-SUFFIX,binance.im
 DOMAIN-SUFFIX,binance.me
 DOMAIN-SUFFIX,binance.us
+DOMAIN-SUFFIX,bnappzh.co
 DOMAIN-SUFFIX,bnappzh.com
 DOMAIN-SUFFIX,bnbstatic.com
 DOMAIN-SUFFIX,bntrace.com
+# > OKX
+DOMAIN-SUFFIX,okex.com
+DOMAIN-SUFFIX,okx.com
+
+# Explorer 
+DOMAIN-SUFFIX,etherscan.io
 
 # Analysis
 DOMAIN-SUFFIX,aicoin.com
 DOMAIN-SUFFIX,aimoon.com
 DOMAIN-SUFFIX,coingecko.com
 DOMAIN-SUFFIX,coinmarketcap.com
-DOMAIN-SUFFIX,tradingview.com
