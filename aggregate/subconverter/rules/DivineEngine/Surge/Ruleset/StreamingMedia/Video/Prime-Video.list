@@ -4,8 +4,9 @@ USER-AGENT,Prime%20Video*
 DOMAIN-SUFFIX,aiv-cdn.net
 DOMAIN-SUFFIX,aiv-delivery.net
 DOMAIN-SUFFIX,amazonvideo.com
-DOMAIN-SUFFIX,primevideo.com
 DOMAIN-SUFFIX,media-amazon.com
+DOMAIN-SUFFIX,primevideo.com
+DOMAIN-SUFFIX,pv-cdn.net
 DOMAIN,atv-ps.amazon.com
 DOMAIN,fls-na.amazon.com
 DOMAIN,avodmp4s3ww-a.akamaihd.net

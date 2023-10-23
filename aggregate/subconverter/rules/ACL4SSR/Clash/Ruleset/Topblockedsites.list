@@ -1,5 +1,5 @@
 # 内容：Top Blocked Sites
-# 数量：110条
+# 数量：109条
 DOMAIN-SUFFIX,4sqi.net
 DOMAIN-SUFFIX,a248.e.akamai.net
 DOMAIN-SUFFIX,adobedtm.com
@@ -33,7 +33,6 @@ DOMAIN-SUFFIX,cdnst.net
 DOMAIN-SUFFIX,cloudfront.net
 DOMAIN-SUFFIX,comodoca.com
 DOMAIN-SUFFIX,daum.net
-DOMAIN-SUFFIX,demdex.net
 DOMAIN-SUFFIX,deskconnect.com
 DOMAIN-SUFFIX,disqus.com
 DOMAIN-SUFFIX,disquscdn.com

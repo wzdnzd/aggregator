@@ -1,5 +1,5 @@
 # 内容：Download
-# 数量：20条
+# 数量：21条
 DOMAIN-KEYWORD,aria2
 DOMAIN-SUFFIX,smtp
 PROCESS-NAME,DownloadService.exe
@@ -13,6 +13,7 @@ PROCESS-NAME,Weiyun.exe
 PROCESS-NAME,aria2c.exe
 PROCESS-NAME,baidunetdisk.exe
 PROCESS-NAME,fdm.exe
+PROCESS-NAME,qbittorrent.exe
 PROCESS-NAME,uTorrent.exe
 URL-REGEX,(.+.)?(torrent|announce.php?passkey=|tracker|BitTorrent|bt_key|ed2k|find_node|get_peers|info_hash|magnet:|peer_id=|xunlei)(..+)?
 URL-REGEX,(.+.|^)(360|so|qihoo|360safe|qhimg|360totalsecurity|yunpan).(cn|com)

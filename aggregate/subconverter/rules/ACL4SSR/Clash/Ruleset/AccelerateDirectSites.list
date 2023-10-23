@@ -1,5 +1,5 @@
 # 内容：AccelerateDirectSites
-# 数量：242条
+# 数量：240条
 DOMAIN-SUFFIX,10010.com
 DOMAIN-SUFFIX,115.com
 DOMAIN-SUFFIX,12306.com
@@ -43,8 +43,6 @@ DOMAIN-SUFFIX,cibntv.net
 DOMAIN-SUFFIX,clouddn.com
 DOMAIN-SUFFIX,cloudxns.net
 DOMAIN-SUFFIX,cn163.net
-DOMAIN-SUFFIX,cnbeta.com
-DOMAIN-SUFFIX,cnbetacdn.com
 DOMAIN-SUFFIX,cnblogs.com
 DOMAIN-SUFFIX,cnki.net
 DOMAIN-SUFFIX,cnmstl.net
@@ -66,6 +64,7 @@ DOMAIN-SUFFIX,easou.com
 DOMAIN-SUFFIX,eastday.com
 DOMAIN-SUFFIX,eastmoney.com
 DOMAIN-SUFFIX,ecitic.com
+DOMAIN-SUFFIX,element-plus.org
 DOMAIN-SUFFIX,ewqcxz.com
 DOMAIN-SUFFIX,fang.com
 DOMAIN-SUFFIX,fantasy.tv
@@ -122,7 +121,6 @@ DOMAIN-SUFFIX,letitfly.me
 DOMAIN-SUFFIX,lizhi.fm
 DOMAIN-SUFFIX,lizhi.io
 DOMAIN-SUFFIX,lizhifm.com
-DOMAIN-SUFFIX,loli.net
 DOMAIN-SUFFIX,luoo.net
 DOMAIN-SUFFIX,lvmama.com
 DOMAIN-SUFFIX,lxdns.com
@@ -145,11 +143,12 @@ DOMAIN-SUFFIX,myunlu.com
 DOMAIN-SUFFIX,nruan.com
 DOMAIN-SUFFIX,nuomi.com
 DOMAIN-SUFFIX,onedns.net
+DOMAIN-SUFFIX,oneplus.com
 DOMAIN-SUFFIX,onlinedown.net
+DOMAIN-SUFFIX,oppo.com
 DOMAIN-SUFFIX,oracle.com
 DOMAIN-SUFFIX,oschina.net
 DOMAIN-SUFFIX,ourdvs.com
-DOMAIN-SUFFIX,paypal.com
 DOMAIN-SUFFIX,polyv.net
 DOMAIN-SUFFIX,qbox.me
 DOMAIN-SUFFIX,qcloud.com
@@ -168,9 +167,8 @@ DOMAIN-SUFFIX,qiushibaike.com
 DOMAIN-SUFFIX,quanmin.tv
 DOMAIN-SUFFIX,qunar.com
 DOMAIN-SUFFIX,qunarzz.com
-DOMAIN-SUFFIX,rarbg.to
+DOMAIN-SUFFIX,realme.com
 DOMAIN-SUFFIX,repaik.com
-DOMAIN-SUFFIX,rrmj.tv
 DOMAIN-SUFFIX,ruguoapp.com
 DOMAIN-SUFFIX,runoob.com
 DOMAIN-SUFFIX,sankuai.com
@@ -178,7 +176,6 @@ DOMAIN-SUFFIX,segmentfault.com
 DOMAIN-SUFFIX,sf-express.com
 DOMAIN-SUFFIX,shumilou.net
 DOMAIN-SUFFIX,simplecd.me
-DOMAIN-SUFFIX,sm.ms
 DOMAIN-SUFFIX,smzdm.com
 DOMAIN-SUFFIX,snwx.com
 DOMAIN-SUFFIX,soufunimg.com
@@ -204,6 +201,7 @@ DOMAIN-SUFFIX,umengcloud.com
 DOMAIN-SUFFIX,upyun.com
 DOMAIN-SUFFIX,uxengine.net
 DOMAIN-SUFFIX,videocc.net
+DOMAIN-SUFFIX,vivo.com
 DOMAIN-SUFFIX,wandoujia.com
 DOMAIN-SUFFIX,weather.com
 DOMAIN-SUFFIX,weico.cc

@@ -14,10 +14,10 @@ DOMAIN,swscan.apple.com
 # > macOS Recovery
 DOMAIN,oscdn.apple.com
 DOMAIN,osrecovery.apple.com
-# > iOS and iPadOS updates
+# > iOS, iPadOS, and watchOS updates
 DOMAIN,appldnld.apple.com
 DOMAIN,ns.itunes.apple.com
-# > iOS, iPadOS, tvOS, and macOS updates
+# > iOS, iPadOS, tvOS, watchOS, and macOS updates
 DOMAIN,gg.apple.com
 DOMAIN,gdmf.apple.com // Software update catalog
 DOMAIN,mesu.apple.com // Hosts software update catalogs

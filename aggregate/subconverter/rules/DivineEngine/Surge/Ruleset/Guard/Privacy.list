@@ -19,7 +19,6 @@ DOMAIN-SUFFIX,petametrics.com
 DOMAIN-SUFFIX,predic.io
 DOMAIN-SUFFIX,quantcount.com
 DOMAIN-SUFFIX,quantserve.com
-DOMAIN-SUFFIX,richmetrics.com
 DOMAIN-SUFFIX,rtbasia.com
 DOMAIN-SUFFIX,scorecardresearch.com
 DOMAIN-SUFFIX,seewhy.com
@@ -80,7 +79,7 @@ DOMAIN-SUFFIX,giocdn.com
 DOMAIN-SUFFIX,growingio.com
 # > MI
 DOMAIN-SUFFIX,tracking.miui.com
-# DOMAIN,api.miwifi.com // 影响 ‎Mi Wi-Fi(id859962702)，但建议注意 https://www.v2ex.com/t/746094
+# DOMAIN,api.miwifi.com // 影响 Mi Wi-Fi(id859962702)，但建议注意 https://www.v2ex.com/t/746094
 DOMAIN,data.mistat.xiaomi.com
 DOMAIN,tracking.intl.miui.com
 # > TalkingData

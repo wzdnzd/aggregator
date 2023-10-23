@@ -1,3 +1,6 @@
+# > Apple Music TV
+DOMAIN,tv.applemusic.com
+
 # > encoreTVB
 USER-AGENT,encoreTVB*
 DOMAIN-SUFFIX,encoretvb.com
