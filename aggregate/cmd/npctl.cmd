@@ -34,7 +34,7 @@ set "msterminal=1"
 set "enableshortcut=1"
 
 @REM enable download config from remote
-set "enableremoteconf=0"
+set "enableremoteconf=1"
 set "remoteurl="
 
 @REM validate configuration files before starting
@@ -250,6 +250,9 @@ if "!isweblink!" == "1" (
 
             move "!subfile!" "!conflocation!" >nul 2>nul
             @echo [%ESC%[!infocolor!m信息%ESC%[0m] 订阅下载%ESC%[!infocolor!m成功%ESC%[0m
+
+            @REM 保存订阅链接
+            @echo !sublink! > "!filepath!\subscriptions.txt"
         ) else (
             @REM output is empty
             set "statuscode=000"
@@ -948,7 +951,7 @@ if "!force!" == "1" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 检查并更新订阅，仅刷新 %ESC%[!warncolor!mHTTP%ESC%[0m 类型的订阅
 )
 
-call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com cp.cloudflare.com" "!force!" subfiles
+call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com cp.cloudflare.com" "!force!" subfiles "proxies"
 set "%~1=!subfiles!"
 goto :eof
 
@@ -1457,7 +1460,7 @@ call :confirmurl "!downforce!" "!geositeneed!"
 call :cleanworkspace "!temp!"
 
 @REM update dashboard
-call :dashboardupdate "!downforce!"
+if "!downloaded!" == "0" call :dashboardupdate "!downforce!"
 
 @REM update rulefiles
 if "!downloaded!" == "0" call :updaterules "!downforce!"
@@ -1938,14 +1941,13 @@ if "!rawurl!" == "" goto :eof
 
 @REM github proxy list: https://github.com/XIU2/UserScript/blob/master/GithubEnhanced-High-Speed-Download.user.js
 set proxy_urls[0]=https://ghproxy.com
-set proxy_urls[1]=https://gh-proxy.com
-set proxy_urls[2]=https://github.moeyy.xyz
-set proxy_urls[3]=https://gh.ddlc.top
-set proxy_urls[4]=https://ghps.cc
-set proxy_urls[5]=https://hub.gitmirror.com
+set proxy_urls[1]=https://github.moeyy.xyz
+set proxy_urls[2]=https://gh.ddlc.top
+set proxy_urls[3]=https://ghps.cc
+set proxy_urls[4]=https://hub.gitmirror.com
 
-@REM random [0, 5]
-set /a num=!random! %% 6
+@REM random [0, 4]
+set /a num=!random! %% 5
 set "ghproxy=!proxy_urls[%num%]!"
 
 @REM github proxy
@@ -2021,6 +2023,10 @@ if "!clashapi!" == "" (
     @echo [%ESC%[91m错误%ESC%[0m] %ESC%[91m不支持%ESC%[0m重载，可使用 "%ESC%[!warncolor!m!batname! -r%ESC%[0m" 重启或者在文件 "%ESC%[!warncolor!m!configfile!%ESC%[0m" 配置 "%ESC%[!warncolor!mexternal-controller%ESC%[0m" 属性以启用该功能
     goto :eof
 )
+
+@REM localhost default
+if "!clashapi:~0,1!" == ":" set "clashapi=127.0.0.1!clashapi!"
+
 set "clashapi=http://!clashapi!/configs?force=true"
 
 @REM secret
@@ -2082,8 +2088,20 @@ if exist "!configfile!" if "!force!" == "0" goto :eof
 set "downloadpath=!temp!\clashconf.yaml"
 del /f /q "!downloadpath!" >nul 2>nul
 
+@REM extract remote config url
+set "subfile=!dest!\subscriptions.txt"
+set "subscription="
+
+if exist "!subfile!" (
+    for /f "tokens=*" %%a in ('findstr /i /r /c:"^http.*://" "!subfile!"') do set "subscription=%%a"
+    if "!subscription!" NEQ "" (
+        call :trim subscription "!subscription!"
+        if "!subscription:~0,1!" NEQ "#" set "remoteurl=!subscription!"
+    )
+)
+
 if "!enableremoteconf!" == "1" if "!remoteurl!" NEQ "" (
-    curl.exe --retry 5 --retry-max-time 90 -m 120 --connect-timeout 15 -s -L -C - "!remoteurl!" > "!downloadpath!"
+    curl.exe --retry 5 --retry-max-time 90 -m 120 --connect-timeout 15 -H "User-Agent: Clash" -s -L -C - "!remoteurl!" > "!downloadpath!"
     if not exist "!downloadpath!" (
         @echo [%ESC%[!warncolor!m警告%ESC%[0m] 配置文件下载失败，如有需要，请重试或点击 %ESC%[!warncolor!m!remoteurl!%ESC%[0m 手动下载并替换
         goto :eof
@@ -2138,18 +2156,20 @@ if "!force!" == "1" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始检查并更新类型为 %ESC%[!warncolor!mHTTP%ESC%[0m 的代理规则
 )
 
-call :filerefresh changed "^\s+behavior:\s+.*" "www.gstatic.com cp.cloudflare.com" "!force!" rulefiles
+call :filerefresh changed "^\s+behavior:\s+.*" "www.gstatic.com cp.cloudflare.com" "!force!" rulefiles "payload"
 goto :eof
 
 
 @REM refresh subsribe and rulesets
-:filerefresh <result> <regex> <filter> <force> <filepaths>
+:filerefresh <result> <regex> <filter> <force> <filepaths> <check>
 set "%~1=0"
 set "regex=%~2"
 set "%~5="
 
 call :trim filter "%~3"
 if "!filter!" == "" set "filter=www.gstatic.com cp.cloudflare.com"
+
+call :trim check "%~6"
 
 call :trim force "%~4"
 if "!force!" == "" set "force=1"
@@ -2166,7 +2186,7 @@ if not exist "!configfile!" goto :eof
 
 @REM temp file
 set "tempfile=!temp!\clashupdate.txt"
-set "filepaths="
+set "filepaths=" 
 
 call :findby "!configfile!" "!regex!" "!tempfile!" 5
 if not exist "!tempfile!" (
@@ -2215,21 +2235,29 @@ for %%r in (!localfiles!) do (
             if "!needdownload!" == "1" (
                 @REM get directory
                 call :splitpath filepath filename "!tfile!"
+
                 @REM mkdir if not exists
                 call :makedirs success "!filepath!"
+
                 @REM request and save
                 curl.exe --retry 5 --retry-max-time 90 -m 120 --connect-timeout 15 -s -L -C - "!url!" > "!temp!\!filename!"
-                @REM check file
+
+                @REM check file size
                 set "filesize=0"
                 if exist "!temp!\!filename!" (
                     for %%a in ("!temp!\!filename!") do set "filesize=%%~za"
                 )
 
-                if !filesize! GTR 16 (
+                @REM check file content
+                call :verify match "!temp!\!filename!" "!check!"
+
+                if !filesize! GTR 16 if "!match!" == "1" (
                     @REM delete if old file exists
                     del /f /q "!tfile!" >nul 2>nul
+
                     @REM move new file to dest
                     move "!temp!\!filename!" "!filepath!" >nul 2>nul
+
                     @REM changed status 
                     set "%~1=1"
                 ) else (
@@ -2268,6 +2296,26 @@ if "!content!" == "" goto :eof
 
 call :pathconvert directory "!content!"
 set "%~1=!directory!"
+goto :eof
+
+
+@REM check file is validate
+:verify <result> <file> <check>
+set "%~1=0"
+call :trim candidate "%~2"
+if not exist "!candidate!" goto :eof
+
+call :trim check "%~3"
+if "!check!" == "" (
+    set "%~1=1"
+    goto :eof
+)
+
+for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"!check!:[ ]*" "!candidate!"') do set "text=%%a"
+
+@REM not required
+call :trim text "!text!"
+if "!text!" == "!check!" set "%~1=1"
 goto :eof
 
 
