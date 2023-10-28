@@ -2311,6 +2311,7 @@ if "!check!" == "" (
     goto :eof
 )
 
+set "text="
 for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"!check!:[ ]*" "!candidate!"') do set "text=%%a"
 
 @REM not required
