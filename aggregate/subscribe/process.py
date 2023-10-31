@@ -170,7 +170,7 @@ def load_configs(
 
     try:
         if re.match(
-            "^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
+            r"^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
             url,
         ):
             headers = {"User-Agent": utils.USER_AGENT, "Referer": url}
@@ -466,6 +466,9 @@ def aggregate(args: argparse.Namespace):
                         process.terminate()
                     except:
                         logger.error(f"terminate clash process error, group: {k}")
+            else:
+                for item in nochecks:
+                    item.pop("sub", "")
 
             cost = "{:.2f}s".format(time.time() - starttime)
             if len(nochecks) <= 0:
