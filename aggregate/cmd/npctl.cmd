@@ -28,7 +28,7 @@ set "batname=%~nx0"
 
 @REM microsoft terminal displays differently from cmd and powershell
 @REM call :ismsterminal msterminal
-set "msterminal=1"
+set "msterminal=0"
 
 @REM enable create shortcut 
 set "enableshortcut=1"
@@ -104,6 +104,9 @@ set "clashpremium=0"
 
 @REM alpha version allowed
 set "alpha=0"
+
+@REM simplified mode
+set "brief=0"
 
 @REM yacd dashboard, see https://github.com/MetaCubeX/Yacd-meta
 set "yacd=0"
@@ -440,6 +443,14 @@ if "!result!" == "true" (
     shift & goto :argsparse
 )
 
+if "%1" == "-b" set result=true
+if "%1" == "--brief" set result=true
+if "!result!" == "true" (
+    set "brief=1"
+    set result=false
+    shift & goto :argsparse
+)
+
 if "%1" == "-c" set result=true
 if "%1" == "--conf" set result=true
 if "!result!" == "true" (
@@ -723,6 +734,9 @@ echo.
 @echo 其他参数：
 @REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
 @echo -a, --alpha           是否允许使用预览版，默认为稳定版，搭配 %ESC%[!warncolor!m-i%ESC%[0m 或者 %ESC%[!warncolor!m-u%ESC%[0m 使用
+@REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
+@echo -b, --brief           精简模式运行，没有明确配置dashboard情况下，无法使用可视化页面
+@REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
 @echo -c, --conf            配置文件，支持本地配置文件和订阅链接，默认为当前目录下的 %ESC%[!warncolor!mconfig.yaml%ESC%[0m
 @REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
 @echo -d, --daemon          后台静默执行，禁止打印日志
@@ -1444,6 +1458,9 @@ if "!downloaded!" == "" set "downloaded=0"
 @REM check and update configration
 if "!downloaded!" == "0" call :updateconfig "!downforce!"
 
+@REM parse api server path
+call :extractserver clashserver
+
 @REM dashboard directory name
 call :extractpath dashboard
 
@@ -1494,6 +1511,16 @@ call :autoupdate
 
 @REM create shortcut on desktop
 call :adddesktop
+goto :eof
+
+
+@REM parse clash server path
+:extractserver <result>
+set "%~1="
+call :parsevalue serverhost "external-controller:[ ][ ]*"
+if "!serverhost!" NEQ "" if "!serverhost:~0,1!" == ":" set "serverhost=127.0.0.1!serverhost!"
+
+set "%~1=http://!serverhost!"
 goto :eof
 
 
@@ -1568,7 +1595,11 @@ for /l %%i in (1,1,6) do (
                 goto :eof
             )
         ) else (
-            @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序启动%ESC%[!infocolor!m成功%ESC%[0m
+            if "!dashboard!" == "" (
+                @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序启动%ESC%[!infocolor!m成功%ESC%[0m
+            ) else (
+                @echo [%ESC%[!infocolor!m信息%ESC%[0m] 代理程序启动%ESC%[!infocolor!m成功%ESC%[0m，可在浏览器中访问 %ESC%[!warncolor!m!clashserver!/ui%ESC%[0m 查看详细信息
+            )
             call :postprocess
             exit /b
         )
@@ -2017,17 +2048,12 @@ goto :eof
 :reload
 if not exist "!configfile!" goto :eof
 
-@REM clash api address
-call :parsevalue clashapi "external-controller:[ ][ ]*"
-if "!clashapi!" == "" (
+if "!clashserver!" == "" (
     @echo [%ESC%[91m错误%ESC%[0m] %ESC%[91m不支持%ESC%[0m重载，可使用 "%ESC%[!warncolor!m!batname! -r%ESC%[0m" 重启或者在文件 "%ESC%[!warncolor!m!configfile!%ESC%[0m" 配置 "%ESC%[!warncolor!mexternal-controller%ESC%[0m" 属性以启用该功能
     goto :eof
 )
 
-@REM localhost default
-if "!clashapi:~0,1!" == ":" set "clashapi=127.0.0.1!clashapi!"
-
-set "clashapi=http://!clashapi!/configs?force=true"
+set "clashapi=!clashserver!/configs?force=true"
 
 @REM secret
 call :parsevalue secret "secret:[ ][ ]*"
@@ -2289,7 +2315,23 @@ for /f "tokens=1,* delims=:" %%a in ('findstr /i /r /c:"external-ui:[ ][ ]*" "!c
 
 @REM not found 'external-ui' configuration in config file
 call :trim keyname "!keyname!"
-if "!keyname!" NEQ "external-ui" goto :eof
+if "!keyname!" NEQ "external-ui" (
+    if "!keyname!" == "" if "!brief!" == "0" if "!clashserver!" NEQ "" (
+        set "tmpconfig=!configfile!.tmp"
+
+        @REM append 'external-ui' configuration
+        @echo external-ui: dashboard > "!tmpconfig!"
+        type "!configfile!" >> "!tmpconfig!"
+
+        @REM replace config file
+        del /f /q "!configfile!" >nul 2>nul
+        move "!tmpconfig!" "!configfile!" >nul 2>nul
+
+        @REM reset
+        set "tmpconfig="
+        set "content=dashboard"
+    ) else goto :eof
+)
 
 call :trim content "!content!"
 if "!content!" == "" goto :eof
@@ -2306,6 +2348,7 @@ call :trim candidate "%~2"
 if not exist "!candidate!" goto :eof
 
 call :trim check "%~3"
+
 if "!check!" == "" (
     set "%~1=1"
     goto :eof
@@ -2316,6 +2359,7 @@ for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"!check!:[ ]*" "!candidate
 
 @REM not required
 call :trim text "!text!"
+
 if "!text!" == "!check!" set "%~1=1"
 goto :eof
 
