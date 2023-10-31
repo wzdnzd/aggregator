@@ -150,7 +150,7 @@ class RootSh(TemporaryMail):
             return []
 
         return re.findall(
-            '<li><a\s+href="javascript:;">([a-zA-Z0-9\.\-]+)</a></li>', content
+            r'<li><a\s+href="javascript:;">([a-zA-Z0-9\.\-]+)</a></li>', content
         )
 
     def get_account(self, retry: int = 3) -> Account:
@@ -378,7 +378,7 @@ class LinShiEmail(TemporaryMail):
         if not content:
             return []
 
-        domians = re.findall('data-mailhost="@([a-zA-Z0-9\-_\.]+)"', content)
+        domians = re.findall(r'data-mailhost="@([a-zA-Z0-9\-_\.]+)"', content)
         # 该邮箱域名无法接收邮箱，移除
         if "idrrate.com" in domians:
             domians.remove("idrrate.com")
@@ -616,7 +616,7 @@ class MOAKT(TemporaryMail):
             return []
 
         return re.findall(
-            '<option\s+value=".*">@([a-zA-Z0-9\.\-_]+)<\/option>', content
+            r'<option\s+value=".*">@([a-zA-Z0-9\.\-_]+)<\/option>', content
         )
 
     def _make_account_request(
@@ -670,7 +670,7 @@ class MOAKT(TemporaryMail):
         if not content:
             return messages
 
-        mails = re.findall('<a\s+href="/zh(/email/[a-z0-9\-]+)">', content)
+        mails = re.findall(r'<a\s+href="/zh(/email/[a-z0-9\-]+)">', content)
         if not mails:
             return messages
 

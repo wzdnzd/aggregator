@@ -395,7 +395,7 @@ class AirPort:
 
                 # 如果标准正则无法提取验证码则直接匹配数字
                 mask = mailbox.extract_mask(message.text) or mailbox.extract_mask(
-                    message.text, "\s+([0-9]{6})"
+                    message.text, r"\s+([0-9]{6})"
                 )
                 mailbox.delete_account(account=account)
                 if not mask:
@@ -553,7 +553,7 @@ class AirPort:
                         item["chatgpt"] = detect
 
                     # 重命名带网址的节点
-                    regex = "(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
+                    regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
                     name = re.sub(regex, "", name, flags=re.I)
                 except:
                     logger.error(
@@ -568,7 +568,7 @@ class AirPort:
                 ).strip()
 
                 name = (
-                    re.sub("\s+|\r", " ", name)
+                    re.sub(r"\s+|\r", " ", name)
                     .replace("_", "-")
                     .replace("+", "-")
                     .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
