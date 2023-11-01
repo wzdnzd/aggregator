@@ -67,6 +67,7 @@ def http_get(
     retry: int = 3,
     proxy: str = "",
     interval: float = 0,
+    timeout: float = 10,
 ) -> str:
     if not isurl(url=url):
         logger.error(f"invalid url: {url}")
@@ -79,6 +80,7 @@ def http_get(
     headers = DEFAULT_HTTP_HEADERS if not headers else headers
 
     interval = max(0, interval)
+    timeout = max(1, timeout)
     try:
         url = encoding_url(url=url)
         if params and isinstance(params, dict):
@@ -97,7 +99,7 @@ def http_get(
                 host, protocal = proxy[7:], "http"
             request.set_proxy(host=host, type=protocal)
 
-        response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        response = urllib.request.urlopen(request, timeout=timeout, context=CTX)
         content = response.read()
         status_code = response.getcode()
         try:
@@ -126,6 +128,7 @@ def http_get(
                 retry=retry - 1,
                 proxy=proxy,
                 interval=interval,
+                timeout=timeout,
             )
         return ""
     except (urllib.error.URLError, TimeoutError) as e:
@@ -142,6 +145,7 @@ def http_get(
             retry=retry - 1,
             proxy=proxy,
             interval=interval,
+            timeout=timeout,
         )
 
 
