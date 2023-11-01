@@ -14,6 +14,7 @@ import traceback
 import urllib
 import urllib.parse
 import urllib.request
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -173,7 +174,7 @@ class AirPort:
         params = {"email": email.strip()}
 
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
-        headers = self.headers
+        headers = deepcopy(self.headers)
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
         try:
@@ -206,7 +207,7 @@ class AirPort:
         }
 
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
-        headers = self.headers
+        headers = deepcopy(self.headers)
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
         try:
@@ -438,8 +439,10 @@ class AirPort:
             with open(self.sub, "r", encoding="UTF8") as f:
                 text = f.read()
         else:
+            headers = deepcopy(self.headers)
+            headers["Accept-Encoding"] = "gzip"
             text = utils.http_get(
-                url=self.sub, headers=self.headers, retry=retry
+                url=self.sub, headers=headers, retry=retry, timeout=15
             ).strip()
 
             # count = 1
