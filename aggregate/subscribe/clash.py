@@ -67,7 +67,7 @@ def filter_proxies(proxies: list) -> dict:
     }
 
     # 按名字排序方便在节点相同时优先保留名字靠前的
-    sorted(proxies, key=lambda p: p.get("name", ""))
+    sorted(proxies, key=lambda p: str(p.get("name", "")))
     unique_proxies = []
     for item in proxies:
         if verify(item) and not proxies_exists(item, unique_proxies):
@@ -122,37 +122,37 @@ def proxies_exists(proxy: dict, proxies: list) -> bool:
         return False
 
     duplicate = False
-    protocal = proxy.get("type", "")
-    if protocal == "ss" or protocal == "trojan":
+    protocol = proxy.get("type", "")
+    if protocol == "ss" or protocol == "trojan":
         duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             and p.get("password", "").lower() == proxy.get("password", "").lower()
             for p in proxies
         )
-    elif protocal == "ssr":
+    elif protocol == "ssr":
         duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
-            and p.get("protocol-param", "").lower()
-            == proxy.get("protocol-param", "").lower()
+            and str(p.get("protocol-param", "")).lower()
+            == str(proxy.get("protocol-param", "")).lower()
             for p in proxies
         )
-    elif protocal == "vmess":
+    elif protocol == "vmess" or protocol == "vless":
         duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             and p.get("uuid", "").lower() == proxy.get("uuid", "").lower()
             for p in proxies
         )
-    elif protocal == "snell":
+    elif protocol == "snell":
         duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
             and p.get("psk", "").lower() == proxy.get("psk", "").lower()
             for p in proxies
         )
-    elif protocal == "http" or protocal == "socks5":
+    elif protocol == "http" or protocol == "socks5":
         duplicate = any(
             p.get("server", "").lower() == proxy.get("server", "").lower()
             and p.get("port", 0) == proxy.get("port", 0)
@@ -202,6 +202,20 @@ def verify(item: dict) -> bool:
         return False
 
     try:
+        # name must be string
+        name = str(item.get("name", "")).strip()
+        if not name:
+            return False
+
+        item["name"] = name
+
+        # server must be string
+        server = str(item.get("server", "")).strip()
+        if not name:
+            return False
+
+        item["server"] = server
+
         # check uuid
         if "uuid" in item and not utils.verify_uuid(item.get("uuid")):
             return False
@@ -233,7 +247,7 @@ def verify(item: dict) -> bool:
                 return False
             if item["protocol"] not in SSR_SUPPORTED_PROTOCOL:
                 return False
-        elif item["type"] == "vmess":
+        elif item["type"] == "vmess" or item["type"] == "vless":
             authentication = "uuid"
             if "udp" in item and item["udp"] not in [False, True]:
                 return False

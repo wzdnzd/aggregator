@@ -405,3 +405,17 @@ def is_number(num: str) -> bool:
         return True
     except ValueError:
         return False
+
+
+def url_complete(url: str) -> str:
+    if isblank(url):
+        return ""
+
+    if not url.startswith("https://"):
+        # force use https protocol
+        if url.startswith("http://"):
+            url = url.replace("http://", "https://")
+        else:
+            url = f"https://{url}"
+
+    return url
