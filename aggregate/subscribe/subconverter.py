@@ -42,10 +42,12 @@ def generate_conf(
         content = "\n".join(lines)
 
         FILE_LOCK.acquire(30)
-        with open(filepath, "a+", encoding="utf8") as f:
-            f.write(content)
-            f.flush()
-        FILE_LOCK.release()
+        try:
+            with open(filepath, "a+", encoding="utf8") as f:
+                f.write(content)
+                f.flush()
+        finally:
+            FILE_LOCK.release()
 
         return True
     except:

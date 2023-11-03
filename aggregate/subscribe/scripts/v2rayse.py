@@ -4,13 +4,14 @@
 # @Time    : 2023-06-30
 
 import base64
-import itertools
 import json
 import multiprocessing
 import os
 import re
 import sys
 import time
+import traceback
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from http.client import IncompleteRead
 
@@ -19,6 +20,7 @@ import utils
 import workflow
 import yaml
 from airport import AirPort
+from crawl import naming_task
 from executable import which_bin
 from logger import logger
 
@@ -61,16 +63,37 @@ def get_dates(last: datetime) -> list[str]:
     return dates
 
 
-def detect(proxies: list, nopublic: bool, exclude: str) -> bool:
-    if not nopublic or not proxies:
+def detect(
+    proxies: list, nopublic: bool, exclude: str, ignore: str, repeat: int
+) -> bool:
+    exclude = utils.trim(text=exclude)
+    ignore = utils.trim(text=ignore)
+    repeat = max(1, repeat)
+
+    if not nopublic or not proxies or not exclude:
         return False
 
-    exclude = utils.trim(text=exclude)
-    return any(
-        re.search(exclude, x.get("name", ""), flags=re.I)
-        for x in proxies
-        if x and type(x) == dict
-    )
+    count = 0
+    for p in proxies:
+        if not p or type(p) != dict:
+            continue
+
+        name = str(p.get("name", ""))
+        try:
+            if ignore and re.search(ignore, name, flags=re.I):
+                continue
+
+            if re.search(exclude, name, flags=re.I):
+                count += 1
+        except:
+            logger.error(
+                f"[V2RaySE] invalid regex, ignore: {ignore}, exclude: {exclude}, message: \n{traceback.format_exc()}"
+            )
+
+        if count >= repeat:
+            return True
+
+    return False
 
 
 def last_history(url: str, interval: int = 12) -> datetime:
@@ -88,22 +111,42 @@ def last_history(url: str, interval: int = 12) -> datetime:
     return last
 
 
-def fetchone(url: str, nopublic: bool = True, exclude: str = "") -> list:
+def fetchone(
+    url: str,
+    nopublic: bool = True,
+    exclude: str = "",
+    ignore: str = "",
+    repeat: int = 1,
+) -> tuple[list, list]:
     content = utils.http_get(url=url)
     if not content:
-        return []
+        return [], []
 
     _, subconverter = which_bin()
+    proxies, subscriptions = [], []
+
+    if not utils.isb64encode(content=content):
+        regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+        groups = re.findall(regex, content, flags=re.I)
+        if groups:
+            subscriptions = list(set([utils.url_complete(x) for x in groups if x]))
+
     try:
         proxies = AirPort.decode(text=content, program=subconverter)
 
         # detect if it contains shared proxy nodes
-        if detect(proxies=proxies, nopublic=nopublic, exclude=exclude):
+        if detect(
+            proxies=proxies,
+            nopublic=nopublic,
+            exclude=exclude,
+            ignore=ignore,
+            repeat=repeat,
+        ):
             proxies = []
-
-        return proxies
     except:
-        return []
+        logger.error(f"[V2RaySE] parse proxies failed, url: {url}")
+
+    return proxies, subscriptions
 
 
 def fetch(params: dict) -> list:
@@ -128,8 +171,11 @@ def fetch(params: dict) -> list:
     yamlonly = params.get("yamlonly", False)
     nopublic = params.get("nopublic", True)
     exclude = params.get("exclude", "")
+    ignore = params.get("ignore", "")
     support = set(params.get("types", SUPPORT_TYPE))
     interval = max(1, int(params.get("interval", 12)))
+    repeat = max(1, int(params.get("repeat", 1)))
+    maxsize = min(max(524288, int(params.get("maxsize", 524288))), sys.maxsize)
 
     # storage config
     proxies_store = persist.get("proxies", {})
@@ -138,16 +184,21 @@ def fetch(params: dict) -> list:
     history_url = pushtool.raw_url(push_conf=modified_store)
     last = last_history(url=history_url, interval=interval)
 
-    dates = params.get("dates", [])
+    dates, manual = params.get("dates", []), True
     if not dates or type(dates) != list:
-        dates = get_dates(last=last)
+        dates, manual = get_dates(last=last), False
 
     begin = current_time(utc=True).strftime(DATE_FORMAT)
-    logger.info(
-        f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]"
-    )
+    if manual:
+        logger.info(f"[V2RaySE] begin crawl data, dates: {dates}")
+    else:
+        logger.info(
+            f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]"
+        )
 
-    url, proxies = f"{domain}/minio/webrpc", []
+    url, tasks = f"{domain}/minio/webrpc", []
+    proxies, subscriptions = [], set()
+
     for date in sorted(list(set(dates)), reverse=True):
         date = utils.trim(date)
         if not date:
@@ -192,9 +243,14 @@ def fetch(params: dict) -> list:
                 continue
 
             for item in objects:
+                # filter by content type
                 if not item or (
                     yamlonly and "text/yaml" not in item.get("contentType", "")
                 ):
+                    continue
+
+                # filter by size and last modified time
+                if "size" in item and item.get("size", 0) > maxsize:
                     continue
 
                 if "lastModified" in item:
@@ -208,7 +264,9 @@ def fetch(params: dict) -> list:
                         pass
 
                 name = item.get("name", "")
-                files.append([f"{domain}/proxies/{name}", nopublic, exclude])
+                files.append(
+                    [f"{domain}/proxies/{name}", nopublic, exclude, ignore, repeat]
+                )
         except:
             logger.error(
                 f"[V2RaySE] parse webrpc response error, date: {date}, message: {content}"
@@ -224,16 +282,36 @@ def fetch(params: dict) -> list:
         cpu_count = multiprocessing.cpu_count()
         pool = multiprocessing.Pool(min(count, cpu_count * 2))
         results = pool.starmap(fetchone, files)
-        nodes = [
-            p
-            for p in list(itertools.chain.from_iterable(results))
-            if p and p.get("name", "") and p.get("type", "") in support
-        ]
+
+        nodes, subs, count = [], [], 0
+        for result in results:
+            nodes.extend(
+                [
+                    p
+                    for p in result[0]
+                    if p and p.get("name", "") and p.get("type", "") in support
+                ]
+            )
+            subs.extend([x for x in result[1] if x])
+
         proxies.extend(nodes)
+        if len(subs) > 0:
+            urls = set(subs)
+            count = len(urls)
+            subscriptions = subscriptions.union(urls)
+
         cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(
-            f"[V2RaySE] finished crawl for date: {date}, found {len(nodes)} proxies, cost: {cost}"
+            f"[V2RaySE] finished crawl for date: {date}, found {len(nodes)} proxies and {count} subscriptions, cost: {cost}"
         )
+
+    for sub in subscriptions:
+        config = deepcopy(params.get("config", {}))
+        config["sub"] = sub
+        config["name"] = naming_task(sub)
+        config["push_to"] = list(set(config.get("push_to", [])))
+
+        tasks.append(config)
 
     data, content = {"proxies": proxies}, " "
     datapath, artifact = subconverter.getpath(), "v2ray"
@@ -257,7 +335,7 @@ def fetch(params: dict) -> list:
             filepath = os.path.join(datapath, dest)
             if not os.path.exists(filepath) or not os.path.isfile(filepath):
                 logger.error(f"[V2RaySE] converted file {filepath} not found")
-                return []
+                return tasks
 
             with open(filepath, "r", encoding="utf8") as f:
                 content = f.read()
@@ -270,7 +348,7 @@ def fetch(params: dict) -> list:
                     logger.error(
                         f"[V2RaySE] base64 encode converted data error, message: {str(e)}"
                     )
-                    return []
+                    return tasks
 
         # clean workspace
         workflow.cleanup(datapath, filenames=[source, dest, "generate.ini"])
@@ -280,10 +358,10 @@ def fetch(params: dict) -> list:
     )
     if not success:
         logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies")
-        return []
+        return tasks
 
     # save last modified time
-    if pushtool.validate(push_conf=modified_store):
+    if not manual and pushtool.validate(push_conf=modified_store):
         content = json.dumps({LAST_MODIFIED: begin})
         pushtool.push_to(content=content, push_conf=modified_store, group="modified")
 
@@ -292,4 +370,6 @@ def fetch(params: dict) -> list:
     config["saved"] = True
     config["name"] = "v2rayse" if not config.get("name", "") else config.get("name")
     config["push_to"] = list(set(config.get("push_to", [])))
-    return [config]
+
+    tasks.append(config)
+    return tasks

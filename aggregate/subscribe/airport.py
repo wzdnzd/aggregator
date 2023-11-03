@@ -613,7 +613,9 @@ class AirPort:
         if not text:
             return []
 
-        if utils.isb64encode(text):
+        if utils.isb64encode(text) or not re.search(
+            r"^proxies:$", text, flags=re.MULTILINE
+        ):
             artifact = utils.trim(text=artifact)
             if not artifact:
                 artifact = utils.random_chars(length=6, punctuation=False)
@@ -621,9 +623,16 @@ class AirPort:
             v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
             clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
 
-            with open(v2ray_file, "w+") as f:
-                f.write(text)
-                f.flush()
+            try:
+                with open(v2ray_file, "w+", encoding="UTF8") as f:
+                    f.write(text)
+                    f.flush()
+            except:
+                if os.path.exists(v2ray_file):
+                    os.remove(v2ray_file)
+
+                logger.error(f"save file fialed, artifact: {artifact}")
+                traceback.print_exc()
 
             generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
             success = subconverter.generate_conf(
@@ -636,6 +645,7 @@ class AirPort:
             )
             if not success:
                 logger.error("cannot generate subconverter config file")
+                os.remove(v2ray_file)
                 return []
 
             time.sleep(random.random())
@@ -664,15 +674,12 @@ class AirPort:
             # 已经读取，可以删除
             os.remove(clash_file)
         else:
-            if re.search("proxies:", text):
-                try:
-                    proxies = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
-                except yaml.constructor.ConstructorError:
-                    yaml.add_multi_constructor(
-                        "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
-                    )
-                    proxies = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
+            try:
+                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
+            except yaml.constructor.ConstructorError:
+                yaml.add_multi_constructor(
+                    "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
+                )
+                nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
 
-                nodes = [x for x in proxies if verify(x)]
-
-        return nodes
+        return [x for x in nodes if verify(x)]
