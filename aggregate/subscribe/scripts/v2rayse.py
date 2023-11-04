@@ -308,6 +308,7 @@ def fetch(params: dict) -> list:
     for sub in subscriptions:
         config = deepcopy(params.get("config", {}))
         config["sub"] = sub
+        config["checked"] = False
         config["name"] = naming_task(sub)
         config["push_to"] = list(set(config.get("push_to", [])))
 

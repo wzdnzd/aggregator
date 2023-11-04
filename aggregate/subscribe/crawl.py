@@ -190,6 +190,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
                         task = deepcopy(item)
                         subs = task.pop("sub", None)
+                        checked = task.pop("checked", True)
                         if type(subs) not in [str, list]:
                             continue
                         if type(subs) == str:
@@ -197,8 +198,12 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                         for sub in subs:
                             if utils.isblank(sub):
                                 continue
-                            remark(source=task, defeat=0, discovered=True)
-                            peristedtasks[sub] = task
+
+                            if checked:
+                                remark(source=task, defeat=0, discovered=True)
+                                peristedtasks[sub] = task
+                            else:
+                                records.update({sub: task})
 
         # Remain
         if should_persist:
