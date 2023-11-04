@@ -326,12 +326,12 @@ def mask(url: str) -> str:
             token = "".join(re.findall("token=([a-zA-Z0-9]+)", parse_result.query))
             if len(token) >= 6:
                 token = token[:3] + "***" + token[-3:]
-            url = f"{parse_result.scheme}://{parse_result.netloc}/{parse_result.path}?token={token}"
+            url = f"{parse_result.scheme}://{parse_result.netloc}{parse_result.path}?token={token}"
         else:
             path, token = parse_result.path.rsplit("/", maxsplit=1)
             if len(token) >= 6:
                 token = token[:3] + "***" + token[-3:]
-            url = f"{parse_result.scheme}://{parse_result.netloc}/{path}/{token}"
+            url = f"{parse_result.scheme}://{parse_result.netloc}{path}/{token}"
     except:
         logger.error(f"invalid url: {url}")
 
