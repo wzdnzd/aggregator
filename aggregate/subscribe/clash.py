@@ -68,7 +68,7 @@ def filter_proxies(proxies: list) -> dict:
     }
 
     # 按名字排序方便在节点相同时优先保留名字靠前的
-    sorted(proxies, key=lambda p: str(p.get("name", "")))
+    proxies.sort(key=lambda p: str(p.get("name", "")))
     unique_proxies, hosts = [], defaultdict(list)
     for item in proxies:
         if verify(item) and not proxies_exists(item, hosts):
@@ -121,7 +121,7 @@ def filter_proxies(proxies: list) -> dict:
 def proxies_exists(proxy: dict, hosts: dict) -> bool:
     if not proxy:
         return True
-    if not hosts or type(hosts) != dict:
+    if not hosts:
         return False
 
     key = f"{proxy.get('server')}:{proxy.get('port')}"
