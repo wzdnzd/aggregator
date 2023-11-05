@@ -14,6 +14,7 @@ import string
 import subprocess
 import sys
 import time
+import traceback
 import typing
 import urllib
 import urllib.parse
@@ -68,6 +69,7 @@ def http_get(
     proxy: str = "",
     interval: float = 0,
     timeout: float = 10,
+    trace: bool = False,
 ) -> str:
     if not isurl(url=url):
         logger.error(f"invalid url: {url}")
@@ -107,14 +109,20 @@ def http_get(
         except:
             content = gzip.decompress(content).decode("utf8")
         if status_code != 200:
-            logger.debug(
-                f"request failed, status code: {status_code}\t message: {content}"
-            )
+            if trace:
+                logger.error(
+                    f"request failed, url: {hide(url)}, code: {status_code}, message: {content}"
+                )
+
             return ""
 
         return content
     except urllib.error.HTTPError as e:
-        logger.debug(f"request failed, url=[{hide(url=url)}], code: {e.code}")
+        if trace:
+            logger.error(
+                f"request failed, url: {hide(url)}, code: {e.code}, message:\n{traceback.format_exc()}"
+            )
+
         try:
             message = str(e.read(), encoding="utf8")
         except UnicodeDecodeError:
@@ -133,10 +141,17 @@ def http_get(
         return ""
     except (urllib.error.URLError, TimeoutError) as e:
         message = "timeout" if isinstance(e, TimeoutError) else e.reason
-        logger.debug(f"request failed, url=[{hide(url=url)}], message: {message}")
+        if trace:
+            logger.error(
+                f"request failed, url: {hide(url)}, message: {message}\n{traceback.format_exc()}"
+            )
         return ""
     except Exception as e:
-        logger.debug(e)
+        if trace:
+            logger.error(
+                f"request failed, url: {hide(url)}, message: {e}\n{traceback.format_exc()}"
+            )
+
         time.sleep(interval)
         return http_get(
             url=url,

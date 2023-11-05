@@ -441,8 +441,10 @@ class AirPort:
         else:
             headers = deepcopy(self.headers)
             headers["Accept-Encoding"] = "gzip"
+
+            trace = os.environ.get("TRACE_ENABLE", "false").lower() in ["true", "1"]
             text = utils.http_get(
-                url=self.sub, headers=headers, retry=retry, timeout=15
+                url=self.sub, headers=headers, retry=retry, timeout=30, trace=trace
             ).strip()
 
             # count = 1
