@@ -14,6 +14,7 @@ import string
 import urllib
 import urllib.parse
 import urllib.request
+from collections import defaultdict
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
 
@@ -68,10 +69,12 @@ def filter_proxies(proxies: list) -> dict:
 
     # 按名字排序方便在节点相同时优先保留名字靠前的
     sorted(proxies, key=lambda p: str(p.get("name", "")))
-    unique_proxies = []
+    unique_proxies, hosts = [], defaultdict(list)
     for item in proxies:
-        if verify(item) and not proxies_exists(item, unique_proxies):
+        if verify(item) and not proxies_exists(item, hosts):
             unique_proxies.append(item)
+            key = f"{item.get('server')}:{item.get('port')}"
+            hosts[key].append(item)
 
     # 防止多个代理节点名字相同导致clash配置错误
     groups, unique_names = {}, set()
@@ -115,51 +118,35 @@ def filter_proxies(proxies: list) -> dict:
     return config
 
 
-def proxies_exists(proxy: dict, proxies: list) -> bool:
+def proxies_exists(proxy: dict, hosts: dict) -> bool:
     if not proxy:
         return True
+    if not hosts or type(hosts) != dict:
+        return False
+
+    key = f"{proxy.get('server')}:{proxy.get('port')}"
+    proxies = hosts.get(key, [])
+
     if not proxies:
         return False
 
-    duplicate = False
     protocol = proxy.get("type", "")
-    if protocol == "ss" or protocol == "trojan":
-        duplicate = any(
-            p.get("server", "").lower() == proxy.get("server", "").lower()
-            and p.get("port", 0) == proxy.get("port", 0)
-            and p.get("password", "").lower() == proxy.get("password", "").lower()
-            for p in proxies
-        )
+    if protocol == "http" or protocol == "socks5":
+        return True
+    elif protocol == "ss" or protocol == "trojan":
+        return any(p.get("password", "") == proxy.get("password", "") for p in proxies)
     elif protocol == "ssr":
-        duplicate = any(
-            p.get("server", "").lower() == proxy.get("server", "").lower()
-            and p.get("port", 0) == proxy.get("port", 0)
-            and str(p.get("protocol-param", "")).lower()
+        return any(
+            str(p.get("protocol-param", "")).lower()
             == str(proxy.get("protocol-param", "")).lower()
             for p in proxies
         )
     elif protocol == "vmess" or protocol == "vless":
-        duplicate = any(
-            p.get("server", "").lower() == proxy.get("server", "").lower()
-            and p.get("port", 0) == proxy.get("port", 0)
-            and p.get("uuid", "").lower() == proxy.get("uuid", "").lower()
-            for p in proxies
-        )
+        return any(p.get("uuid", "") == proxy.get("uuid", "") for p in proxies)
     elif protocol == "snell":
-        duplicate = any(
-            p.get("server", "").lower() == proxy.get("server", "").lower()
-            and p.get("port", 0) == proxy.get("port", 0)
-            and p.get("psk", "").lower() == proxy.get("psk", "").lower()
-            for p in proxies
-        )
-    elif protocol == "http" or protocol == "socks5":
-        duplicate = any(
-            p.get("server", "").lower() == proxy.get("server", "").lower()
-            and p.get("port", 0) == proxy.get("port", 0)
-            for p in proxies
-        )
+        return any(p.get("psk", "") == proxy.get("psk", "") for p in proxies)
 
-    return duplicate
+    return False
 
 
 SS_SUPPORTED_CIPHERS = [
@@ -203,15 +190,15 @@ def verify(item: dict) -> bool:
 
     try:
         # name must be string
-        name = str(item.get("name", "")).strip()
+        name = str(item.get("name", "")).strip().upper()
         if not name:
             return False
 
         item["name"] = name
 
         # server must be string
-        server = str(item.get("server", "")).strip()
-        if not name:
+        server = str(item.get("server", "")).strip().lower()
+        if not server:
             return False
 
         item["server"] = server

@@ -28,7 +28,7 @@ set "batname=%~nx0"
 
 @REM microsoft terminal displays differently from cmd and powershell
 @REM call :ismsterminal msterminal
-set "msterminal=0"
+set "msterminal=1"
 
 @REM enable create shortcut 
 set "enableshortcut=1"
@@ -2315,22 +2315,28 @@ for /f "tokens=1,* delims=:" %%a in ('findstr /i /r /c:"external-ui:[ ][ ]*" "!c
 
 @REM not found 'external-ui' configuration in config file
 call :trim keyname "!keyname!"
+
 if "!keyname!" NEQ "external-ui" (
-    if "!keyname!" == "" if "!brief!" == "0" if "!clashserver!" NEQ "" (
-        set "tmpconfig=!configfile!.tmp"
+    set "flag=1"
+    if "!keyname!" NEQ "" set "flag=0"
+    if "!brief!" == "1" set "flag=0"
+    if "!clashserver!" == "" set "flag=0"
 
-        @REM append 'external-ui' configuration
-        @echo external-ui: dashboard > "!tmpconfig!"
-        type "!configfile!" >> "!tmpconfig!"
+    if "!flag!" == "0" goto :eof
 
-        @REM replace config file
-        del /f /q "!configfile!" >nul 2>nul
-        move "!tmpconfig!" "!configfile!" >nul 2>nul
+    set "tmpconfig=!configfile!.tmp"
 
-        @REM reset
-        set "tmpconfig="
-        set "content=dashboard"
-    ) else goto :eof
+    @REM append 'external-ui' configuration
+    @echo external-ui: dashboard > "!tmpconfig!"
+    type "!configfile!" >> "!tmpconfig!"
+
+    @REM replace config file
+    del /f /q "!configfile!" >nul 2>nul
+    move "!tmpconfig!" "!configfile!" >nul 2>nul
+
+    @REM reset
+    set "tmpconfig="
+    set "content=dashboard"
 )
 
 call :trim content "!content!"
