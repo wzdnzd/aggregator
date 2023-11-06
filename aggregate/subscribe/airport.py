@@ -582,6 +582,20 @@ class AirPort:
                 if not name:
                     name = f"{self.name[0]}{self.name[-1]}-{''.join(random.sample(string.ascii_uppercase, 3))}"
 
+                if len(name) > 30:
+                    i, j, k, n = 10, 4, 4, len(name)
+                    abbreviation = "".join(
+                        random.sample(
+                            [
+                                x
+                                for x in name[i : n - j]
+                                if x != " " and x not in string.punctuation
+                            ],
+                            k,
+                        )
+                    ).strip()
+                    name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
+
                 item["name"] = name.upper()
 
                 if "" != tag.strip():
