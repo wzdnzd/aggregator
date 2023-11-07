@@ -2048,6 +2048,9 @@ goto :eof
 :reload
 if not exist "!configfile!" goto :eof
 
+@REM parse api server path
+if "!clashserver!" == "" call :extractserver clashserver
+
 if "!clashserver!" == "" (
     @echo [%ESC%[91m错误%ESC%[0m] %ESC%[91m不支持%ESC%[0m重载，可使用 "%ESC%[!warncolor!m!batname! -r%ESC%[0m" 重启或者在文件 "%ESC%[!warncolor!m!configfile!%ESC%[0m" 配置 "%ESC%[!warncolor!mexternal-controller%ESC%[0m" 属性以启用该功能
     goto :eof
