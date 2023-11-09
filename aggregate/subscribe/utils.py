@@ -21,7 +21,6 @@ import urllib.parse
 import urllib.request
 import uuid
 from http.client import HTTPMessage, HTTPResponse
-from urllib import parse
 
 from logger import logger
 from urlvalidator import isurl
@@ -117,40 +116,20 @@ def http_get(
             return ""
 
         return content
-    except urllib.error.HTTPError as e:
-        if trace:
-            logger.error(
-                f"request failed, url: {hide(url)}, code: {e.code}, message:\n{traceback.format_exc()}"
-            )
-
-        try:
-            message = str(e.read(), encoding="utf8")
-        except UnicodeDecodeError:
-            message = str(e.read(), encoding="utf8")
-        if e.code == 503 and "token" not in message:
-            time.sleep(interval)
-            return http_get(
-                url=url,
-                headers=headers,
-                params=params,
-                retry=retry - 1,
-                proxy=proxy,
-                interval=interval,
-                timeout=timeout,
-            )
-        return ""
-    except (urllib.error.URLError, TimeoutError) as e:
-        message = "timeout" if isinstance(e, TimeoutError) else e.reason
-        if trace:
-            logger.error(
-                f"request failed, url: {hide(url)}, message: {message}\n{traceback.format_exc()}"
-            )
-        return ""
     except Exception as e:
         if trace:
             logger.error(
-                f"request failed, url: {hide(url)}, message: {e}\n{traceback.format_exc()}"
+                f"request failed, url: {hide(url)}, message: \n{traceback.format_exc()}"
             )
+
+        if isinstance(e, urllib.error.HTTPError):
+            try:
+                message = str(e.read(), encoding="utf8")
+            except UnicodeDecodeError:
+                message = "unknown error"
+
+            if e.code != 503 or "token" in message:
+                return ""
 
         time.sleep(interval)
         return http_get(
@@ -322,9 +301,9 @@ def parse_token(url: str) -> str:
     if not isurl(url):
         return ""
 
-    result = parse.urlparse(url=url)
+    result = urllib.parse.urlparse(url=url)
     if result.query:
-        params = {k: v[0] for k, v in parse.parse_qs(result.query).items()}
+        params = {k: v[0] for k, v in urllib.parse.parse_qs(result.query).items()}
         if "token" in params:
             return params.get("token", "")
 
