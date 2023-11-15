@@ -630,7 +630,7 @@ class AirPort:
             return []
 
         if utils.isb64encode(text) or not re.search(
-            r"^proxies:$", text, flags=re.MULTILINE
+            r"^proxies:([\s\r\n]+)?$", text, flags=re.MULTILINE
         ):
             artifact = utils.trim(text=artifact)
             if not artifact:
