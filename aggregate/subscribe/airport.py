@@ -45,6 +45,9 @@ PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 # 重命名分隔符
 RENAME_SEPARATOR = "#@&#@"
 
+# 生成随机字符串时候选字符
+LETTERS = set(string.ascii_letters + string.digits)
+
 # 标记数字位数
 # SUFFIX_BITS = 2
 
@@ -585,14 +588,7 @@ class AirPort:
                 if len(name) > 30:
                     i, j, k, n = 10, 4, 4, len(name)
                     abbreviation = "".join(
-                        random.sample(
-                            [
-                                x
-                                for x in name[i : n - j]
-                                if x != " " and x not in string.punctuation
-                            ],
-                            k,
-                        )
+                        random.sample([x for x in name[i : n - j] if x in LETTERS], k)
                     ).strip()
                     name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
 

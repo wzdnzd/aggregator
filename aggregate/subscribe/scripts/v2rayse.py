@@ -23,6 +23,7 @@ from airport import AirPort
 from crawl import naming_task
 from executable import which_bin
 from logger import logger
+from origin import Origin
 
 import subconverter
 
@@ -117,6 +118,7 @@ def fetchone(
     exclude: str = "",
     ignore: str = "",
     repeat: int = 1,
+    noproxies: bool = False,
 ) -> tuple[list, list]:
     content = utils.http_get(url=url)
     if not content:
@@ -131,20 +133,21 @@ def fetchone(
         if groups:
             subscriptions = list(set([utils.url_complete(x) for x in groups if x]))
 
-    try:
-        proxies = AirPort.decode(text=content, program=subconverter)
+    if not noproxies:
+        try:
+            proxies = AirPort.decode(text=content, program=subconverter)
 
-        # detect if it contains shared proxy nodes
-        if detect(
-            proxies=proxies,
-            nopublic=nopublic,
-            exclude=exclude,
-            ignore=ignore,
-            repeat=repeat,
-        ):
-            proxies = []
-    except:
-        logger.error(f"[V2RaySE] parse proxies failed, url: {url}")
+            # detect if it contains shared proxy nodes
+            if detect(
+                proxies=proxies,
+                nopublic=nopublic,
+                exclude=exclude,
+                ignore=ignore,
+                repeat=repeat,
+            ):
+                proxies = []
+        except:
+            logger.error(f"[V2RaySE] parse proxies failed, url: {url}")
 
     return proxies, subscriptions
 
@@ -175,6 +178,7 @@ def fetch(params: dict) -> list:
     support = set(params.get("types", SUPPORT_TYPE))
     interval = max(1, int(params.get("interval", 12)))
     repeat = max(1, int(params.get("repeat", 1)))
+    noproxies = params.get("noproxies", False) == True
     maxsize = min(max(524288, int(params.get("maxsize", 524288))), sys.maxsize)
 
     # storage config
@@ -190,6 +194,7 @@ def fetch(params: dict) -> list:
 
     begin = current_time(utc=True).strftime(DATE_FORMAT)
     if manual:
+        last = time.strptime("1970-01-01 00:00:00", DATE_FORMAT)
         logger.info(f"[V2RaySE] begin crawl data, dates: {dates}")
     else:
         logger.info(
@@ -265,7 +270,14 @@ def fetch(params: dict) -> list:
 
                 name = item.get("name", "")
                 files.append(
-                    [f"{domain}/proxies/{name}", nopublic, exclude, ignore, repeat]
+                    [
+                        f"{domain}/proxies/{name}",
+                        nopublic,
+                        exclude,
+                        ignore,
+                        repeat,
+                        noproxies,
+                    ]
                 )
         except:
             logger.error(
@@ -309,6 +321,7 @@ def fetch(params: dict) -> list:
         config = deepcopy(params.get("config", {}))
         config["sub"] = sub
         config["checked"] = False
+        config["origin"] = Origin.V2RAYSE.name
         config["name"] = naming_task(sub)
         config["push_to"] = list(set(config.get("push_to", [])))
 
