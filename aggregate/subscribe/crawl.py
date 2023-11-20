@@ -182,10 +182,14 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
             # Scripts
             scripts = conf.get("scripts", {})
             if scripts:
-                datasets = batch_call(scripts)
-                if datasets:
-                    for item in datasets:
-                        if not item or type(item) != dict or item.pop("saved", False):
+                items = batch_call(scripts)
+                if items:
+                    for item in items:
+                        if not item or type(item) != dict:
+                            continue
+
+                        if item.pop("saved", False):
+                            datasets.append(item)
                             continue
 
                         task = deepcopy(item)
@@ -1214,7 +1218,7 @@ def check_status(
         return False, CONNECTABLE
 
     try:
-        headers = {"User-Agent": "ClashforWindows"}
+        headers = {"User-Agent": "clash.meta"}
         request = urllib.request.Request(url=url, headers=headers)
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() != 200:
