@@ -23,15 +23,16 @@ from copy import deepcopy
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
 
+import yaml
+from yaml.constructor import ConstructorError
+
 import airport
 import push
 import utils
 import workflow
-import yaml
 from logger import logger
 from origin import Origin
 from urlvalidator import isurl
-from yaml.constructor import ConstructorError
 
 SEPARATOR = "-"
 
@@ -136,9 +137,33 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 push_to = google_spider.get("push_to", [])
                 exclude = google_spider.get("exclude", "")
                 notinurl = google_spider.get("notinurl", [])
+                qdr = int(google_spider.get("qdr", 7))
+                limits = int(google_spider.get("limits", 100))
                 records.update(
                     crawl_google(
-                        qdr=7, push_to=push_to, exclude=exclude, notinurl=notinurl
+                        qdr=qdr,
+                        push_to=push_to,
+                        exclude=exclude,
+                        limits=limits,
+                        notinurl=notinurl,
+                    )
+                )
+
+            # yanex
+            yandex_spider = conf.get("yandex", {})
+            if yandex_spider:
+                push_to = yandex_spider.get("push_to", [])
+                exclude = yandex_spider.get("exclude", "")
+                notinurl = yandex_spider.get("notinurl", [])
+                within = int(yandex_spider.get("within", 2))
+                pages = int(yandex_spider.get("pages", 5))
+                records.update(
+                    crawl_yandex(
+                        within=within,
+                        push_to=push_to,
+                        exclude=exclude,
+                        pages=pages,
+                        notinurl=notinurl,
                     )
                 )
 
@@ -321,7 +346,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                     f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {unknowns}"
                 )
 
-        logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscribes")
+        logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscriptions")
 
         if MODE != 2 and should_persist and peristedtasks:
             content = json.dumps(peristedtasks)
@@ -477,7 +502,7 @@ def crawl_github_repo(repos: dict):
     subscribes = multi_thread_crawl(func=crawl_single_repo, params=params)
     cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[RepoCrawl] finished crawl from Repositorie, found {len(subscribes)} links, cost: {cost}"
+        f"[RepoCrawl] finished crawl from Repositorie, found {len(subscribes)} subscriptions, cost: {cost}"
     )
     return subscribes
 
@@ -502,7 +527,7 @@ def crawl_google(
         # not search from some site, see: https://zhuanlan.zhihu.com/p/136076792
         query = f"{query}+{reject}"
 
-    num, limits = 100, max(1, limits)
+    num, limits = 100, min(max(1, limits), 1000)
     url = f"https://www.google.com/search?q={query}&tbs=qdr:d{max(qdr, 1)}"
 
     params = {
@@ -529,11 +554,96 @@ def crawl_google(
             except:
                 continue
 
+        # no more results
+        if re.search(
+            r'<p aria-level="3" role="heading".*?>\s*找不到和您查询的“\s*<span>\s*.*?/api/v1/client/subscribe\?token=.*?\s*</span>\s*”相符的内容或信息。\s*</p>',
+            content,
+            flags=re.I,
+        ):
+            break
+
         time.sleep(interval)
 
     cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[GoogleCrawl] finished crawl from Google, found {len(collections)} sites, cost: {cost}"
+        f"[GoogleCrawl] finished crawl from Google, found {len(collections)} subscriptions, cost: {cost}"
+    )
+    return collections
+
+
+def crawl_yandex(
+    within: int = 2,
+    push_to: list = [],
+    exclude: str = "",
+    pages: int = 5,
+    interval: int = 0,
+    notinurl: list = [],
+) -> dict:
+    reject, query = "", urllib.parse.quote("/api/v1/client/subscribe?token=")
+    if notinurl and type(notinurl) == list:
+        items = list(set([re.escape(utils.trim(x).lower()) for x in notinurl]))
+        reject = "|".join(items)
+
+    url = f'https://yandex.com/search/?text="{query}"&lr=10599&cee=1'
+    if within > 0:
+        url = f"{url}&within={within}"
+
+    starttime = time.time()
+
+    # get total pages
+    content = utils.http_get(url=url)
+    if content:
+        regex = r'<a class="VanillaReact Pager-Item Pager-Item_type_page" href=".*?" aria-label="Page \d+".*?>(\d+)</a>'
+        groups = re.findall(regex, content, flags=re.I)
+        pages = min(pages, max([int(x) for x in groups]))
+
+    collections, pages = {}, max(1, pages)
+
+    for page in range(0, pages):
+        content = utils.http_get(url=f"{url}&p={page}")
+        if not content:
+            logger.error(f"[YandexCrawl] cannot get content from page: {page}")
+            continue
+
+        groups = re.findall(
+            r"<li class=\"serp-item\s+serp-item_card\s?\".*?>([\s\S]*?)</li>", content
+        )
+        if not groups:
+            logger.error(
+                f"[YandexCrawl] cannot get any search result from page: {page}"
+            )
+            continue
+
+        for group in groups:
+            try:
+                if reject:
+                    regex = r'<div class="Path Organic-Path path organic__path"><a .*?href="(.*?)".*?>.*?</a></div>'
+                    link = re.findall(regex, group, flags=re.I)[0]
+                    if re.search(reject, link):
+                        continue
+            except:
+                logger.error(f"[YandexCrawl] invalid regex pattern: {reject}")
+                continue
+
+            regex = r"https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/<b>api</b>/<b>v</b><b>1</b>/<b>client</b>/<b>subscribe</b>\?<b>token</b>=[a-zA-Z0-9]{16,32}"
+            links = re.findall(regex, group, flags=re.I)
+            for link in links:
+                try:
+                    link = re.sub(r"<b>|</b>", "", link).replace("http://", "https://")
+                    if exclude and re.search(exclude, link):
+                        continue
+                    collections[link] = {
+                        "push_to": push_to,
+                        "origin": Origin.YANDEX.name,
+                    }
+                except:
+                    continue
+
+        time.sleep(interval)
+
+    cost = "{:.2f}s".format(time.time() - starttime)
+    logger.info(
+        f"[YandexCrawl] finished crawl from Yandex, found {len(collections)} subscriptions, cost: {cost}"
     )
     return collections
 
@@ -757,7 +867,7 @@ def crawl_github(
 
     cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[GithubCrawl] finished crawl from Github through {method}, found {len(subscribes)} links need check, cost: {cost}"
+        f"[GithubCrawl] finished crawl from Github through {method}, found {len(subscribes)} subscriptions need check, cost: {cost}"
     )
 
     return subscribes
@@ -815,7 +925,7 @@ def crawl_pages(
     if not silent:
         cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(
-            f"[PageCrawl] finished crawl from Page, found {len(subscribes)} sites, cost: {cost}"
+            f"[PageCrawl] finished crawl from Page, found {len(subscribes)} subscriptions, cost: {cost}"
         )
 
     return subscribes
