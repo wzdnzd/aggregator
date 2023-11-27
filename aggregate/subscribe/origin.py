@@ -21,6 +21,7 @@ class Origin(enum.Enum):
     TEMPORARY = ExpireInfo(name="TEMPORARY", expire=6)
     PAGE = ExpireInfo(name="PAGE", expire=6)
     GOOGLE = ExpireInfo(name="GOOGLE", expire=10)
+    YANDEX = ExpireInfo(name="YANDEX", expire=10)
     GITHUB = ExpireInfo(name="GITHUB", expire=20)
     V2RAYSE = ExpireInfo(name="V2RAYSE", expire=45)
     REPO = ExpireInfo(name="REPO", expire=60)

@@ -91,6 +91,13 @@ def load_configs(
             google_conf["push_to"] = push_to
             params["google"] = google_conf
 
+        # spider's config for yandex
+        yandex_conf = spiders.get("yandex", {})
+        push_to = list(set(yandex_conf.get("push_to", [])))
+        if yandex_conf.pop("enable", True) and push_to:
+            yandex_conf["push_to"] = push_to
+            params["yandex"] = yandex_conf
+
         # spider's config for github
         github_conf = spiders.get("github", {})
         push_to = list(set(github_conf.get("push_to", [])))
