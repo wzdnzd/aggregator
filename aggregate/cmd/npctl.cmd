@@ -108,8 +108,11 @@ set "alpha=0"
 @REM simplified mode
 set "brief=0"
 
-@REM yacd dashboard, see https://github.com/MetaCubeX/Yacd-meta
+@REM yacd dashboard, see https://github.com/MetaCubeX/Yacd-meta or https://github.com/haishanh/yacd
 set "yacd=0"
+
+@REM metacubexd, see https://github.com/MetaCubeX/metacubexd
+set "metacubexd=0"
 
 @REM run on background
 set "asdaemon=0"
@@ -670,10 +673,20 @@ if "!result!" == "true" (
     shift & shift & goto :argsparse
 )
 
+if "%1" == "-x" set result=true
+if "%1" == "--metacubexd" set result=true
+if "!result!" == "true" (
+    set "yacd=0"
+    set "metacubexd=1"
+    set result=false
+    shift & goto :argsparse
+)
+
 if "%1" == "-y" set result=true
 if "%1" == "--yacd" set result=true
 if "!result!" == "true" (
     set "yacd=1"
+    set "metacubexd=0"
     set result=false
     shift & goto :argsparse
 )
@@ -752,6 +765,8 @@ echo.
 @REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
 @echo -w, --workspace       代理程序运行路径，默认为当前脚本所在目录
 @REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
+@echo -x, --metacubexd      使用 %ESC%[!warncolor!mmetacubexd%ESC%[0m 控制面板，搭配 %ESC%[!warncolor!m-i%ESC%[0m 或 %ESC%[!warncolor!m-u%ESC%[0m 使用
+@REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
 @echo -y, --yacd            使用 %ESC%[!warncolor!myacd%ESC%[0m 控制面板，搭配 %ESC%[!warncolor!m-i%ESC%[0m 或 %ESC%[!warncolor!m-u%ESC%[0m 使用
 @echo.
 
@@ -804,7 +819,16 @@ set "content="
 set "needgeosite=0"
 
 @REM yacd dashboard
-if "!yacd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\registerSW.js" (set "yacd=1")
+if "!yacd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\yacd.ico" (
+    set "yacd=1"
+    set "metacubexd=0"
+)
+
+@REM metacubexd dashboard
+if "!metacubexd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\maskable-icon-512x512.png" (
+    set "yacd=0"
+    set "metacubexd=1"
+)
 
 @REM force use clash.premium
 if "!clashpremium!" == "1" (
@@ -1814,6 +1838,9 @@ goto :eof
 call :trim force "%~1"
 if "!force!" == "" set "force=0"
 
+@REM dashboard
+if "!metacubexd!" == "1" set "yacd=0"
+
 call :trim geositeflag "%~2"
 if "!geositeflag!" == "" set "geositeflag=0"
 
@@ -1856,6 +1883,11 @@ if "!clashmeta!" == "0" (
     if "!yacd!" == "1" (
         set "dashboardurl=https://github.com/haishanh/yacd/archive/refs/heads/gh-pages.zip"
         set "dashdirectory=yacd-gh-pages"
+    )
+
+    if "!metacubexd!" == "1" (
+        set "dashboardurl=https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+        set "dashdirectory=metacubexd-gh-pages"
     )
 ) else (
     set "clashexe=mihomo-windows-amd64.exe"
