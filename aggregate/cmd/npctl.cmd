@@ -825,8 +825,8 @@ if "!notfound!" == "1" (
 @REM rulesets include GEOSITE, must be clash.meta
 if "!notfound!" == "0" (set "clashmeta=1")
 if "!clashmeta!" == "1" (
-    set "clashmeta=1"
     set "%~1=!needgeosite!"
+    set "clashpremium=0"
     goto :eof
 )
 
@@ -838,6 +838,7 @@ call :searchrules notfound "!content!"
 @REM rulesets include SCRIPT, must be clash.premium
 if "!notfound!" == "0" (
     set "clashmeta=0"
+    set "clashpremium=1"
     goto :eof
 )
 
@@ -846,6 +847,7 @@ for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"sniffer:[ ]*" "!configfil
     call :trim sniffer %%a
     if "!sniffer!" == "sniffer" (
         set "clashmeta=1"
+        set "clashpremium=0"
         goto :eof
     )
 )
@@ -856,6 +858,7 @@ for /f "tokens=1* delims=:" %%a in ('findstr /i /r /c:"^[ ][ ]*exclude-filter:[ 
 
     if /i "!excludekey:~0,1!" NEQ "#" (
         set "clashmeta=1"
+        set "clashpremium=0"
         goto :eof
     )
 )
@@ -873,6 +876,7 @@ for %%f in (!subfiles!) do (
         call :findby "%%f" "!regex!" "!tempfile!" 1
         if exist "!tempfile!" (
             set "clashmeta=1"
+            set "clashpremium=0"
             del /f /q "!tempfile!" >nul 2>nul
             goto :eof
         )   
@@ -890,6 +894,7 @@ for %%f in (!subfiles!) do (
 @REM         call :trim includekey %%a
 @REM         if /i "!includekey:~0,1!" NEQ "#" (
 @REM             set "clashmeta=1"
+@REM             set "clashpremium=0"
 @REM             del /f /q "!tempfile!" >nul 2>nul
 @REM             goto :eof
 @REM         )
@@ -899,7 +904,11 @@ for %%f in (!subfiles!) do (
 @REM )
 
 @REM old edittion
-if exist "!dest!\clash.exe" ("!dest!\clash.exe" -v | findstr /i "Meta" >nul 2>nul && (set "clashmeta=1"))
+if exist "!dest!\clash.exe" ("!dest!\clash.exe" -v | findstr /i "Meta" >nul 2>nul && (
+        set "clashmeta=1"
+        set "clashpremium=0"
+    )
+)
 goto :eof
 
 
@@ -991,6 +1000,11 @@ if "!filepath!" == "" goto :eof
 ) || (
     if "!dest!" NEQ "" (set "basedir=!dest!") else (set "basedir=%~dp0")
     if "!basedir:~-1!" == "\" set "basedir=!basedir:~0,-1!"
+    
+    if "!filepath!" == "." (
+        set "%~1=!basedir!"
+        goto :eof
+    )
 
     set "filepath=!filepath:/=\!"
     if "!filepath:~0,3!" == ".\\" (
@@ -1470,6 +1484,21 @@ if "!downloaded!" == "0" if "!exclude!" == "0" call :updatesubs subfiles "!downf
 @REM confirm download url and filename
 call :versioned geositeneed !subfiles!
 
+@REM clash.core or clash.premium is not available now
+if "!clashpremium!" == "1" if not exist "!dest!\clash.exe" (
+    @echo [%ESC%[91m错误%ESC%[0m] 代理程序 %ESC%[!warncolor!mclash.core%ESC%[0m 或 %ESC%[!warncolor!mclash.premium%ESC%[0m 暂时 %ESC%[91m无法使用%ESC%[0m，请选择 %ESC%[!warncolor!mclah.meta%ESC%[0m
+    exit /b 1
+)
+
+if "!clashpremium!" == "0" if "!clashmeta!" == "0" (
+    set "clashmeta=1"
+    if exist "!dest!\clash.exe" ("!dest!\clash.exe" -v | findstr /i "Meta" >nul 2>nul || (
+            set "clashpremium=1"
+            set "clashmeta=0"
+        )
+    )
+)
+
 @REM confirm donwload url
 call :confirmurl "!downforce!" "!geositeneed!"
 
@@ -1693,8 +1722,8 @@ if "!status!" == "1" (
     )
 )
 
-@REM if alpha=1 may cause clash download failure
-set "alpha=0"
+@REM if alpha=1 may cause clash.premiun download failure
+if "!clashpremiun!" == "1" set "alpha=0"
 
 @REM startup
 call :executewrapper 1
@@ -1797,7 +1826,7 @@ set "geositefile=GeoSite.dat"
 set "geoipfile=GeoIP.dat"
 
 @REM dashboard url
-set "dashboardurl=https://github.com/wzdnzd/clash-dashboard/archive/refs/heads/gh-pages.zip"
+set "dashboardurl=https://github.com/Dreamacro/clash-dashboard/archive/refs/heads/gh-pages.zip"
 set "dashdirectory=clash-dashboard-gh-pages"
 
 set "clashurl="
@@ -1825,20 +1854,19 @@ if "!clashmeta!" == "0" (
     )
 
     if "!yacd!" == "1" (
-        @REM set "dashboardurl=https://github.com/haishanh/yacd/archive/refs/heads/gh-pages.zip"
-        set "dashboardurl=https://github.com/wzdnzd/Yacd/archive/refs/heads/gh-pages.zip"
+        set "dashboardurl=https://github.com/haishanh/yacd/archive/refs/heads/gh-pages.zip"
         set "dashdirectory=yacd-gh-pages"
     )
 ) else (
-    set "clashexe=Clash.Meta-windows-amd64.exe"
+    set "clashexe=mihomo-windows-amd64.exe"
     set "geositeurl=https://raw.githubusercontent.com/Loyalsoldier/domain-list-custom/release/geosite.dat"
     set "geoipurl=https://raw.githubusercontent.com/Loyalsoldier/geoip/release/geoip-only-cn-private.dat"
 
     if "!needdownload!" == "1" (
         if "!alpha!" == "1" (
-            for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/Clash.Meta/releases?prerelease=true&per_page=10" ^| findstr /i /r "https://github.com/MetaCubeX/Clash.Meta/releases/download/Prerelease-Alpha/Clash.Meta-windows-amd64-alpha-.*.zip"') do set "clashurl=%%b"
+            for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/mihomo/releases?prerelease=true&per_page=10" ^| findstr /i /r "https://github.com/MetaCubeX/mihomo/releases/download/Prerelease-Alpha/mihomo-windows-amd64-alpha-.*.zip"') do set "clashurl=%%b"
         ) else (
-            for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/Clash.Meta/releases/latest?per_page=1" ^| findstr /i /r "https://github.com/MetaCubeX/Clash.Meta/releases/download/.*/Clash.Meta-windows-amd64-.*.zip"') do set "clashurl=%%b"
+            for /f "tokens=1* delims=:" %%a in ('curl --retry 5 -s -L "https://api.github.com/repos/MetaCubeX/mihomo/releases/latest?per_page=1" ^| findstr /i /r "https://github.com/MetaCubeX/mihomo/releases/download/.*/mihomo-windows-amd64-.*.zip"') do set "clashurl=%%b"
         )
 
         call :trim clashurl "!clashurl!"
@@ -1894,9 +1922,11 @@ if "!clashmeta!" == "0" (
     )
 
     if "!yacd!" == "1" (
-        @REM set "dashboardurl=https://github.com/MetaCubeX/Yacd-meta/archive/refs/heads/gh-pages.zip"
-        set "dashboardurl=https://github.com/wzdnzd/Yacd/archive/refs/heads/gh-pages.zip"
+        set "dashboardurl=https://github.com/MetaCubeX/Yacd-meta/archive/refs/heads/gh-pages.zip"
         set "dashdirectory=Yacd-meta-gh-pages"
+    ) else (
+        set "dashboardurl=https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+        set "dashdirectory=metacubexd-gh-pages"
     )
 )
 
