@@ -819,13 +819,13 @@ set "content="
 set "needgeosite=0"
 
 @REM yacd dashboard
-if "!yacd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\yacd.ico" (
+if "!metacubexd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\yacd.ico" (
     set "yacd=1"
     set "metacubexd=0"
 )
 
 @REM metacubexd dashboard
-if "!metacubexd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\maskable-icon-512x512.png" (
+if "!yacd!" == "0" if "!dashboard!" NEQ "" if exist "!dashboard!\maskable-icon-512x512.png" (
     set "yacd=0"
     set "metacubexd=1"
 )
