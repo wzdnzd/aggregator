@@ -18,8 +18,9 @@ from collections import defaultdict
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
 
-import utils
 import yaml
+
+import utils
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -78,9 +79,7 @@ def filter_proxies(proxies: list) -> dict:
 
     # 防止多个代理节点名字相同导致clash配置错误
     groups, unique_names = {}, set()
-    for key, group in itertools.groupby(
-        unique_proxies, key=lambda p: p.get("name", "")
-    ):
+    for key, group in itertools.groupby(unique_proxies, key=lambda p: p.get("name", "")):
         items = groups.get(key, [])
         items.extend(list(group))
         groups[key] = items
@@ -137,9 +136,7 @@ def proxies_exists(proxy: dict, hosts: dict) -> bool:
         return any(p.get("password", "") == proxy.get("password", "") for p in proxies)
     elif protocol == "ssr":
         return any(
-            str(p.get("protocol-param", "")).lower()
-            == str(proxy.get("protocol-param", "")).lower()
-            for p in proxies
+            str(p.get("protocol-param", "")).lower() == str(proxy.get("protocol-param", "")).lower() for p in proxies
         )
     elif protocol == "vmess" or protocol == "vless":
         return any(p.get("uuid", "") == proxy.get("uuid", "") for p in proxies)
@@ -150,6 +147,8 @@ def proxies_exists(proxy: dict, hosts: dict) -> bool:
 
 
 SS_SUPPORTED_CIPHERS = [
+    "rc4-md5",
+    "xchacha20",
     "aes-128-gcm",
     "aes-192-gcm",
     "aes-256-gcm",
@@ -159,11 +158,20 @@ SS_SUPPORTED_CIPHERS = [
     "aes-128-ctr",
     "aes-192-ctr",
     "aes-256-ctr",
-    "rc4-md5",
-    "chacha20-ietf",
-    "xchacha20",
+    "camellia-128-cfb",
+    "camellia-192-cfb",
+    "camellia-256-cfb",
+    "bf-cfb",
     "chacha20-ietf-poly1305",
     "xchacha20-ietf-poly1305",
+    "salsa20",
+    "chacha20",
+    "chacha20-ietf",
+    "2022-blake3-aes-128-gcm",
+    "2022-blake3-aes-256-gcm",
+    "2022-blake3-chacha20-poly1305",
+    "2022-blake3-chacha12-poly1305",
+    "2022-blake3-chacha8-poly1305",
 ]
 SSR_SUPPORTED_OBFS = [
     "plain",
@@ -240,9 +248,7 @@ def verify(item: dict) -> bool:
                 return False
             if "tls" in item and item["tls"] not in [False, True]:
                 return False
-            if item.get("network", "ws") in ["h2", "grpc"] and not item.get(
-                "tls", False
-            ):
+            if item.get("network", "ws") in ["h2", "grpc"] and not item.get("tls", False):
                 return False
             if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
                 False,
@@ -322,9 +328,7 @@ def check(
     strict: bool = False,
 ) -> None:
     proxy_name = urllib.parse.quote(proxy.get("name", ""))
-    base_url = (
-        f"http://{api_url}/proxies/{proxy_name}/delay?timeout={str(timeout)}&url="
-    )
+    base_url = f"http://{api_url}/proxies/{proxy_name}/delay?timeout={str(timeout)}&url="
 
     # 失败重试间隔：30ms ~ 200ms
     interval = random.randint(30, 200) / 1000
@@ -352,9 +356,7 @@ def check(
         if alive:
             # filter and check US(for speed) proxies as candidates for ChatGPT/OpenAI/New Bing/Google Bard
             proxy_name = proxy.get("name", "")
-            if proxy.pop("chatgpt", False) and not proxy_name.endswith(
-                utils.CHATGPT_FLAG
-            ):
+            if proxy.pop("chatgpt", False) and not proxy_name.endswith(utils.CHATGPT_FLAG):
                 try:
                     # check for ChatGPT Web: https://chat.openai.com
                     request = urllib.request.Request(
