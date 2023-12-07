@@ -147,8 +147,6 @@ def proxies_exists(proxy: dict, hosts: dict) -> bool:
 
 
 SS_SUPPORTED_CIPHERS = [
-    "rc4-md5",
-    "xchacha20",
     "aes-128-gcm",
     "aes-192-gcm",
     "aes-256-gcm",
@@ -158,20 +156,11 @@ SS_SUPPORTED_CIPHERS = [
     "aes-128-ctr",
     "aes-192-ctr",
     "aes-256-ctr",
-    "camellia-128-cfb",
-    "camellia-192-cfb",
-    "camellia-256-cfb",
-    "bf-cfb",
+    "rc4-md5",
+    "chacha20-ietf",
+    "xchacha20",
     "chacha20-ietf-poly1305",
     "xchacha20-ietf-poly1305",
-    "salsa20",
-    "chacha20",
-    "chacha20-ietf",
-    "2022-blake3-aes-128-gcm",
-    "2022-blake3-aes-256-gcm",
-    "2022-blake3-chacha20-poly1305",
-    "2022-blake3-chacha12-poly1305",
-    "2022-blake3-chacha8-poly1305",
 ]
 SSR_SUPPORTED_OBFS = [
     "plain",
