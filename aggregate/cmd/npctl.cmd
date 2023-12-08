@@ -108,6 +108,9 @@ set "alpha=0"
 @REM simplified mode
 set "brief=0"
 
+@REM regenerates auto update script
+set "regenerate=0"
+
 @REM yacd dashboard, see https://github.com/MetaCubeX/Yacd-meta or https://github.com/haishanh/yacd
 set "yacd=0"
 
@@ -431,6 +434,10 @@ call :cleanworkspace "!temp!"
 
 @REM startup
 call :startclash
+
+@REM regenerate auto update script
+if "!regenerate!" == "1" call :generateupdatevbs
+
 goto :eof
 
 
@@ -529,6 +536,14 @@ if "%1" == "-f" set result=true
 if "%1" == "--fix" set result=true
 if "!result!" == "true" (
     set "repair=1"
+    set result=false
+    shift & goto :argsparse
+)
+
+if "%1" == "-g" set result=true
+if "%1" == "--generate" set result=true
+if "!result!" == "true" (
+    set "regenerate=1"
     set result=false
     shift & goto :argsparse
 )
@@ -755,6 +770,8 @@ echo.
 @echo -d, --daemon          后台静默执行，禁止打印日志
 @REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
 @echo -e, --exclude         更新时跳过代理集中配置的订阅
+@REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
+@echo -g, --generate        重新生成自动检查更新的脚本，搭配 %ESC%[!warncolor!m-u%ESC%[0m 使用
 @REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
 @echo -m, --meta            如果配置兼容，使用 clash.meta 代替 clash.premium，搭配 %ESC%[!warncolor!m-i%ESC%[0m 或 %ESC%[!warncolor!m-u%ESC%[0m 使用
 @REM @echo. if this line contains Chinese output, it will be garbled. Why? ? ? >_<
@@ -1248,8 +1265,7 @@ if "!clashurl!" NEQ "" (
     ) else (
         @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!mclash.exe%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
-        curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\clash.zip" "!clashurl!"
-
+        call :retrydownload "!clashurl!" "!temp!\clash.zip"
         if exist "!temp!\clash.zip" (
             @REM unzip
             tar -xzf "!temp!\clash.zip" -C !temp! >nul 2>nul
@@ -1275,7 +1291,7 @@ if "!clashurl!" NEQ "" (
 if "!countryurl!" NEQ "" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!countryfile!%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
-    curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!countryfile!" "!countryurl!"
+    call :retrydownload "!countryurl!" "!temp!\!countryfile!"
     if exist "!temp!\!countryfile!" (
         if "!dfiles!" == "" (
             set "dfiles=!countryfile!"
@@ -1291,8 +1307,7 @@ if "!countryurl!" NEQ "" (
 if "!geositeurl!" NEQ "" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!geositefile!%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
-    curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geositefile!" "!geositeurl!"
-
+    call :retrydownload "!geositeurl!" "!temp!\!geositefile!" 
     if exist "!temp!\!geositefile!" (
         if "!dfiles!" == "" (
             set "dfiles=!geositefile!"
@@ -1308,8 +1323,7 @@ if "!geositeurl!" NEQ "" (
 if "!geoipurl!" NEQ "" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 %ESC%[!warncolor!m!geoipfile!%ESC%[0m 至 %ESC%[!warncolor!m!dest!%ESC%[0m
 
-    curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!temp!\!geoipfile!" "!geoipurl!"
-
+    call :retrydownload "!geoipurl!" "!temp!\!geoipfile!"
     if exist "!temp!\!geoipfile!" (
         if "!dfiles!" == "" (
             set "dfiles=!geoipfile!"
@@ -1322,6 +1336,36 @@ if "!geoipurl!" NEQ "" (
 )
 
 set "%~1=!dfiles!"
+goto :eof
+
+
+@REM download with retry
+:retrydownload <url> <filename>
+set maxretries=3
+call :trim downloadurl "%~1"
+call :trim savepath "%~2"
+
+if "!downloadurl!" == "" goto :eof
+if "!savepath!" == "" goto :eof
+
+set /a "count=0"
+
+:retry
+if !count! GEQ !maxretries! (
+    @echo [%ESC%[91m错误%ESC%[0m] 文件 %ESC%[!warncolor!m!savepath!%ESC%[0m 下载失败，已达最大重试次数，请尝试再次执行此命令
+    goto :eof
+)
+
+curl.exe --retry 5 --retry-max-time 120 --connect-timeout 20 -s -L -C - -o "!savepath!" "!downloadurl!"
+set "failflag=!errorlevel!"
+if not exist "!savepath!" set "failflag=1"
+
+if "!failflag!" NEQ "0" (
+    set /a "count+=1"
+    
+    @echo [%ESC%[!warncolor!m提示%ESC%[0m] 文件下载失败，正在进行第 %ESC%[!warncolor!m!count!%ESC%[0m 次重试，下载链接："!downloadurl!"
+    goto :retry
+)
 goto :eof
 
 
@@ -2033,7 +2077,7 @@ call :trim rawurl %~2
 if "!rawurl!" == "" goto :eof
 
 @REM github proxy list: https://github.com/XIU2/UserScript/blob/master/GithubEnhanced-High-Speed-Download.user.js
-set proxy_urls[0]=https://ghproxy.com
+set proxy_urls[0]=https://mirror.ghproxy.com
 set proxy_urls[1]=https://github.moeyy.xyz
 set proxy_urls[2]=https://gh.ddlc.top
 set proxy_urls[3]=https://ghps.cc
@@ -2452,6 +2496,9 @@ if "!dashboard!" == "" (
     goto :eof
 )
 
+@REM skip update
+set "force=0"
+
 @REM exists
 if exist "!dashboard!\index.html" if "!force!" == "0" goto :eof
 call :makedirs success "!dashboard!"
@@ -2730,13 +2777,13 @@ if "!ready!" == "0" (
     )
     if !errorlevel! == 2 exit /b 1
 
-    set "operation=-u"
-    if "!clashmeta!" == "1" set "operation=!operation! -m"
-    if "!alpha!" == "1" set "operation=!operation! -a"
-    if "!yacd!" == "1" set "operation=!operation! -y"
+    @REM generate vbs for update
+    call :generateupdatevbs
 
-    call :generatestartvbs "!updatevbs!" "!operation!"
+    @REM delete old task
     call :deletetask success "!taskname!"
+
+    @REM create new task
     call :createtask success "!updatevbs!" "!taskname!"
     if "!success!" == "1" (
         @echo [%ESC%[!infocolor!m信息%ESC%[0m] 自动检查更新设置%ESC%[!infocolor!m成功%ESC%[0m
@@ -2744,6 +2791,21 @@ if "!ready!" == "0" (
         @echo [%ESC%[91m错误%ESC%[0m] 自动检查更新设置%ESC%[91m失败%ESC%[0m
     )
 )
+goto :eof
+
+
+@REM generate vbs for update
+:generateupdatevbs
+set "operation=-u"
+if "!clashmeta!" == "1" set "operation=!operation! -m"
+if "!clashpremium!" == "1" set "operation=!operation! -n"
+if "!alpha!" == "1" set "operation=!operation! -a"
+if "!yacd!" == "1" set "operation=!operation! -y"
+if "!metacubexd!" == "1" set "operation=!operation! -x"
+
+@REM generate and write to file
+call :generatestartvbs "!updatevbs!" "!operation!"
+
 goto :eof
 
 
@@ -2756,9 +2818,77 @@ if "!exename!" == "" goto :eof
 call :trim taskname "%~3"
 if "!taskname!" == "" goto :eof
 
+@REM input start time
+call :scheduletime starttime
+
 @REM create
-schtasks /create /tn "!taskname!" /tr "!exename!" /sc daily /mo 1 /ri 360 /st 09:15 /du 0012:00 /f >nul 2>nul
+schtasks /create /tn "!taskname!" /tr "!exename!" /sc daily /mo 1 /ri 480 /st !starttime! /du 0012:00 /f >nul 2>nul
 if "!errorlevel!" == "0" set "%~1=1"
+goto :eof
+
+
+@REM prompt user input task start time 
+:scheduletime <time>
+set "%~1="
+set "usertime="
+set "defaulttime=09:15"
+
+@REM choose
+set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 正在设置更新时间，默认为 %ESC%[!warncolor!m09:15%ESC%[0m，是否需要修改？(%ESC%[!warncolor!mY%ESC%[0m/%ESC%[!warncolor!mN%ESC%[0m) "
+if "!msterminal!" == "1" (
+    choice /c yn /n /d n /t 5 /m "!tips!"
+) else (
+    set /p "=!tips!" <nul
+    choice /c yn /n /d n /t 5
+)
+
+if !errorlevel! == 2 (
+    set "%~1=!defaulttime!"
+    goto :eof
+)
+
+@REM prompt user input time
+call :promptinput inputtime "!defaulttime!" 0
+set "%~1=!inputtime!"
+goto :eof
+
+
+@REM input and validate
+:promptinput <result> <default> <retry>
+set "%~1="
+
+set "tips=[%ESC%[!warncolor!m提示%ESC%[0m] 请输入一个格式为 %ESC%[!warncolor!mHH:MM%ESC%[0m 的 %ESC%[!warncolor!m24小时制%ESC%[0m 时间："
+
+call :trim retryflag "%~3"
+if "!retryflag!" == "1" (
+    set "tips=[%ESC%[91m错误%ESC%[0m] 输入的时间%ESC%[91m无效%ESC%[0m或%ESC%[91m格式不正确%ESC%[0m，请重新输入："
+)
+
+set /p "userinput=!tips!"
+if not defined userinput (set "userinput=%~2")
+
+@REM validate user input
+call :validatetime "%~1" "%~2" "!userinput!"
+goto :eof
+
+
+@REM validate user input time
+:validatetime <result> <default> <input>
+set "%~1="
+
+@REM trim user input
+call :trim usertime "%~3"
+
+set "validflag=0"
+for /f "tokens=1-2 delims=:" %%a in ("!usertime!") do (
+    set /a "hours=%%a" 2>nul
+    set /a "minutes=%%b" 2>nul
+    if !hours! lss 24 if !minutes! lss 60 if !hours! geq 0 if !minutes! geq 0 (
+        set "validflag=1"
+    )
+)
+
+if "!validflag!" == "0" (call :promptinput "%~1" "%~2" 1) else (set "%~1=!usertime!")
 goto :eof
 
 
@@ -2772,11 +2902,19 @@ if "!taskname!" == "" goto :eof
 schtasks /query /tn "!taskname!" >nul 2>nul
 if "!errorlevel!" NEQ "0" goto :eof
 
+@REM compare script path is same as current path
+set "commandpath="
+for /f "tokens=3 delims=<>" %%a in ('schtasks /query /tn "!taskname!" /xml ^| findstr "<Command>"') do set "commandpath=%%a"
+call :trim commandpath "!commandpath!"
+
+if "!commandpath!" NEQ "!updatevbs!" goto :eof
+
 set "status="
 for /f "usebackq skip=3 tokens=4" %%a in (`schtasks /query /tn "!taskname!"`) do set "status=%%a"
 call :trim status "!status!"
 
 if "!status!" == "Ready" set "%~1=1"
+
 goto :eof
 
 
