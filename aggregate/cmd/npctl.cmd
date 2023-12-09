@@ -2496,9 +2496,6 @@ if "!dashboard!" == "" (
     goto :eof
 )
 
-@REM skip update
-set "force=0"
-
 @REM exists
 if exist "!dashboard!\index.html" if "!force!" == "0" goto :eof
 call :makedirs success "!dashboard!"
