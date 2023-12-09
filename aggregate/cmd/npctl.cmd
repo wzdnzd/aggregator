@@ -1215,7 +1215,8 @@ if "!content!" == "" (
 
 set "wintunurl=!wintunurl!/!content!"
 @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载 wintun，下载链接："!wintunurl!"
-curl.exe --retry 5 --retry-max-time 60 --connect-timeout 15 -s -L -C - -o "!temp!\wintun.zip" "!wintunurl!"
+
+call :retrydownload "!wintunurl!" "!temp!\wintun.zip"
 if exist "!temp!\wintun.zip" (
     @REM unzip
     tar -xzf "!temp!\wintun.zip" -C !temp! >nul 2>nul
@@ -1363,7 +1364,7 @@ if not exist "!savepath!" set "failflag=1"
 if "!failflag!" NEQ "0" (
     set /a "count+=1"
     
-    @echo [%ESC%[!warncolor!m提示%ESC%[0m] 文件下载失败，正在进行第 %ESC%[!warncolor!m!count!%ESC%[0m 次重试，下载链接："!downloadurl!"
+    @echo [%ESC%[!warncolor!m提示%ESC%[0m] 文件下载失败，正在进行第 %ESC%[!warncolor!m!count!%ESC%[0m 次重试，下载链接：!downloadurl!
     goto :retry
 )
 goto :eof
@@ -1906,6 +1907,8 @@ set "clashurl="
 if not exist "!dest!\clash.exe" (set "needdownload=1") else (set "needdownload=!force!")
 
 if "!clashmeta!" == "0" (
+    @echo [%ESC%[!warncolor!m提示%ESC%[0m] %ESC%[!warncolor!mclash.premium%ESC%[0m 暂%ESC%[!warncolor!m不提供%ESC%[0m下载，建议切使用 %ESC%[!warncolor!m-m%ESC%[0m 或 %ESC%[!warncolor!m--meta%ESC%[0m 换到 %ESC%[!warncolor!mclash.meta%ESC%[0m
+
     set "clashexe=clash-windows-amd64.exe"
 
     if "!needdownload!" == "1" (
@@ -1920,6 +1923,7 @@ if "!clashmeta!" == "0" (
             )
             set "clashurl=!clashurl:~1,-1!"
         ) else (
+            @echo [%ESC%[!warncolor!m警告%ESC%[0m] %ESC%[!warncolor!mclash.premium%ESC%[0m 预览版下载链接可能%ESC%[91m无法访问%ESC%[0m，想要使用该版本请确保网络正常
             set "clashurl=https://release.dreamacro.workers.dev/latest/clash-windows-amd64-latest.zip"
         )
     )
@@ -2375,7 +2379,8 @@ for %%r in (!localfiles!) do (
                 call :makedirs success "!filepath!"
 
                 @REM request and save
-                curl.exe --retry 5 --retry-max-time 90 -m 120 --connect-timeout 15 -s -L -C - "!url!" > "!temp!\!filename!"
+                del /f /q "!temp!\!filename!" >nul 2>nul
+                call :retrydownload "!url!" "!temp!\!filename!"
 
                 @REM check file size
                 set "filesize=0"
@@ -2501,7 +2506,7 @@ if exist "!dashboard!\index.html" if "!force!" == "0" goto :eof
 call :makedirs success "!dashboard!"
 
 @echo [%ESC%[!infocolor!m信息%ESC%[0m] 开始下载并更新控制面板
-curl.exe --retry 5 -m 120 --connect-timeout 20 -s -L -C - -o "!temp!\dashboard.zip" "!dashboardurl!"
+call :retrydownload "!dashboardurl!" "!temp!\dashboard.zip"
 
 if not exist "!temp!\dashboard.zip" (
     @echo [%ESC%[!warncolor!m警告%ESC%[0m] 控制面板下载失败，下载链接："!dashboardurl!"
