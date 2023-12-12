@@ -595,7 +595,8 @@ def crawl_yandex(
     if content:
         regex = r'<a class="VanillaReact Pager-Item Pager-Item_type_page" href=".*?" aria-label="Page \d+".*?>(\d+)</a>'
         groups = re.findall(regex, content, flags=re.I)
-        pages = min(pages, max([int(x) for x in groups]))
+        if groups:
+            pages = min(pages, max([int(x) for x in groups]))
 
     collections, pages = {}, max(1, pages)
 
