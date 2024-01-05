@@ -25,7 +25,7 @@ import yaml
 from logger import logger
 
 import subconverter
-from clash import verify
+from clash import is_meta, verify
 
 EMAILS_DOMAINS = [
     "gmail.com",
@@ -50,6 +50,9 @@ LETTERS = set(string.ascii_letters + string.digits)
 
 # 标记数字位数
 # SUFFIX_BITS = 2
+
+# 是否允许特殊协议
+ENABLE_SPECIAL_PROTOCOLS = os.environ.get("CLASH_META", "true").lower() in ["true", "1"] and is_meta()
 
 
 class Category(Enum):
@@ -133,9 +136,7 @@ class AirPort:
         self.available = True
 
     @staticmethod
-    def get_register_require(
-        domain: str, proxy: str = "", default: bool = True
-    ) -> RegisterRequire:
+    def get_register_require(domain: str, proxy: str = "", default: bool = True) -> RegisterRequire:
         domain = utils.extract_domain(url=domain, include_protocal=True)
         if not domain:
             return RegisterRequire(verify=default, invite=default, recaptcha=default)
@@ -181,9 +182,7 @@ class AirPort:
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
         try:
-            request = urllib.request.Request(
-                self.send_email, data=data, headers=headers, method="POST"
-            )
+            request = urllib.request.Request(self.send_email, data=data, headers=headers, method="POST")
             response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             if not response or response.getcode() != 200:
                 return False
@@ -192,9 +191,7 @@ class AirPort:
         except:
             return self.sen_email_verify(email=email, retry=retry - 1)
 
-    def register(
-        self, email: str, password: str, email_code: str = None, retry: int = 3
-    ) -> tuple[str, str]:
+    def register(self, email: str, password: str, email_code: str = None, retry: int = 3) -> tuple[str, str]:
         if retry <= 0:
             logger.info(f"achieved max retry when register, domain: {self.ref}")
             return "", ""
@@ -214,15 +211,11 @@ class AirPort:
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
         try:
-            request = urllib.request.Request(
-                self.reg, data=data, headers=headers, method="POST"
-            )
+            request = urllib.request.Request(self.reg, data=data, headers=headers, method="POST")
             response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
             code = 400 if not response else response.getcode()
             if code != 200:
-                logger.error(
-                    f"[RegisterError] request error when register, domain: {self.ref}, code={code}"
-                )
+                logger.error(f"[RegisterError] request error when register, domain: {self.ref}, code={code}")
                 return "", ""
 
             self.username = email
@@ -252,9 +245,7 @@ class AirPort:
                 if subscribe_info:
                     self.sub = subscribe_info.sub_url
                 else:
-                    logger.error(
-                        f"[RegisterError] cannot get token when register, domain: {self.ref}"
-                    )
+                    logger.error(f"[RegisterError] cannot get token when register, domain: {self.ref}")
 
             return cookies, authorization
         except:
@@ -282,9 +273,7 @@ class AirPort:
         else:
             logger.info(f"found free plan, domain: {self.ref}, plan: {plan}")
 
-        methods = renewal.get_payment_method(
-            domain=self.ref, cookies=cookies, authorization=authorization
-        )
+        methods = renewal.get_payment_method(domain=self.ref, cookies=cookies, authorization=authorization)
 
         method = random.choice(methods) if methods else 1
         params = {
@@ -337,11 +326,7 @@ class AirPort:
         if self.registed:
             return "", ""
 
-        rr = (
-            rr
-            if rr is not None
-            else self.get_register_require(domain=self.ref, default=False)
-        )
+        rr = rr if rr is not None else self.get_register_require(domain=self.ref, default=False)
 
         # 需要邀请码或者强制验证
         # if rr.invite or rr.recaptcha:
@@ -351,9 +336,7 @@ class AirPort:
 
         if not rr.verify:
             email = utils.random_chars(length=random.randint(6, 10), punctuation=False)
-            password = utils.random_chars(
-                length=random.randint(8, 16), punctuation=True
-            )
+            password = utils.random_chars(length=random.randint(8, 16), punctuation=True)
 
             email_suffixs = rr.whitelist if rr.whitelist else EMAILS_DOMAINS
             email_domain = random.choice(email_suffixs)
@@ -377,9 +360,7 @@ class AirPort:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     starttime = time.time()
                     try:
-                        future = executor.submit(
-                            mailbox.monitor_account, account, 240, random.randint(1, 3)
-                        )
+                        future = executor.submit(mailbox.monitor_account, account, 240, random.randint(1, 3))
                         success = self.sen_email_verify(email=account.address, retry=3)
                         if not success:
                             executor.shutdown(wait=False)
@@ -389,18 +370,14 @@ class AirPort:
                             f"email has been received, domain: {self.ref}\tcost: {int(time.time()- starttime)}s"
                         )
                     except concurrent.futures.TimeoutError:
-                        logger.error(
-                            f"receiving mail timeout, site: {self.ref}, address: {account.address}"
-                        )
+                        logger.error(f"receiving mail timeout, site: {self.ref}, address: {account.address}")
 
                 if not message:
                     logger.error(f"cannot receive any message, site: {self.ref}")
                     return "", ""
 
                 # 如果标准正则无法提取验证码则直接匹配数字
-                mask = mailbox.extract_mask(message.text) or mailbox.extract_mask(
-                    message.text, r"\s+([0-9]{6})"
-                )
+                mask = mailbox.extract_mask(message.text) or mailbox.extract_mask(message.text, r"\s+([0-9]{6})")
                 mailbox.delete_account(account=account)
                 if not mask:
                     logger.error(f"cannot fetch mask, url: {self.ref}")
@@ -428,9 +405,7 @@ class AirPort:
         chatgpt: dict = None,
     ) -> list:
         if "" == self.sub:
-            logger.error(
-                f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}"
-            )
+            logger.error(f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}")
             return []
 
         if self.sub.startswith(utils.FILEPATH_PROTOCAL):
@@ -446,9 +421,7 @@ class AirPort:
             headers["Accept-Encoding"] = "gzip"
 
             trace = os.environ.get("TRACE_ENABLE", "false").lower() in ["true", "1"]
-            text = utils.http_get(
-                url=self.sub, headers=headers, retry=retry, timeout=30, trace=trace
-            ).strip()
+            text = utils.http_get(url=self.sub, headers=headers, retry=retry, timeout=30, trace=trace).strip()
 
             # count = 1
             # while count <= retry:
@@ -484,10 +457,10 @@ class AirPort:
 
             #     count += 1
 
-        if "" == text or (text.startswith("{") and text.endswith("}")):
-            logger.error(
-                f"[ParseError] cannot found any proxies, subscribe: {utils.mask(url=self.sub)}"
-            )
+        if "" == text or (
+            text.startswith("{") and text.endswith("}") and not re.search(r'"outbounds":', text, flags=re.I)
+        ):
+            logger.error(f"[ParseError] cannot found any proxies, subscribe: {utils.mask(url=self.sub)}")
             return []
 
         chatgpt = chatgpt if chatgpt and type(chatgpt) == dict else None
@@ -501,9 +474,7 @@ class AirPort:
             chars = utils.random_chars(length=3, punctuation=False)
             artifact = f"{self.name}-{chars}"
 
-            nodes = self.decode(
-                text=text, artifact=artifact, program=bin_name, ignore=ignore_exclude
-            )
+            nodes = self.decode(text=text, artifact=artifact, program=bin_name, ignore=ignore_exclude)
 
             if not nodes:
                 logger.info(f"cannot found any proxy, domain: {self.ref}")
@@ -541,10 +512,7 @@ class AirPort:
 
                     # 标记需要进行ChatGPT连通性测试的节点
                     flag, detect = (
-                        enable
-                        or re.search(
-                            f"{utils.CHATGPT_FLAG}|(Chat)?GPT", name, flags=re.I
-                        ),
+                        enable or re.search(f"{utils.CHATGPT_FLAG}|(Chat)?GPT", name, flags=re.I),
                         True,
                     )
                     if flag and pattern:
@@ -587,9 +555,7 @@ class AirPort:
 
                 if len(name) > 30:
                     i, j, k, n = 10, 4, 4, len(name)
-                    abbreviation = "".join(
-                        random.sample([x for x in name[i : n - j] if x in LETTERS], k)
-                    ).strip()
+                    abbreviation = "".join(random.sample([x for x in name[i : n - j] if x in LETTERS], k)).strip()
                     name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
 
                 item["name"] = name.upper()
@@ -612,21 +578,19 @@ class AirPort:
             return proxies
         except:
             traceback.print_exc()
-            logger.error(
-                f"[ParseError] occur error when parse data, domain: {self.ref}"
-            )
+            logger.error(f"[ParseError] occur error when parse data, domain: {self.ref}")
             return []
 
     @staticmethod
-    def decode(
-        text: str, program: str, artifact: str = "", ignore: bool = False
-    ) -> list:
+    def decode(text: str, program: str, artifact: str = "", ignore: bool = False) -> list:
         text, nodes = utils.trim(text=text), []
         if not text:
             return []
 
-        if utils.isb64encode(text) or not re.search(
-            r"^proxies:([\s\r\n]+)?$", text, flags=re.MULTILINE
+        if (
+            utils.isb64encode(text)
+            or (text.startswith("{") and text.endswith("}"))
+            or not re.search(r"^proxies:([\s\r\n]+)?$", text, flags=re.MULTILINE)
         ):
             artifact = utils.trim(text=artifact)
             if not artifact:
@@ -662,9 +626,7 @@ class AirPort:
 
             time.sleep(random.random())
             success = subconverter.convert(binname=program, artifact=artifact)
-            logger.info(
-                f"subconverter completed, artifact: [{artifact}]\tsuccess=[{success}]"
-            )
+            logger.info(f"subconverter completed, artifact: [{artifact}]\tsuccess=[{success}]")
 
             os.remove(v2ray_file)
             if not success:
@@ -689,9 +651,7 @@ class AirPort:
             try:
                 nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
             except yaml.constructor.ConstructorError:
-                yaml.add_multi_constructor(
-                    "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
-                )
+                yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
                 nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
 
-        return [x for x in nodes if verify(x)]
+        return [x for x in nodes if verify(x, ENABLE_SPECIAL_PROTOCOLS)]

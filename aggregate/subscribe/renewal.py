@@ -64,9 +64,7 @@ class Plan:
     trafficflow: float
 
 
-def get_cookies(
-    domain: str, username: str, password: str, retry: int = 3
-) -> tuple[str, str]:
+def get_cookies(domain: str, username: str, password: str, retry: int = 3) -> tuple[str, str]:
     if utils.isblank(domain) or utils.isblank(username) or utils.isblank(password):
         return "", ""
 
@@ -85,9 +83,7 @@ def get_cookies(
     return utils.extract_cookie(text), authorization
 
 
-def generate_headers(
-    domain: str, cookies: str, authorization: str, headers: dict = None
-) -> dict:
+def generate_headers(domain: str, cookies: str, authorization: str, headers: dict = None) -> dict:
     if not headers:
         headers = {"user-agent": utils.USER_AGENT}
 
@@ -231,9 +227,7 @@ def checkout(
             params["plan_id"] = planid
 
         payload = urllib.parse.urlencode(params).encode(encoding="UTF8")
-        request = urllib.request.Request(
-            url, data=payload, headers=headers, method="POST"
-        )
+        request = urllib.request.Request(url, data=payload, headers=headers, method="POST")
 
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         data = {}
@@ -262,19 +256,13 @@ def checkout(
         return {}
 
 
-def get_payment_method(
-    domain: str, cookies: str, authorization: str = "", retry: int = 3
-) -> list:
+def get_payment_method(domain: str, cookies: str, authorization: str = "", retry: int = 3) -> list:
     if not domain or (not cookies and not authorization):
-        logger.error(
-            f"query payment method error, cookies and authorization is empty, domain: {domain}"
-        )
+        logger.error(f"query payment method error, cookies and authorization is empty, domain: {domain}")
         return []
 
     url = domain + "/api/v1/user/order/getPaymentMethod"
-    headers = generate_headers(
-        domain=domain, cookies=cookies, authorization=authorization
-    )
+    headers = generate_headers(domain=domain, cookies=cookies, authorization=authorization)
 
     content = utils.http_get(url=url, headers=headers, retry=retry)
     if not content:
@@ -284,17 +272,13 @@ def get_payment_method(
         methods = [item.get("id") for item in data if item.get("id", -1) >= 0]
         return methods
     except:
-        logger.error(
-            f"cannot get payment method because response is empty, domain: {domain}"
-        )
+        logger.error(f"cannot get payment method because response is empty, domain: {domain}")
         return []
 
 
 def unclosed_ticket(domain: str, headers: dict) -> tuple[int, int, str]:
     if utils.isblank(domain) or not headers:
-        logger.info(
-            f"[TicketError] cannot fetch tickets because invalidate arguments, domain: {domain}"
-        )
+        logger.info(f"[TicketError] cannot fetch tickets because invalidate arguments, domain: {domain}")
         return -1, -1, ""
 
     url = f"{domain}/api/v1/user/ticket/fetch"
@@ -312,17 +296,13 @@ def unclosed_ticket(domain: str, headers: dict) -> tuple[int, int, str]:
 
         return tid, timestamp, subject
     except:
-        logger.error(
-            f"[TicketError] failed fetch last ticket, domain: {domain}, content: {content}"
-        )
+        logger.error(f"[TicketError] failed fetch last ticket, domain: {domain}, content: {content}")
         return -1, -1, ""
 
 
 def close_ticket(domain: str, tid: int, headers: dict, retry: int = 3) -> bool:
     if utils.isblank(domain) or tid < 0 or not headers or retry <= 0:
-        logger.info(
-            f"[TicketError] cannot close ticket because invalidate arguments, domain: {domain}, tid: {tid}"
-        )
+        logger.info(f"[TicketError] cannot close ticket because invalidate arguments, domain: {domain}, tid: {tid}")
 
     url = domain + "/api/v1/user/ticket/close"
     params = {"id": tid}
@@ -336,9 +316,7 @@ def close_ticket(domain: str, tid: int, headers: dict, retry: int = 3) -> bool:
             try:
                 return json.loads(content).get("data", False)
             except:
-                logger.error(
-                    f"[TicketError] failed submit ticket, domain: {domain}, message: {content}"
-                )
+                logger.error(f"[TicketError] failed submit ticket, domain: {domain}, message: {content}")
 
         return False
 
@@ -355,23 +333,15 @@ def submit_ticket(
     retry: int = 3,
 ) -> bool:
     if retry <= 0:
-        logger.error(
-            f"[TicketError] achieved max retry when submit ticket, domain: {domain}"
-        )
+        logger.error(f"[TicketError] achieved max retry when submit ticket, domain: {domain}")
         return False
 
-    if utils.isblank(domain) or (
-        utils.isblank(cookies) and utils.isblank(authorization)
-    ):
-        logger.error(
-            f"[TicketError] submit ticket error, cookies and authorization is empty, domain: {domain}"
-        )
+    if utils.isblank(domain) or (utils.isblank(cookies) and utils.isblank(authorization)):
+        logger.error(f"[TicketError] submit ticket error, cookies and authorization is empty, domain: {domain}")
         return False
 
     if not ticket or type(ticket) != dict:
-        logger.info(
-            f"[TicketError] skip submit ticket because subject or message is empty, domain: {domain}"
-        )
+        logger.info(f"[TicketError] skip submit ticket because subject or message is empty, domain: {domain}")
         return False
 
     subject = ticket.get("subject", "")
@@ -380,14 +350,10 @@ def submit_ticket(
     level = level if level in [0, 1, 2] else 1
 
     if utils.isblank(subject) or utils.isblank(message):
-        logger.info(
-            f"[TicketError] skip submit ticket because subject or message is empty, domain: {domain}"
-        )
+        logger.info(f"[TicketError] skip submit ticket because subject or message is empty, domain: {domain}")
         return False
 
-    headers = generate_headers(
-        domain=domain, cookies=cookies, authorization=authorization
-    )
+    headers = generate_headers(domain=domain, cookies=cookies, authorization=authorization)
 
     # check last unclosed ticket
     tid, timestamp, title = unclosed_ticket(domain=domain, headers=headers)
@@ -422,9 +388,7 @@ def submit_ticket(
             try:
                 return json.loads(content).get("data", False)
             except:
-                logger.error(
-                    f"[TicketError] failed submit ticket, domain: {domain}, message: {content}"
-                )
+                logger.error(f"[TicketError] failed submit ticket, domain: {domain}, message: {content}")
 
         return False
 
@@ -439,19 +403,13 @@ def submit_ticket(
         )
 
 
-def get_free_plan(
-    domain: str, cookies: str, authorization: str = "", retry: int = 3, coupon: str = ""
-) -> Plan:
+def get_free_plan(domain: str, cookies: str, authorization: str = "", retry: int = 3, coupon: str = "") -> Plan:
     if not domain or (not cookies and not authorization):
-        logger.error(
-            f"fetch free plans error, cookies and authorization is empty, domain: {domain}"
-        )
+        logger.error(f"fetch free plans error, cookies and authorization is empty, domain: {domain}")
         return None
 
     url = domain + "/api/v1/user/plan/fetch"
-    headers = generate_headers(
-        domain=domain, cookies=cookies, authorization=authorization
-    )
+    headers = generate_headers(domain=domain, cookies=cookies, authorization=authorization)
     content = utils.http_get(url=url, headers=headers, retry=retry)
     if not content:
         return None
@@ -468,9 +426,7 @@ def get_free_plan(
             package, planid = "", plan.get("id", -1)
             for p in PACKAGES:
                 price = plan.get(p, None)
-                if not isfree(
-                    planid=str(planid), package=p, price=price, discount=discount
-                ):
+                if not isfree(planid=str(planid), package=p, price=price, discount=discount):
                     continue
                 package = p
 
@@ -498,9 +454,7 @@ def get_free_plan(
         sorted(plans, key=lambda x: x.trafficflow, reverse=True)
         return plans[0]
     except:
-        logger.error(
-            f"cannot fetch free plans because response is empty, domain: {domain}"
-        )
+        logger.error(f"cannot fetch free plans because response is empty, domain: {domain}")
         return None
 
 
@@ -537,19 +491,13 @@ def isfree(planid: str, package: str, price: float, discount: dict) -> bool:
     return couponvalue == 100
 
 
-def get_subscribe_info(
-    domain: str, cookies: str, authorization: str = "", retry: int = 3
-) -> SubscribeInfo:
+def get_subscribe_info(domain: str, cookies: str, authorization: str = "", retry: int = 3) -> SubscribeInfo:
     if not domain or (not cookies and not authorization):
-        logger.error(
-            f"query subscribe information error, cookies and authorization is empty, domain: {domain}"
-        )
+        logger.error(f"query subscribe information error, cookies and authorization is empty, domain: {domain}")
         return None
 
     url = domain + "/api/v1/user/getSubscribe"
-    headers = generate_headers(
-        domain=domain, cookies=cookies, authorization=authorization
-    )
+    headers = generate_headers(domain=domain, cookies=cookies, authorization=authorization)
 
     content = utils.http_get(url=url, headers=headers, retry=retry)
     if not content:
@@ -597,9 +545,7 @@ def get_subscribe_info(
             reset_day=reset_day,
         )
     except:
-        logger.error(
-            f"cannot get subscribe information, domain: {domain}, response: {content}"
-        )
+        logger.error(f"cannot get subscribe information, domain: {domain}, response: {content}")
         return None
 
 
@@ -639,9 +585,7 @@ def flow(
     if len(cookies) <= 0 and not authorization:
         return False
 
-    headers = generate_headers(
-        domain=domain, cookies=cookies, authorization=authorization, headers=headers
-    )
+    headers = generate_headers(domain=domain, cookies=cookies, authorization=authorization, headers=headers)
 
     trade_no = fetch(fetch_url, headers, retry)
 
@@ -699,17 +643,11 @@ def add_traffic_flow(domain: str, params: dict) -> str:
         email = base64.b64decode(params.get("email", "")).decode()
         password = base64.b64decode(params.get("passwd", "")).decode()
         if utils.isblank(email) or utils.isblank(password):
-            logger.info(
-                f"[RenewalError] email or password cannot be empty, domain: {domain}"
-            )
+            logger.info(f"[RenewalError] email or password cannot be empty, domain: {domain}")
             return ""
 
-        cookies, authorization = get_cookies(
-            domain=domain, username=email, password=password
-        )
-        subscribe = get_subscribe_info(
-            domain=domain, cookies=cookies, authorization=authorization
-        )
+        cookies, authorization = get_cookies(domain=domain, username=email, password=password)
+        subscribe = get_subscribe_info(domain=domain, cookies=cookies, authorization=authorization)
         if not subscribe:
             logger.info(f"[RenewalError] cannot fetch subscribe information")
             return ""
@@ -719,9 +657,7 @@ def add_traffic_flow(domain: str, params: dict) -> str:
         coupon_code = params.get("coupon_code", "")
         method = params.get("method", -1)
         if method <= 0:
-            methods = get_payment_method(
-                domain=domain, cookies=cookies, authorization=authorization
-            )
+            methods = get_payment_method(domain=domain, cookies=cookies, authorization=authorization)
             if not methods:
                 method = 1
             else:
@@ -745,9 +681,7 @@ def add_traffic_flow(domain: str, params: dict) -> str:
                 cookies=cookies,
                 authorization=authorization,
             )
-            logger.info(
-                "reset {}, domain: {}".format("success" if success else "fail", domain)
-            )
+            logger.info("reset {}, domain: {}".format("success" if success else "fail", domain))
         else:
             logger.info(
                 f"skip reset traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe.reset_enable}\tused-rate: {subscribe.used_rate}"
@@ -759,10 +693,7 @@ def add_traffic_flow(domain: str, params: dict) -> str:
         if (
             renew
             and subscribe.renew_enable
-            and (
-                subscribe.expired_days <= 5
-                or (not subscribe.reset_enable and subscribe.used_rate >= 0.8)
-            )
+            and (subscribe.expired_days <= 5 or (not subscribe.reset_enable and subscribe.used_rate >= 0.8))
         ):
             success = flow(
                 domain=domain,
@@ -771,9 +702,7 @@ def add_traffic_flow(domain: str, params: dict) -> str:
                 cookies=cookies,
                 authorization=authorization,
             )
-            logger.info(
-                "renew {}, domain: {}".format("success" if success else "fail", domain)
-            )
+            logger.info("renew {}, domain: {}".format("success" if success else "fail", domain))
         else:
             logger.info(
                 f"skip renew traffic plan, domain: {domain}\trenew: {renew}\tenable: {subscribe.renew_enable}\texpired-days: {subscribe.expired_days}"
@@ -796,9 +725,7 @@ def add_traffic_flow(domain: str, params: dict) -> str:
                     authorization=authorization,
                 )
 
-                logger.info(
-                    f"ticket submit {'successed' if success else 'failed'}, domain: {domain}"
-                )
+                logger.info(f"ticket submit {'successed' if success else 'failed'}, domain: {domain}")
 
         return subscribe.sub_url
     except:

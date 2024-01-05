@@ -4,13 +4,11 @@
 # @Time    : 2022-08-15
 
 import logging
-import sys
 import os
+import sys
 
 DEFAULT_LOG_LEVEL = logging.INFO
-DEFAULT_LOG_FMT = (
-    "%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s: %(message)s"
-)
+DEFAULT_LOG_FMT = "%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s: %(message)s"
 DEFAULT_LOG_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEFAULT_LOG_FILENAME = "workflow.log"
 
@@ -21,15 +19,9 @@ class Logger:
     def __init__(self):
         self._logger = logging.getLogger()
         if not self._logger.handlers:
-            self.formatter = logging.Formatter(
-                fmt=DEFAULT_LOG_FMT, datefmt=DEFAULT_LOG_DATETIME_FORMAT
-            )
+            self.formatter = logging.Formatter(fmt=DEFAULT_LOG_FMT, datefmt=DEFAULT_LOG_DATETIME_FORMAT)
             self._logger.addHandler(self._get_console_handler())
-            self._logger.addHandler(
-                self._get_file_handler(
-                    filename=os.path.join(PATH, DEFAULT_LOG_FILENAME)
-                )
-            )
+            self._logger.addHandler(self._get_file_handler(filename=os.path.join(PATH, DEFAULT_LOG_FILENAME)))
             self._logger.setLevel(DEFAULT_LOG_LEVEL)
 
         # if python's version is 2, disable requests output info level log

@@ -62,7 +62,8 @@ def convert(binname: str, artifact: str = "") -> bool:
         args.append("--artifact")
         args.append(artifact)
 
-    return utils.cmd(args)
+    success, _ = utils.cmd(args)
+    return success
 
 
 def getpath() -> str:

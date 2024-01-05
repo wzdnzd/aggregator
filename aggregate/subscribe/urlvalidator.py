@@ -10,10 +10,7 @@ REGEX = re.compile(  # noqa: W605
     # protocol identifier
     r"(?:(?:https?|ftp)://)"
     # user:pass authentication
-    r"(?:[-a-z\u00a1-\uffff0-9._~%!$&'()*+,;=:]+"
-    r"(?::[-a-z0-9._~%!$&'()*+,;=:]*)?@)?"
-    r"(?:"
-    r"(?P<private_ip>"
+    r"(?:[-a-z\u00a1-\uffff0-9._~%!$&'()*+,;=:]+" r"(?::[-a-z0-9._~%!$&'()*+,;=:]*)?@)?" r"(?:" r"(?P<private_ip>"
     # IP address exclusion
     # private & local networks
     r"(?:(?:10|127)" + IP_MIDDLE_OCTET + r"{2}" + IP_LAST_OCTET + r")|"

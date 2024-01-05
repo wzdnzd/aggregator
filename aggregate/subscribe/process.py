@@ -33,9 +33,7 @@ import subconverter
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
-def load_configs(
-    url: str, only_check: bool = False
-) -> tuple[list, dict, dict, dict, int]:
+def load_configs(url: str, only_check: bool = False) -> tuple[list, dict, dict, dict, int]:
     def parse_config(config: dict) -> None:
         sites.extend(config.get("domains", []))
         push_conf.update(config.get("push", {}))
@@ -52,9 +50,7 @@ def load_configs(
         params["exclude"] = crawl_conf.get("exclude", "")
 
         # persistence configuration
-        persist = {
-            k: push_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()
-        }
+        persist = {k: push_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
         params["persist"] = persist
 
         params["config"] = crawl_conf.get("config", {})
@@ -73,11 +69,7 @@ def load_configs(
             enabled_users, common_exclude = {}, telegram_conf.pop("exclude", "")
             for k, v in users.items():
                 exclude = v.get("exclude", "").strip()
-                v["exclude"] = (
-                    f"{exclude}|{common_exclude}".removeprefix("|")
-                    if common_exclude
-                    else exclude
-                )
+                v["exclude"] = f"{exclude}|{common_exclude}".removeprefix("|") if common_exclude else exclude
                 v["push_to"] = list(set(v.get("push_to", [])))
 
                 enabled_users[k] = v
@@ -114,12 +106,7 @@ def load_configs(
         if twitter_conf.pop("enable", True) and users:
             enabled_users = {}
             for k, v in users.items():
-                if (
-                    utils.isblank(k)
-                    or not v
-                    or type(v) != dict
-                    or not v.pop("enable", True)
-                ):
+                if utils.isblank(k) or not v or type(v) != dict or not v.pop("enable", True):
                     continue
 
                 v["push_to"] = list(set(v.get("push_to", [])))
@@ -183,9 +170,7 @@ def load_configs(
             headers = {"User-Agent": utils.USER_AGENT, "Referer": url}
             content = utils.http_get(url=url, headers=headers)
             if not content:
-                logger.error(
-                    f"cannot fetch config from remote, url: {utils.hide(url=url)}"
-                )
+                logger.error(f"cannot fetch config from remote, url: {utils.hide(url=url)}")
             else:
                 parse_config(json.loads(content))
         else:
@@ -267,12 +252,7 @@ def assign(
         # 如果renew不为空，num为配置的renew账号数
         num = len(accounts) if accounts else num
 
-        if (
-            not site.get("enable", True)
-            or "" == name
-            or ("" == domain and not subscribe)
-            or num <= 0
-        ):
+        if not site.get("enable", True) or "" == name or ("" == domain and not subscribe) or num <= 0:
             continue
 
         for i in range(num):
@@ -311,9 +291,7 @@ def assign(
             tasks.append(task)
             for push_name in push_names:
                 if not push_conf.get(push_name, None):
-                    logger.error(
-                        f"cannot found push config, name=[{push_name}]\tsite=[{name}]"
-                    )
+                    logger.error(f"cannot found push config, name=[{push_name}]\tsite=[{name}]")
                     continue
 
                 taskids = groups.get(push_name, [])
@@ -354,9 +332,7 @@ def aggregate(args: argparse.Namespace):
     pushtool = push.get_instance()
     clash_bin, subconverter_bin = executable.which_bin()
 
-    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
-        url=args.server, only_check=args.check
-    )
+    sites, push_configs, crawl_conf, update_conf, delay = load_configs(url=args.server, only_check=args.check)
     push_configs = pushtool.filter_push(push_configs)
     retry = min(max(1, args.retry), 10)
     tasks, groups, sites = assign(
@@ -426,9 +402,7 @@ def aggregate(args: argparse.Namespace):
                 if checks:
                     utils.chmod(binpath)
                     availables = manager.list()
-                    logger.info(
-                        f"startup clash now, workspace: {workspace}, config: {filename}"
-                    )
+                    logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
                     process = subprocess.Popen(
                         [
                             binpath,
@@ -439,13 +413,11 @@ def aggregate(args: argparse.Namespace):
                         ]
                     )
 
-                    logger.info(
-                        f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}"
-                    )
+                    logger.info(f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}")
 
                     processes = []
                     semaphore = multiprocessing.Semaphore(args.num)
-                    time.sleep(random.randint(3, 5))
+                    time.sleep(random.randint(5, 8))
 
                     for proxy in checks:
                         semaphore.acquire()
@@ -483,9 +455,7 @@ def aggregate(args: argparse.Namespace):
                 logger.error(f"cannot fetch any proxy, group=[{k}], cost: {cost}")
                 continue
 
-            logger.info(
-                f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}"
-            )
+            logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
 
             data = {"proxies": nochecks}
             push_conf = push_configs.get(k, {})
@@ -502,13 +472,9 @@ def aggregate(args: argparse.Namespace):
                 if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
                     os.remove(generate_conf)
 
-                success = subconverter.generate_conf(
-                    generate_conf, artifact, source_file, dest_file, "mixed"
-                )
+                success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, "mixed")
                 if not success:
-                    logger.error(
-                        f"cannot generate subconverter config file, group=[{k}]"
-                    )
+                    logger.error(f"cannot generate subconverter config file, group=[{k}]")
                     continue
 
                 if subconverter.convert(binname=subconverter_bin, artifact=artifact):
@@ -525,9 +491,7 @@ def aggregate(args: argparse.Namespace):
                         content = f.read()
                     if not utils.isb64encode(content=content):
                         try:
-                            content = base64.b64encode(
-                                content.encode(encoding="UTF8")
-                            ).decode(encoding="UTF8")
+                            content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
                         except Exception as e:
                             logger.error(f"base64 encode error, message: {str(e)}")
                             continue

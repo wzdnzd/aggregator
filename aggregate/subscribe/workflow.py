@@ -87,9 +87,7 @@ def execute(task_conf: TaskConfig) -> list:
         coupon=task_conf.coupon,
     )
 
-    logger.info(
-        f"start fetch proxy: name=[{task_conf.name}]\tid=[{task_conf.index}]\tdomain=[{obj.ref}]"
-    )
+    logger.info(f"start fetch proxy: name=[{task_conf.name}]\tid=[{task_conf.index}]\tdomain=[{obj.ref}]")
 
     # 套餐续期
     if task_conf.renew:
@@ -243,13 +241,9 @@ def merge_config(configs: list) -> list:
                 if not item.get("rename", ""):
                     item["rename"] = conf.get("rename", "")
                 if conf.get("exclude", ""):
-                    item["exclude"] = "|".join(
-                        [item.get("exclude", ""), conf.get("exclude", "")]
-                    ).removeprefix("|")
+                    item["exclude"] = "|".join([item.get("exclude", ""), conf.get("exclude", "")]).removeprefix("|")
                 if conf.get("include", ""):
-                    item["include"] = "|".join(
-                        [item.get("include", ""), conf.get("include", "")]
-                    ).removeprefix("|")
+                    item["include"] = "|".join([item.get("include", ""), conf.get("include", "")]).removeprefix("|")
 
                 break
 
@@ -261,9 +255,7 @@ def merge_config(configs: list) -> list:
 
 def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> None:
     if not config or not push:
-        logger.error(
-            "[UpdateError] cannot update remote config because content is empty"
-        )
+        logger.error("[UpdateError] cannot update remote config because content is empty")
         return
 
     # mark invalid crawled subscription
@@ -290,16 +282,10 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> Non
 
                 if count > 0:
                     content = json.dumps(data)
-                    push.push_to(
-                        content=content, push_conf=pushconf, group="crawled-remark"
-                    )
-                    logger.info(
-                        f"[UpdateInfo] found {count} invalid crawled subscriptions"
-                    )
+                    push.push_to(content=content, push_conf=pushconf, group="crawled-remark")
+                    logger.info(f"[UpdateInfo] found {count} invalid crawled subscriptions")
             except:
-                logger.error(
-                    f"[UpdateError] remark invalid crawled subscriptions failed"
-                )
+                logger.error(f"[UpdateError] remark invalid crawled subscriptions failed")
 
     update_conf = config.get("update", {})
     if not update_conf.get("enable", False):
@@ -318,11 +304,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> Non
             sub = item.get("sub", "")
             if isinstance(sub, list) and len(sub) <= 1:
                 sub = sub[0] if sub else ""
-            if (
-                source in [Origin.TEMPORARY.name, Origin.OWNED.name]
-                or isinstance(sub, list)
-                or alives.get(sub, False)
-            ):
+            if source in [Origin.TEMPORARY.name, Origin.OWNED.name] or isinstance(sub, list) or alives.get(sub, False):
                 item.pop("errors", None)
                 item.pop("debut", None)
                 sites.append(item)

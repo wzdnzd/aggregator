@@ -22,9 +22,7 @@ from . import commons, scaner
 def register(domain: str, subtype: int = 1, coupon: str = "") -> AirPort:
     url = utils.extract_domain(url=domain, include_protocal=True)
     if not isurl(url=url):
-        logger.error(
-            f"[TempSubError] cannot register because domain=[{domain}] is invalidate"
-        )
+        logger.error(f"[TempSubError] cannot register because domain=[{domain}] is invalidate")
         return None
 
     airport = AirPort(name=domain.split("//")[1], site=url, sub="", coupon=coupon)
@@ -54,14 +52,10 @@ def fetchsub(params: dict) -> list:
 
     threshold = max(params.get("threshold", 1), 1)
     if not persist or not config or type(config) != dict or not config.get("push_to"):
-        logger.error(
-            f"[TempSubError] cannot fetch subscribes bcause not found arguments 'persist' or 'push_to'"
-        )
+        logger.error(f"[TempSubError] cannot fetch subscribes bcause not found arguments 'persist' or 'push_to'")
         return []
 
-    exists, unregisters, unknowns, data = load(
-        persist=persist, retry=params.get("retry", True)
-    )
+    exists, unregisters, unknowns, data = load(persist=persist, retry=params.get("retry", True))
     if not exists and not unregisters and unknowns:
         logger.warn(f"[TempSubError] skip fetchsub because cannot get any valid config")
         return []
@@ -124,9 +118,7 @@ def fetchsub(params: dict) -> list:
             item.update(subscribe.get("config"))
 
         if utils.isblank(item.get("name", "")):
-            item["name"] = utils.extract_domain(
-                url=item["sub"], include_protocal=False
-            ).replace(".", "-")
+            item["name"] = utils.extract_domain(url=item["sub"], include_protocal=False).replace(".", "-")
         item["push_to"] = list(set(item.get("push_to", [])))
         item["saved"] = True
         results.append(item)
@@ -183,9 +175,7 @@ def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
         for i in range(len(results)):
             if not results[i]:
                 item = exists.pop(domains[i], {})
-                unregisters.append(
-                    [domains[i], item.get("type", 1), item.get("coupon", "")]
-                )
+                unregisters.append([domains[i], item.get("type", 1), item.get("coupon", "")])
 
         # 去重
         if unregisters:

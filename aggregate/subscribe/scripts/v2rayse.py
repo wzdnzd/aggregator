@@ -28,7 +28,7 @@ from origin import Origin
 import subconverter
 
 # outbind type
-SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "http", "socks5"]
+SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "vless", "hysteria2", "hysteria", "http", "socks5"]
 
 # date format
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -64,9 +64,7 @@ def get_dates(last: datetime) -> list[str]:
     return dates
 
 
-def detect(
-    proxies: list, nopublic: bool, exclude: str, ignore: str, repeat: int
-) -> bool:
+def detect(proxies: list, nopublic: bool, exclude: str, ignore: str, repeat: int) -> bool:
     exclude = utils.trim(text=exclude)
     ignore = utils.trim(text=ignore)
     repeat = max(1, repeat)
@@ -146,6 +144,15 @@ def fetchone(
                 repeat=repeat,
             ):
                 proxies = []
+            elif url.endswith(".json"):
+                try:
+                    outbounds = json.loads(content).get("outbounds", [])
+                    for outbound in outbounds:
+                        if outbound.get("type", "") == "tuic":
+                            logger.info(f"[V2RaySE] found tuic outbound in url: {url}")
+                            break
+                except:
+                    pass
         except:
             logger.error(f"[V2RaySE] parse proxies failed, url: {url}")
 
@@ -163,15 +170,11 @@ def fetch(params: dict) -> list:
 
     persist = params.get("persist", {})
     pushtool = push.get_instance()
-    if (
-        not persist
-        or type(persist) != dict
-        or not pushtool.validate(persist.get("proxies", {}))
-    ):
+    if not persist or type(persist) != dict or not pushtool.validate(persist.get("proxies", {})):
         logger.error(f"[V2RaySE] invalid persist config, please check it and try again")
         return []
 
-    yamlonly = params.get("yamlonly", False)
+    filetype = int(params.get("source", 0))
     nopublic = params.get("nopublic", True)
     exclude = params.get("exclude", "")
     ignore = params.get("ignore", "")
@@ -197,9 +200,7 @@ def fetch(params: dict) -> list:
         last = time.strptime("1970-01-01 00:00:00", DATE_FORMAT)
         logger.info(f"[V2RaySE] begin crawl data, dates: {dates}")
     else:
-        logger.info(
-            f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]"
-        )
+        logger.info(f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]")
 
     url, tasks = f"{domain}/minio/webrpc", []
     proxies, subscriptions = [], set()
@@ -225,14 +226,10 @@ def fetch(params: dict) -> list:
         }
 
         starttime = time.time()
-        response = utils.http_post(
-            url=url, headers=headers, params=payload, allow_redirects=False
-        )
+        response = utils.http_post(url=url, headers=headers, params=payload, allow_redirects=False)
         status = -1 if not response else response.getcode()
         if status != 200:
-            logger.error(
-                f"[V2RaySE] query shared files failed, date: {date}, status code: {status}"
-            )
+            logger.error(f"[V2RaySE] query shared files failed, date: {date}, status code: {status}")
             continue
 
         content, files = "", []
@@ -249,8 +246,10 @@ def fetch(params: dict) -> list:
 
             for item in objects:
                 # filter by content type
-                if not item or (
-                    yamlonly and "text/yaml" not in item.get("contentType", "")
+                if (
+                    not item
+                    or (filetype == 1 and "text/yaml" not in item.get("contentType", ""))
+                    or (filetype == 2 and "text/json" not in item.get("contentType", ""))
                 ):
                     continue
 
@@ -260,9 +259,7 @@ def fetch(params: dict) -> list:
 
                 if "lastModified" in item:
                     try:
-                        modified = datetime.fromisoformat(
-                            item.get("lastModified", "")[:-1]
-                        )
+                        modified = datetime.fromisoformat(item.get("lastModified", "")[:-1])
                         if modified < last:
                             continue
                     except:
@@ -280,9 +277,7 @@ def fetch(params: dict) -> list:
                     ]
                 )
         except:
-            logger.error(
-                f"[V2RaySE] parse webrpc response error, date: {date}, message: {content}"
-            )
+            logger.error(f"[V2RaySE] parse webrpc response error, date: {date}, message: {content}")
 
         if not files:
             logger.error(f"[V2RaySE] cannot found any valid shared file, date: {date}")
@@ -297,13 +292,7 @@ def fetch(params: dict) -> list:
 
         nodes, subs, count = [], [], 0
         for result in results:
-            nodes.extend(
-                [
-                    p
-                    for p in result[0]
-                    if p and p.get("name", "") and p.get("type", "") in support
-                ]
-            )
+            nodes.extend([p for p in result[0] if p and p.get("name", "") and p.get("type", "") in support])
             subs.extend([x for x in result[1] if x])
 
         proxies.extend(nodes)
@@ -355,21 +344,15 @@ def fetch(params: dict) -> list:
                 content = f.read()
             if not utils.isb64encode(content=content):
                 try:
-                    content = base64.b64encode(content.encode(encoding="UTF8")).decode(
-                        encoding="UTF8"
-                    )
+                    content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
                 except Exception as e:
-                    logger.error(
-                        f"[V2RaySE] base64 encode converted data error, message: {str(e)}"
-                    )
+                    logger.error(f"[V2RaySE] base64 encode converted data error, message: {str(e)}")
                     return tasks
 
         # clean workspace
         workflow.cleanup(datapath, filenames=[source, dest, "generate.ini"])
 
-    success = pushtool.push_to(
-        content=content, push_conf=proxies_store, group="v2rayse"
-    )
+    success = pushtool.push_to(content=content, push_conf=proxies_store, group="v2rayse")
     if not success:
         logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies")
         return tasks
