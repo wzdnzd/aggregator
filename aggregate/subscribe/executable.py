@@ -10,9 +10,9 @@ def which_bin() -> tuple[str, str]:
         if "arm64" in operating_system:
             clashname = "clash-darwin-arm"
         else:
-            clashname = "clash-darwin-arm"
+            clashname = "clash-darwin-amd"
 
-        subconverter = "subconverter-mac"
+        subconverter = "subconverter-darwin"
     elif operating_system.startswith("Linux"):
         clashname = "clash-linux"
         subconverter = "subconverter-linux"

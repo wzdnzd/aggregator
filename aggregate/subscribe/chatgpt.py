@@ -5,7 +5,7 @@
 
 import re
 import urllib
-from logger import logger
+
 import utils
 
 OPTIONS_HEADERS = {
@@ -197,9 +197,7 @@ def unblock_detect() -> bool:
         response = urllib.request.urlopen(request, timeout=5, context=utils.CTX)
         if response.getcode() == 200:
             # detect current ip location
-            content = utils.http_get(
-                url=f"https://chat.openai.com/cdn-cgi/trace", retry=2
-            )
+            content = utils.http_get(url=f"https://chat.openai.com/cdn-cgi/trace", retry=2)
             group = re.findall("loc=([A-Z]{2})", content, flags=re.I)
             location = group[0] if group else ""
             allowed = location in ALLOWED_COUNTRY_CODES

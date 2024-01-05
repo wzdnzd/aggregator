@@ -23,16 +23,15 @@ from copy import deepcopy
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
 
-import yaml
-from yaml.constructor import ConstructorError
-
 import airport
 import push
 import utils
 import workflow
+import yaml
 from logger import logger
 from origin import Origin
 from urlvalidator import isurl
+from yaml.constructor import ConstructorError
 
 SEPARATOR = "-"
 
@@ -188,11 +187,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 pages = github_spider.get("pages", 1)
                 exclude = github_spider.get("exclude", "")
                 spams = github_spider.get("spams", [])
-                records.update(
-                    crawl_github(
-                        limits=pages, push_to=push_to, exclude=exclude, spams=spams
-                    )
-                )
+                records.update(crawl_github(limits=pages, push_to=push_to, exclude=exclude, spams=spams))
 
             # Github Repository
             repositories = conf.get("repositories", {})
@@ -252,18 +247,14 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
                     # tasks.update(oldsubs)
                     for k, v in oldsubs.items():
-                        merged = dict(
-                            list(v.items()) + list(records.get(k, {}).items())
-                        )
+                        merged = dict(list(v.items()) + list(records.get(k, {}).items()))
                         records[k] = merged
             except:
                 logger.error("[CrawlError] load old subscriptions from remote error")
                 pass
 
         if not records:
-            logger.debug(
-                "[CrawlInfo] cannot found any subscribe from Google/Telegram/Github and Page with crawler"
-            )
+            logger.debug("[CrawlInfo] cannot found any subscribe from Google/Telegram/Github and Page with crawler")
             return datasets
 
         exclude = conf.get("exclude", "")
@@ -317,15 +308,11 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
             if ALLOW_SINGLE_LINK:
                 proxies = list(set(proxylinks))
-                logger.info(
-                    f"[CrawlInfo] crawl finished, found {len(proxies)} proxy links"
-                )
+                logger.info(f"[CrawlInfo] crawl finished, found {len(proxies)} proxy links")
                 if len(proxies) > 0:
                     try:
                         content = base64.b64encode("\n".join(proxies).encode()).decode()
-                        success = pushtool.push_to(
-                            content=content, push_conf=linkspushconf, group="proxies"
-                        )
+                        success = pushtool.push_to(content=content, push_conf=linkspushconf, group="proxies")
                         if success:
                             singlelink = pushtool.raw_url(push_conf=linkspushconf)
                             item = {
@@ -336,9 +323,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                             item.update(proxiesconf)
                             datasets.append(item)
                     except:
-                        logger.error(
-                            "[CrawlError] base64 encode error for proxies links"
-                        )
+                        logger.error("[CrawlError] base64 encode error for proxies links")
 
             if len(unknowns) > 0:
                 unknowns = [utils.mask(url=x) for x in unknowns]
@@ -357,9 +342,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
 
     # only crawl if mode == 1
     if MODE == 1:
-        logger.warning(
-            f"skip aggregate and exit process because mode=1 represents only crawling subscriptions"
-        )
+        logger.warning(f"skip aggregate and exit process because mode=1 represents only crawling subscriptions")
         sys.exit(0)
 
     return datasets
@@ -379,10 +362,7 @@ def generate_telegram_task(channel: str, config: dict, pages: int, limits: int):
 
     arrays = range(count, -1, -100)
     pages = min(pages, len(arrays))
-    return [
-        [f"https://t.me/s/{channel}?before={x}", pts, include, exclude, limits, params]
-        for x in arrays[:pages]
-    ]
+    return [[f"https://t.me/s/{channel}?before={x}", pts, include, exclude, limits, params] for x in arrays[:pages]]
 
 
 def crawl_telegram_page(
@@ -431,15 +411,11 @@ def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
     tasks = list(itertools.chain.from_iterable(results))
     subscribes = multi_thread_crawl(func=crawl_telegram_page, params=tasks)
     cost = "{:.2f}s".format(time.time() - starttime)
-    logger.info(
-        f"[TelegramCrawl] finished crawl from Telegram, found {len(subscribes)} subscriptions, cost: {cost}"
-    )
+    logger.info(f"[TelegramCrawl] finished crawl from Telegram, found {len(subscribes)} subscriptions, cost: {cost}")
     return subscribes
 
 
-def crawl_single_repo(
-    username: str, repo: str, push_to: list = [], limits: int = 5, exclude: str = ""
-) -> dict:
+def crawl_single_repo(username: str, repo: str, push_to: list = [], limits: int = 5, exclude: str = "") -> dict:
     if not username or not repo:
         logger.error(f"cannot crawl from github, username: {username}\trepo: {repo}")
         return {}
@@ -476,9 +452,7 @@ def crawl_single_repo(
                 )
         return collections
     except:
-        logger.error(
-            f"[GithubCrawl] crawl from github error, username: {username}\trepo: {repo}"
-        )
+        logger.error(f"[GithubCrawl] crawl from github error, username: {username}\trepo: {repo}")
         return {}
 
 
@@ -501,9 +475,7 @@ def crawl_github_repo(repos: dict):
 
     subscribes = multi_thread_crawl(func=crawl_single_repo, params=params)
     cost = "{:.2f}s".format(time.time() - starttime)
-    logger.info(
-        f"[RepoCrawl] finished crawl from Repositorie, found {len(subscribes)} subscriptions, cost: {cost}"
-    )
+    logger.info(f"[RepoCrawl] finished crawl from Repositorie, found {len(subscribes)} subscriptions, cost: {cost}")
     return subscribes
 
 
@@ -544,9 +516,7 @@ def crawl_google(
         regex = r'https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?(?:<em(?:\s+)?class="qkunPe">/?)?api/v1/client/subscribe\?token(?:</em>)?=[a-zA-Z0-9]{16,32}'
         subscribes = re.findall(regex, content)
         for s in subscribes:
-            s = re.sub(r'<em(?:\s+)?class="qkunPe">|</em>|\s+', "", s).replace(
-                "http://", "https://", 1
-            )
+            s = re.sub(r'<em(?:\s+)?class="qkunPe">|</em>|\s+', "", s).replace("http://", "https://", 1)
             try:
                 if exclude and re.search(exclude, s):
                     continue
@@ -565,9 +535,7 @@ def crawl_google(
         time.sleep(interval)
 
     cost = "{:.2f}s".format(time.time() - starttime)
-    logger.info(
-        f"[GoogleCrawl] finished crawl from Google, found {len(collections)} subscriptions, cost: {cost}"
-    )
+    logger.info(f"[GoogleCrawl] finished crawl from Google, found {len(collections)} subscriptions, cost: {cost}")
     return collections
 
 
@@ -606,13 +574,9 @@ def crawl_yandex(
             logger.error(f"[YandexCrawl] cannot get content from page: {page}")
             continue
 
-        groups = re.findall(
-            r"<li class=\"serp-item\s+serp-item_card\s?\".*?>([\s\S]*?)</li>", content
-        )
+        groups = re.findall(r"<li class=\"serp-item\s+serp-item_card\s?\".*?>([\s\S]*?)</li>", content)
         if not groups:
-            logger.error(
-                f"[YandexCrawl] cannot get any search result from page: {page}"
-            )
+            logger.error(f"[YandexCrawl] cannot get any search result from page: {page}")
             continue
 
         for group in groups:
@@ -643,19 +607,13 @@ def crawl_yandex(
         time.sleep(interval)
 
     cost = "{:.2f}s".format(time.time() - starttime)
-    logger.info(
-        f"[YandexCrawl] finished crawl from Yandex, found {len(collections)} subscriptions, cost: {cost}"
-    )
+    logger.info(f"[YandexCrawl] finished crawl from Yandex, found {len(collections)} subscriptions, cost: {cost}")
     return collections
 
 
-def crawl_github_page(
-    page: int, cookie: str, push_to: list = [], exclude: str = ""
-) -> dict:
+def crawl_github_page(page: int, cookie: str, push_to: list = [], exclude: str = "") -> dict:
     content = search_github_code(page=page, cookie=cookie)
-    return extract_subscribes(
-        content=content, push_to=push_to, exclude=exclude, source=Origin.GITHUB.name
-    )
+    return extract_subscribes(content=content, push_to=push_to, exclude=exclude, source=Origin.GITHUB.name)
 
 
 def search_github(page: int, cookie: str, searchtype: str, sortedby: str) -> str:
@@ -679,9 +637,7 @@ def search_github(page: int, cookie: str, searchtype: str, sortedby: str) -> str
     }
     content = utils.http_get(url=url, headers=headers)
     if re.search(r"<h1>Sign in to GitHub</h1>", content, flags=re.I):
-        logger.error(
-            "[GithubCrawl] session has expired, please provide a valid session and try again"
-        )
+        logger.error("[GithubCrawl] session has expired, please provide a valid session and try again")
         return ""
 
     return content
@@ -699,9 +655,7 @@ def paging(start: int, end: int, peer_page: int) -> list[int]:
 
 
 def search_github_issues(page: int, cookie: str) -> list:
-    content = search_github(
-        page=page, cookie=cookie, searchtype="Issues", sortedby="created"
-    )
+    content = search_github(page=page, cookie=cookie, searchtype="Issues", sortedby="created")
     if utils.isblank(content):
         return []
 
@@ -736,9 +690,7 @@ def search_github_issues_byapi(peer_page: int = 50, page: int = 1) -> list:
         return []
 
 
-def search_github_code_byapi(
-    token: str, peer_page: int = 50, page: int = 1, excludes: list = []
-) -> list:
+def search_github_code_byapi(token: str, peer_page: int = 50, page: int = 1, excludes: list = []) -> list:
     """
     curl -Ls -o response.json -H "Authorization: Bearer <token>" https://api.github.com/search/code?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=indexed&order=desc&per_page=30&page=1
     """
@@ -776,9 +728,7 @@ def search_github_code_byapi(
 
 
 def search_github_code(page: int, cookie: str, excludes: list = []) -> list:
-    content = search_github(
-        page=page, cookie=cookie, searchtype="Code", sortedby="indexed"
-    )
+    content = search_github(page=page, cookie=cookie, searchtype="Code", sortedby="indexed")
     if utils.isblank(content):
         return []
 
@@ -823,16 +773,12 @@ def batchextract_github_pages(func: typing.Callable, params: list) -> list:
     return list(set(itertools.chain.from_iterable(results)))
 
 
-def crawl_github(
-    limits: int = 3, push_to: list = [], spams: list = [], exclude: str = ""
-) -> dict:
+def crawl_github(limits: int = 3, push_to: list = [], spams: list = [], exclude: str = "") -> dict:
     # user_session=${any}
     cookie = os.environ.get("GH_COOKIE", "").strip()
     token = os.environ.get("GH_TOKEN", "").strip()
     if utils.isblank(cookie) and utils.isblank(token):
-        logger.error(
-            "[GithubCrawl] cannot start crawl from github because cookie and token is missing"
-        )
+        logger.error("[GithubCrawl] cannot start crawl from github because cookie and token is missing")
         return {}
 
     links, starttime = [], time.time()
@@ -849,9 +795,7 @@ def crawl_github(
         peer_page, count = 50, 10
         pages = paging(start=1, end=limits * count, peer_page=peer_page)
         params = [[token, peer_page, x, spams] for x in pages] * 2
-        links.extend(
-            batchextract_github_pages(func=search_github_code_byapi, params=params)
-        )
+        links.extend(batchextract_github_pages(func=search_github_code_byapi, params=params))
         links.extend(search_github_issues_byapi(peer_page=5, page=1))
 
     if links:
@@ -860,9 +804,7 @@ def crawl_github(
 
         for link in links:
             page_tasks[link] = {"push_to": push_to, "exclude": exclude}
-        subscribes = crawl_pages(
-            pages=page_tasks, silent=True, origin=Origin.GITHUB.name
-        )
+        subscribes = crawl_pages(pages=page_tasks, silent=True, origin=Origin.GITHUB.name)
     else:
         subscribes = {}
 
@@ -925,9 +867,7 @@ def crawl_pages(
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
         cost = "{:.2f}s".format(time.time() - starttime)
-        logger.info(
-            f"[PageCrawl] finished crawl from Page, found {len(subscribes)} subscriptions, cost: {cost}"
-        )
+        logger.info(f"[PageCrawl] finished crawl from Page, found {len(subscribes)} subscriptions, cost: {cost}")
 
     return subscribes
 
@@ -938,9 +878,7 @@ def extract_twitter_cookies(retry: int = 2) -> str:
 
     headers = None
     try:
-        request = urllib.request.Request(
-            url="https://twitter.com/", headers=utils.DEFAULT_HTTP_HEADERS
-        )
+        request = urllib.request.Request(url="https://twitter.com/", headers=utils.DEFAULT_HTTP_HEADERS)
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         headers = response.headers
     except urllib.error.HTTPError as e:
@@ -1009,9 +947,7 @@ def username_to_id(username: str, headers: dict) -> str:
         "responsive_web_graphql_timeline_navigation_enabled": True,
     }
 
-    payload = urllib.parse.urlencode(
-        {"variables": json.dumps(variables), "features": json.dumps(features)}
-    )
+    payload = urllib.parse.urlencode({"variables": json.dumps(variables), "features": json.dumps(features)})
     url = f"https://twitter.com/i/api/graphql/sLVLhk0bGj3MVFEKTdax1w/UserByScreenName?{payload}"
     try:
         content = utils.http_get(url=url, headers=headers)
@@ -1098,19 +1034,13 @@ def crawl_twitter(tasks: dict) -> dict:
             "withV2Timeline": True,
         }
 
-        payload = urllib.parse.urlencode(
-            {"variables": json.dumps(variables), "features": json.dumps(features)}
-        )
+        payload = urllib.parse.urlencode({"variables": json.dumps(variables), "features": json.dumps(features)})
         url = f"https://twitter.com/i/api/graphql/P7qs2Sf7vu1LDKbzDW9FSA/UserMedia?{payload}"
         pages[url] = config
 
-    subscribes = crawl_pages(
-        pages=pages, silent=True, headers=headers, origin=Origin.TWITTER.name
-    )
+    subscribes = crawl_pages(pages=pages, silent=True, headers=headers, origin=Origin.TWITTER.name)
     cost = "{:.2f}s".format(time.time() - starttime)
-    logger.info(
-        f"[TwitterCrawl] finished crawl from Twitter, found {len(subscribes)} subscriptions, cost: {cost}"
-    )
+    logger.info(f"[TwitterCrawl] finished crawl from Twitter, found {len(subscribes)} subscriptions, cost: {cost}")
 
     return subscribes
 
@@ -1131,9 +1061,7 @@ def extract_subscribes(
         limits, collections, proxies = max(1, limits), {}, []
         sub_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
         extra_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/sub\?(?:\S+)?target=\S+"
-        protocal_regex = (
-            r"(?:vmess|trojan|ss|ssr|snell)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
-        )
+        protocal_regex = r"(?:vmess|trojan|ss|ssr|snell)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
 
         regex = f"{sub_regex}|{extra_regex}"
 
@@ -1146,9 +1074,7 @@ def extract_subscribes(
 
                 subscribes = re.findall(pattern, content, flags=re.I)
             except:
-                logger.error(
-                    f"[ExtractError] maybe pattern 'include' exists some problems, include: {include}"
-                )
+                logger.error(f"[ExtractError] maybe pattern 'include' exists some problems, include: {include}")
                 subscribes = re.findall(regex, content)
         else:
             subscribes = re.findall(regex, content, flags=re.I)
@@ -1171,22 +1097,10 @@ def extract_subscribes(
                 for url in urls:
                     if not utils.isurl(url):
                         if ALLOW_SINGLE_LINK:
-                            proxies.extend(
-                                [
-                                    x
-                                    for x in url.split("|")
-                                    if re.match(protocal_regex, x, flags=re.I)
-                                ]
-                            )
+                            proxies.extend([x for x in url.split("|") if re.match(protocal_regex, x, flags=re.I)])
                         continue
 
-                    items.extend(
-                        [
-                            x
-                            for x in url.split("|")
-                            if not re.match(extra_regex, x, flags=re.I)
-                        ]
-                    )
+                    items.extend([x for x in url.split("|") if not re.match(extra_regex, x, flags=re.I)])
 
             for s in items:
                 try:
@@ -1267,9 +1181,7 @@ def validate(
         discovered = params.get("discovered", False)
 
         # 过期后最多等待3天
-        reachable, expired = check_status(
-            url=url, retry=2, remain=5, spare_time=12, tolerance=72
-        )
+        reachable, expired = check_status(url=url, retry=2, remain=5, spare_time=12, tolerance=72)
         if reachable:
             item = {"name": naming_task(url), "sub": url, "debut": True}
             item.update(params)
@@ -1296,13 +1208,7 @@ def validate(
 
 
 def remark(source: dict, defeat: int = 0, discovered: bool = True) -> None:
-    if (
-        not source
-        or type(source) != dict
-        or type(defeat) != int
-        or defeat < 0
-        or type(discovered) != bool
-    ):
+    if not source or type(source) != dict or type(defeat) != int or defeat < 0 or type(discovered) != bool:
         return
 
     source["defeat"] = defeat
@@ -1351,9 +1257,7 @@ def check_status(
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
         except ConstructorError:
-            yaml.add_multi_constructor(
-                "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
-            )
+            yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
             proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
         except:
             proxies = []
@@ -1390,9 +1294,7 @@ def check_status(
         )
 
 
-def is_expired(
-    header: str, remain: float = 0, spare_time: float = 0, tolerance: float = 0
-) -> tuple[bool, bool]:
+def is_expired(header: str, remain: float = 0, spare_time: float = 0, tolerance: float = 0) -> tuple[bool, bool]:
     if utils.isblank(header):
         return True, False
 
@@ -1422,30 +1324,20 @@ def is_expired(
         flag = total - (upload + download) > remain * pow(1024, 3) and (
             expire is None or expire - time.time() > spare_time * 3600
         )
-        expired = (
-            False
-            if flag
-            else (expire is not None and (expire + tolerance * 3600) <= time.time())
-        )
+        expired = False if flag else (expire is not None and (expire + tolerance * 3600) <= time.time())
         return flag, expired
     except:
         return True, False
 
 
-def is_available(
-    url: str, retry: int = 2, remain: float = 0, spare_time: float = 0
-) -> bool:
-    available, _ = check_status(
-        url=url, retry=retry, remain=remain, spare_time=spare_time
-    )
+def is_available(url: str, retry: int = 2, remain: float = 0, spare_time: float = 0) -> bool:
+    available, _ = check_status(url=url, retry=retry, remain=remain, spare_time=spare_time)
     return available
 
 
 def naming_task(url):
     prefix = utils.extract_domain(url=url).replace(".", "") + SEPARATOR
-    return prefix + "".join(
-        random.sample(string.digits + string.ascii_lowercase, random.randint(3, 5))
-    )
+    return prefix + "".join(random.sample(string.digits + string.ascii_lowercase, random.randint(3, 5)))
 
 
 def get_telegram_pages(channel: str) -> int:
@@ -1499,9 +1391,7 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
 
         pages = range(count, -1, -20)
         page_num = min(page_num, len(pages))
-        logger.info(
-            f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}"
-        )
+        logger.info(f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}")
 
         urls = [f"{url}?before={x}" for x in pages[:page_num]]
         cpu_count = multiprocessing.cpu_count()
@@ -1515,9 +1405,7 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
 
 
 def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
-    domains = crawl_channel(
-        channel=channel, page_num=page_num, fun=extract_airport_site
-    )
+    domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
 
     if not domains:
         return []
@@ -1528,9 +1416,7 @@ def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
         semaphore = multiprocessing.Semaphore(thread_num)
         for domain in list(set(domains)):
             semaphore.acquire()
-            p = multiprocessing.Process(
-                target=validate_domain, args=(domain, availables, semaphore)
-            )
+            p = multiprocessing.Process(target=validate_domain, args=(domain, availables, semaphore))
             p.start()
             processes.append(p)
         for p in processes:
@@ -1573,9 +1459,7 @@ def batch_call(tasks: dict) -> list:
             time.sleep(random.randint(1, 3))
             for k, v in tasks.items():
                 semaphore.acquire()
-                p = multiprocessing.Process(
-                    target=call, args=(k, v, availables, semaphore)
-                )
+                p = multiprocessing.Process(target=call, args=(k, v, availables, semaphore))
                 p.start()
                 processes.append(p)
             for p in processes:
@@ -1587,9 +1471,7 @@ def batch_call(tasks: dict) -> list:
         return []
 
 
-def call(
-    script: str, params: dict, availables: ListProxy, semaphore: Semaphore
-) -> None:
+def call(script: str, params: dict, availables: ListProxy, semaphore: Semaphore) -> None:
     try:
         if not script:
             return
@@ -1607,9 +1489,7 @@ def execute_script(script: str, params: dict = {}) -> list:
         # format: a.b.c#function or a-b.c#_function or a#function and so on
         regex = r"^([a-zA-Z0-9_]+|([0-9a-zA-Z_]+([a-zA-Z0-9_\-]+)?\.)+)[a-zA-Z0-9_\-]+#[a-zA-Z_]+[0-9a-zA-Z_]+$"
         if not re.match(regex, script):
-            logger.info(
-                f"[ScriptError] script execute error because script: {script} is invalidate"
-            )
+            logger.info(f"[ScriptError] script execute error because script: {script} is invalidate")
             return []
 
         path, func_name = script.split("#", maxsplit=1)
@@ -1626,22 +1506,16 @@ def execute_script(script: str, params: dict = {}) -> list:
 
         subscribes = func(params)
         if type(subscribes) != list:
-            logger.error(
-                f"[ScriptError] return value error, need a list, but got a {type(subscribes)}"
-            )
+            logger.error(f"[ScriptError] return value error, need a list, but got a {type(subscribes)}")
             return []
 
         endtime = time.time()
         logger.info(
-            "[ScriptInfo] finished execute script: scripts.{}, cost: {:.2f}s".format(
-                script, endtime - starttime
-            )
+            "[ScriptInfo] finished execute script: scripts.{}, cost: {:.2f}s".format(script, endtime - starttime)
         )
 
         subscribes = [s for s in subscribes if type(s) == dict and s.get("push_to", [])]
         return subscribes
     except:
-        logger.error(
-            f"[ScriptError] occur error run script: {script}, message: \n{traceback.format_exc()}"
-        )
+        logger.error(f"[ScriptError] occur error run script: {script}, message: \n{traceback.format_exc()}")
         return []

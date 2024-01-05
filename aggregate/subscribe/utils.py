@@ -29,7 +29,9 @@ CTX = ssl.create_default_context()
 CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+)
 
 
 # 本地路径协议标识
@@ -49,11 +51,7 @@ DEFAULT_HTTP_HEADERS = {
 def random_chars(length: int, punctuation: bool = False) -> str:
     length = max(length, 1)
     if punctuation:
-        chars = "".join(
-            random.sample(
-                string.ascii_letters + string.digits + string.punctuation, length
-            )
-        )
+        chars = "".join(random.sample(string.ascii_letters + string.digits + string.punctuation, length))
     else:
         chars = "".join(random.sample(string.ascii_letters + string.digits, length))
 
@@ -109,18 +107,14 @@ def http_get(
             content = gzip.decompress(content).decode("utf8")
         if status_code != 200:
             if trace:
-                logger.error(
-                    f"request failed, url: {hide(url)}, code: {status_code}, message: {content}"
-                )
+                logger.error(f"request failed, url: {hide(url)}, code: {status_code}, message: {content}")
 
             return ""
 
         return content
     except Exception as e:
         if trace:
-            logger.error(
-                f"request failed, url: {hide(url)}, message: \n{traceback.format_exc()}"
-            )
+            logger.error(f"request failed, url: {hide(url)}, message: \n{traceback.format_exc()}")
 
         if isinstance(e, urllib.error.HTTPError):
             try:
@@ -172,15 +166,24 @@ def extract_cookie(text: str) -> str:
     return cookie
 
 
-def cmd(command: list) -> bool:
+def cmd(command: list, output: bool = False) -> tuple[bool, str]:
     if command is None or len(command) == 0:
-        return False
+        return False, ""
 
-    logger.info("command: {}".format(" ".join(command)))
-
-    p = subprocess.Popen(command)
+    p = (
+        subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        if output
+        else subprocess.Popen(command)
+    )
     p.wait()
-    return p.returncode == 0
+
+    success, content = p.returncode == 0, ""
+    if output:
+        try:
+            content = p.stdout.read().decode("utf8")
+        except:
+            content = ""
+    return success, content
 
 
 def chmod(binfile: str) -> None:
@@ -209,9 +212,7 @@ def encoding_url(url: str) -> str:
         return url
 
     # 遍历进行 punycode 编码
-    punycodes = list(
-        map(lambda x: "xn--" + x.encode("punycode").decode("utf-8"), cn_chars)
-    )
+    punycodes = list(map(lambda x: "xn--" + x.encode("punycode").decode("utf-8"), cn_chars))
 
     # 对原 url 进行替换
     for c, pc in zip(cn_chars, punycodes):
@@ -245,9 +246,7 @@ def isb64encode(content: str, padding: bool = True) -> bool:
         return False
 
     # 判断是否为base64编码
-    regex = (
-        "^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$"
-    )
+    regex = "^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{4}|[A-Za-z0-9+/]{3}=|[A-Za-z0-9+/]{2}==)$"
 
     # 不是标准base64编码的情况，padding
     b64flag = re.match(regex, content)
@@ -363,9 +362,7 @@ def http_post(
         }
     try:
         data = json.dumps(params).encode(encoding="UTF8")
-        request = urllib.request.Request(
-            url=url, data=data, headers=headers, method="POST"
-        )
+        request = urllib.request.Request(url=url, data=data, headers=headers, method="POST")
         if allow_redirects:
             return urllib.request.urlopen(request, timeout=timeout, context=CTX)
 
@@ -401,14 +398,15 @@ def is_number(num: str) -> bool:
         return False
 
 
-def url_complete(url: str) -> str:
+def url_complete(url: str, secret: bool = False) -> str:
     if isblank(url):
         return ""
 
     if not url.startswith("https://"):
         # force use https protocol
         if url.startswith("http://"):
-            url = url.replace("http://", "https://")
+            if secret:
+                url = url.replace("http://", "https://")
         else:
             url = f"https://{url}"
 

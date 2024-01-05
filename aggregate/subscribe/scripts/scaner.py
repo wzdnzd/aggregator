@@ -43,9 +43,7 @@ def convert(chars: bytes) -> list:
     try:
         contents = json.loads(chars).get("nodeinfo", None)
         if not contents:
-            logger.error(
-                f"[ScanerConvertError] cannot fetch node list, response: {chars}"
-            )
+            logger.error(f"[ScanerConvertError] cannot fetch node list, response: {chars}")
             return []
 
         nodes_muport = contents["nodes_muport"]
@@ -141,9 +139,7 @@ def login(url, params, headers, retry) -> str:
             return response.getheader("Set-Cookie")
         else:
             logger.info(
-                "[ScanerLoginError] domain: {}, message: {}".format(
-                    url, response.read().decode("unicode_escape")
-                )
+                "[ScanerLoginError] domain: {}, message: {}".format(url, response.read().decode("unicode_escape"))
             )
             return ""
     except Exception as e:
@@ -166,15 +162,11 @@ def register(url: str, params: dict, retry: int) -> bool:
                 return True
 
         logger.debug(
-            "[ScanerRegisterError] domain: {}, message: {}".format(
-                url, response.read().decode("unicode_escape")
-            )
+            "[ScanerRegisterError] domain: {}, message: {}".format(url, response.read().decode("unicode_escape"))
         )
         return False
     except Exception as e:
-        logger.error(
-            "[ScanerRegisterError] domain: {}, message: {}".format(url, str(e))
-        )
+        logger.error("[ScanerRegisterError] domain: {}, message: {}".format(url, str(e)))
 
         retry -= 1
         return register(url, params, retry) if retry > 0 else False
@@ -228,9 +220,7 @@ def fetch_nodes(
                     )
                 )
         except Exception as e:
-            logger.error(
-                "[ScanerFetchError] domain: {}, message: {}".format(domain, str(e))
-            )
+            logger.error("[ScanerFetchError] domain: {}, message: {}".format(domain, str(e)))
 
     return content
 
@@ -249,9 +239,7 @@ def check(domain: str) -> bool:
 
 def scanone(domain: str, email: str, passwd: str) -> list:
     if utils.isblank(domain) or utils.isblank(email) or utils.isblank(passwd):
-        logger.error(
-            f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}"
-        )
+        logger.error(f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}")
         return []
 
     # 检测是否符合条件
@@ -281,9 +269,7 @@ def scanone(domain: str, email: str, passwd: str) -> list:
 
 def getsub(domain: str, email: str, passwd: str) -> str:
     if utils.isblank(domain) or utils.isblank(email) or utils.isblank(passwd):
-        logger.error(
-            f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}"
-        )
+        logger.error(f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}")
         return ""
 
     register_url = domain + "/auth/register"
@@ -301,18 +287,14 @@ def getsub(domain: str, email: str, passwd: str) -> str:
     # 获取机场所有节点信息
     content = fetch_nodes(domain=domain, email=email, passwd=passwd, subflag=True)
     if content is None or b"" == content:
-        logger.error(
-            "[ScanerInfo] cannot found subscribe url, domain: {}".format(domain)
-        )
+        logger.error("[ScanerInfo] cannot found subscribe url, domain: {}".format(domain))
         return ""
     try:
         data = json.loads(content).get("info", {})
         suburl = data.get("subUrl", "")
         subtoken = data.get("ssrSubToken", "")
         if utils.isblank(suburl) or utils.isblank(subtoken):
-            logger.error(
-                "[ScanerInfo] subUrl or subToken is empty, domain: {}".format(domain)
-            )
+            logger.error("[ScanerInfo] subUrl or subToken is empty, domain: {}".format(domain))
             return ""
 
         return suburl + subtoken
@@ -357,15 +339,8 @@ def scan(params: dict) -> list:
     persist = params.get("persist", {})
     pushtool = push.get_instance()
 
-    if (
-        not pushtool.validate(push_conf=persist)
-        or not config
-        or type(config) != dict
-        or not config.get("push_to")
-    ):
-        logger.error(
-            f"[ScanerError] cannot scan proxies bcause missing some parameters"
-        )
+    if not pushtool.validate(push_conf=persist) or not config or type(config) != dict or not config.get("push_to"):
+        logger.error(f"[ScanerError] cannot scan proxies bcause missing some parameters")
         return []
 
     cpu_count = multiprocessing.cpu_count()

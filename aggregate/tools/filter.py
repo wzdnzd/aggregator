@@ -84,9 +84,7 @@ def parse(base: str, filename: str, provider: str = "", all: bool = False) -> AP
             return None
 
 
-def http_get(
-    url: str, headers: dict = None, retry: int = 3, timeout: int = 6
-) -> tuple[int, str]:
+def http_get(url: str, headers: dict = None, retry: int = 3, timeout: int = 6) -> tuple[int, str]:
     if not url or retry <= 0:
         return 400, ""
 
@@ -109,9 +107,7 @@ def http_get(
         return http_get(url=url, headers=headers, retry=retry - 1, timeout=timeout)
 
 
-def fetch_proxies(
-    prefix: str, provider: str, headers: dict, retry: int = 3
-) -> list[dict]:
+def fetch_proxies(prefix: str, provider: str, headers: dict, retry: int = 3) -> list[dict]:
     url = f"{prefix}/providers/proxies/{provider}"
     _, content = http_get(url=url, headers=headers, retry=retry, timeout=30)
     try:
@@ -120,9 +116,7 @@ def fetch_proxies(
         return []
 
 
-def statistics(
-    prefix: str, provider: str, headers: dict, base: int, retry: int = 3
-) -> tuple[bool, int]:
+def statistics(prefix: str, provider: str, headers: dict, base: int, retry: int = 3) -> tuple[bool, int]:
     proxies = fetch_proxies(prefix, provider, headers, retry)
     if not proxies:
         return False, 0
@@ -167,9 +161,7 @@ def reload(prefix: str, secret: str, retry: int = 3) -> bool:
     success, count = False, 0
     while not success and count < retry:
         try:
-            request = urllib.request.Request(
-                url, data=data, headers=headers, method="PUT"
-            )
+            request = urllib.request.Request(url, data=data, headers=headers, method="PUT")
             response = urllib.request.urlopen(request, timeout=10, context=CTX)
             if response.getcode() == 204:
                 success = True
@@ -300,18 +292,14 @@ def process(
         try:
             nodes = yaml.load(f, Loader=yaml.SafeLoader).get("proxies", [])
         except yaml.constructor.ConstructorError:
-            yaml.add_multi_constructor(
-                "str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader
-            )
+            yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
             nodes = yaml.load(f, Loader=yaml.FullLoader).get("proxies", [])
 
     proxies = [x for x in nodes if x.get("name", "") not in names]
     if not proxies:
         return False
 
-    print(
-        f"completed filtering, total: {len(nodes)}, filtered: {len(names)}, remain: {len(proxies)}"
-    )
+    print(f"completed filtering, total: {len(nodes)}, filtered: {len(names)}, remain: {len(proxies)}")
 
     data = {"proxies": proxies}
     if backup:

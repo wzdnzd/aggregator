@@ -13,10 +13,11 @@ import time
 import urllib
 import urllib.request
 
-from . import commons
 import push
 import utils
 from logger import logger
+
+from . import commons
 
 
 def fetch(email: str, retry: int = 2) -> str:
@@ -37,9 +38,7 @@ def fetch(email: str, retry: int = 2) -> str:
     }
 
     try:
-        request = urllib.request.Request(
-            url=url, data=data, headers=headers, method="POST"
-        )
+        request = urllib.request.Request(url=url, data=data, headers=headers, method="POST")
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() == 200:
             content = response.read()
@@ -75,17 +74,11 @@ def getrss(params: dict) -> list:
 
     emails = params.get("emails", [])
     if emails and type(emails) == list:
-        emails = [
-            x
-            for x in emails
-            if re.match(r"^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$", x)
-        ]
+        emails = [x for x in emails if re.match(r"^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$", x)]
 
     config = params.get("config", {})
     if not emails or not config or type(config) != dict or not config.get("push_to"):
-        logger.error(
-            f"[V2RayFreeError] cannot fetch subscribes bcause missing some parameters"
-        )
+        logger.error(f"[V2RayFreeError] cannot fetch subscribes bcause missing some parameters")
         return []
 
     include = params.get("include", "").strip()

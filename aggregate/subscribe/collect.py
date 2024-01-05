@@ -192,16 +192,12 @@ def aggregate(args: argparse.Namespace):
             logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
 
         urls = availables.keys()
-        utils.write_file(
-            filename=os.path.join(args.output, "subscribes.txt"), lines=urls
-        )
+        utils.write_file(filename=os.path.join(args.output, "subscribes.txt"), lines=urls)
 
         domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
 
         # 更新 domains.txt 文件为实际可使用的网站列表
-        utils.write_file(
-            filename=os.path.join(PATH, "valid-domains.txt"), lines=domains
-        )
+        utils.write_file(filename=os.path.join(PATH, "valid-domains.txt"), lines=domains)
 
         workflow.cleanup(workspace, [])
 

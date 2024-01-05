@@ -9,6 +9,7 @@ import json
 # import multiprocessing
 import os
 import random
+import re
 import ssl
 import string
 import urllib
@@ -18,9 +19,9 @@ from collections import defaultdict
 from multiprocessing.managers import DictProxy, ListProxy
 from multiprocessing.synchronize import Semaphore
 
-import yaml
-
+import executable
 import utils
+import yaml
 
 CTX = ssl.create_default_context()
 CTX.check_hostname = False
@@ -71,8 +72,9 @@ def filter_proxies(proxies: list) -> dict:
     # 按名字排序方便在节点相同时优先保留名字靠前的
     proxies.sort(key=lambda p: str(p.get("name", "")))
     unique_proxies, hosts = [], defaultdict(list)
+
     for item in proxies:
-        if verify(item) and not proxies_exists(item, hosts):
+        if not proxies_exists(item, hosts):
             unique_proxies.append(item)
             key = f"{item.get('server')}:{item.get('port')}"
             hosts[key].append(item)
@@ -142,6 +144,20 @@ def proxies_exists(proxy: dict, hosts: dict) -> bool:
         return any(p.get("uuid", "") == proxy.get("uuid", "") for p in proxies)
     elif protocol == "snell":
         return any(p.get("psk", "") == proxy.get("psk", "") for p in proxies)
+    elif protocol == "tuic":
+        if proxy.get("token", ""):
+            return any(p.get("token", "") == proxy.get("token", "") for p in proxies)
+        return any(p.get("uuid", "") == proxy.get("uuid", "") for p in proxies)
+    elif protocol == "hysteria2":
+        return any(p.get("password", "") == proxy.get("password", "") for p in proxies)
+    elif protocol == "hysteria":
+        key = "auth-str" if "auth-str" in proxy else "auth_str"
+        value = proxy.get(key, "")
+        for p in proxies:
+            if "auth-str" in p and p.get("auth-str", "") == value:
+                return True
+            if "auth_str" in p and p.get("auth_str", "") == value:
+                return True
 
     return False
 
@@ -180,9 +196,13 @@ SSR_SUPPORTED_PROTOCOL = [
 ]
 VMESS_SUPPORTED_CIPHERS = ["auto", "aes-128-gcm", "chacha20-poly1305", "none"]
 
+SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2"])
 
-def verify(item: dict) -> bool:
-    if not item or type(item) != dict:
+XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
+
+
+def verify(item: dict, meta: bool = True) -> bool:
+    if not item or type(item) != dict or "type" not in item:
         return False
 
     try:
@@ -190,25 +210,33 @@ def verify(item: dict) -> bool:
         name = str(item.get("name", "")).strip().upper()
         if not name:
             return False
-
         item["name"] = name
 
         # server must be string
         server = str(item.get("server", "")).strip().lower()
         if not server:
             return False
-
         item["server"] = server
+
+        item["port"] = int(item["port"])
+        if item["port"] <= 0 or item["port"] > 65535:
+            return False
 
         # check uuid
         if "uuid" in item and not utils.verify_uuid(item.get("uuid")):
             return False
 
-        if "tfo" in item and item.get("tfo") not in [False, True]:
-            return False
+        # check servername and sni
+        for attribute in ["servername", "sni"]:
+            if attribute in item and type(item[attribute]) != str:
+                return False
+
+        for attribute in ["udp", "tls", "skip-cert-verify", "tfo"]:
+            if attribute in item and item[attribute] not in [False, True]:
+                return False
 
         authentication = "password"
-        item["port"] = int(item["port"])
+
         if item["type"] == "ss":
             if item["cipher"] not in SS_SUPPORTED_CIPHERS:
                 return False
@@ -231,74 +259,251 @@ def verify(item: dict) -> bool:
                 return False
             if item["protocol"] not in SSR_SUPPORTED_PROTOCOL:
                 return False
-        elif item["type"] == "vmess" or item["type"] == "vless":
+        elif item["type"] == "vmess":
             authentication = "uuid"
-            if "udp" in item and item["udp"] not in [False, True]:
-                return False
-            if "tls" in item and item["tls"] not in [False, True]:
+
+            network = item.get("network", "ws")
+            if network not in ["ws", "h2", "http", "grpc"]:
                 return False
             if item.get("network", "ws") in ["h2", "grpc"] and not item.get("tls", False):
-                return False
-            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                False,
-                True,
-            ]:
                 return False
             if item["cipher"] not in VMESS_SUPPORTED_CIPHERS:
                 return False
 
             # https://dreamacro.github.io/clash/zh_CN/configuration/configuration-reference.html
             if "h2-opts" in item:
+                if network != "h2":
+                    return False
+
                 h2_opts = item.get("h2-opts", {})
                 if not h2_opts or type(h2_opts) != dict:
                     return False
                 if "host" in h2_opts and type(h2_opts["host"]) != list:
                     return False
             elif "http-opts" in item:
+                if network != "http":
+                    return False
+
                 http_opts = item.get("http-opts", {})
                 if not http_opts or type(http_opts) != dict:
                     return False
                 if "path" in http_opts and type(http_opts["path"]) != list:
                     return False
-                if "headers" in http_opts and type(http_opts["headers"]) != list:
+                if "headers" in http_opts and type(http_opts["headers"]) != dict:
+                    return False
+            elif "ws-opts" in item:
+                if network != "ws":
+                    return False
+
+                ws_opts = item.get("ws-opts", {})
+                if not ws_opts or type(ws_opts) != dict:
+                    return False
+                if "path" in ws_opts and type(ws_opts["path"]) != str:
+                    return False
+                if "headers" in ws_opts and type(ws_opts["headers"]) != dict:
+                    return False
+            elif "grpc-opts" in item:
+                if network != "grpc":
+                    return False
+                if not meta:
+                    return False
+
+                grpc_opts = item.get("grpc-opts", {})
+                if not grpc_opts or type(grpc_opts) != dict:
+                    return False
+                if "grpc-service-name" not in grpc_opts or type(grpc_opts["grpc-service-name"]) != str:
                     return False
         elif item["type"] == "trojan":
-            if "udp" in item and item["udp"] not in [False, True]:
+            network = utils.trim(item.get("network", ""))
+
+            if "alpn" in item and type(item["alpn"]) != list:
                 return False
-            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                False,
-                True,
-            ]:
+            if "ws-opts" in item:
+                if network != "ws":
+                    return False
+
+                ws_opts = item.get("ws-opts", {})
+                if not ws_opts or type(ws_opts) != dict:
+                    return False
+                if "path" in ws_opts and type(ws_opts["path"]) != str:
+                    return False
+                if "headers" in ws_opts and type(ws_opts["headers"]) != dict:
+                    return False
+            if "grpc-opts" in item:
+                if network != "grpc":
+                    return False
+
+                grpc_opts = item.get("grpc-opts", {})
+                if not grpc_opts or type(grpc_opts) != dict:
+                    return False
+                if "grpc-service-name" not in grpc_opts or type(grpc_opts["grpc-service-name"]) != str:
+                    return False
+            if "flow" in item and (not meta or item["flow"] not in ["xtls-rprx-origin", "xtls-rprx-direct"]):
                 return False
         elif item["type"] == "snell":
             authentication = "psk"
-            if "udp" in item and item["udp"] not in [False, True]:
+            if "version" in item and not item["version"].isdigit():
                 return False
-            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                False,
-                True,
-            ]:
-                return False
-        elif item["type"] == "http":
+            if "obfs-opts" in item:
+                obfs_opts = item.get("obfs-opts", {})
+                if not obfs_opts or type(obfs_opts) != dict:
+                    return False
+                if "mode" in obfs_opts:
+                    mode = utils.trim(obfs_opts.get("mode", ""))
+                    if mode not in ["http", "tls"]:
+                        return False
+        elif item["type"] == "http" or item["type"] == "socks5":
             authentication = "userpass"
-            if "tls" in item and item["tls"] not in [False, True]:
-                return False
-        elif item["type"] == "socks5":
-            authentication = "userpass"
-            if "tls" in item and item["tls"] not in [False, True]:
-                return False
-            if "udp" in item and item["udp"] not in [False, True]:
-                return False
-            if "skip-cert-verify" in item and item["skip-cert-verify"] not in [
-                False,
-                True,
-            ]:
-                return False
+        elif meta and item["type"] in SPECIAL_PROTOCOLS:
+            if item["type"] == "vless":
+                authentication = "uuid"
+                network = utils.trim(item.get("network", "ws"))
+                if network not in ["ws", "tcp", "grpc"]:
+                    return False
+                if "flow" in item:
+                    flow = utils.trim(item.get("flow", ""))
+                    if flow and flow not in XTLS_FLOWS:
+                        return False
+                if "ws-opts" in item:
+                    if network != "ws":
+                        return False
+
+                    ws_opts = item.get("ws-opts", {})
+                    if not ws_opts or type(ws_opts) != dict:
+                        return False
+                    if "path" in ws_opts and type(ws_opts["path"]) != str:
+                        return False
+                    if "headers" in ws_opts and type(ws_opts["headers"]) != dict:
+                        return False
+                if "grpc-opts" in item:
+                    if network != "grpc":
+                        return False
+
+                    grpc_opts = item.get("grpc-opts", {})
+                    if not grpc_opts or type(grpc_opts) != dict:
+                        return False
+                    if "grpc-service-name" not in grpc_opts or type(grpc_opts["grpc-service-name"]) != str:
+                        return False
+                if "reality-opts" in item:
+                    reality_opts = item.get("reality-opts", {})
+                    if not reality_opts or type(reality_opts) != dict:
+                        return False
+                    if "public-key" not in reality_opts or type(reality_opts["public-key"]) != str:
+                        return False
+                    if "short-id" in reality_opts and type(reality_opts["short-id"]) != str:
+                        return False
+            elif item["type"] == "tuic":
+                # see: https://wiki.metacubex.one/config/proxies/tuic
+
+                token = wrap(item.get("token", ""))
+                uuid = wrap(item.get("uuid", ""))
+                password = wrap(item.get("password", ""))
+                if not token and not uuid and not password:
+                    return False
+                if token and uuid and password:
+                    return False
+                if token:
+                    authentication = "token"
+                    item["token"] = token
+                else:
+                    if not uuid:
+                        return False
+
+                    authentication = "uuid"
+                    if password:
+                        item["password"] = password
+
+                for property in ["disable-sni", "reduce-rtt", "fast-open"]:
+                    if property in item and item[property] not in [False, True]:
+                        return False
+                for property in [
+                    "heartbeat-interval",
+                    "request-timeout",
+                    "max-udp-relay-packet-size",
+                    "max-open-streams",
+                ]:
+                    if property in item and not utils.is_number(item[property]):
+                        return False
+                if "udp-relay-mode" in item and item["udp-relay-mode"] not in ["native", "quic"]:
+                    return False
+                if "congestion-controller" in item and item["congestion-controller"] not in [
+                    "cubic",
+                    "bbr",
+                    "new_reno",
+                ]:
+                    return False
+                if "alpn" in item and type(item["alpn"]) != list:
+                    return False
+                if "ip" in item:
+                    ip = utils.trim(item.get("ip", ""))
+
+                    # ip must be valid ipv4 or ipv6 address
+                    if not re.match(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$", ip) and not re.match(
+                        r"^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$", ip
+                    ):
+                        return False
+            else:
+                for property in ["up", "down"]:
+                    if property not in item:
+                        continue
+
+                    traffic = item.get(property, "")
+                    if traffic and utils.is_number(traffic):
+                        traffic = str(traffic)
+
+                    if not re.match(r"^\d+(\.\d+)?(\s+)?([kmgt]?bps)?$", utils.trim(traffic), flags=re.I):
+                        return False
+
+                if "alpn" in item and type(item["alpn"]) != list:
+                    return False
+                for property in ["ca", "ca-str"]:
+                    if property in item and type(item[property]) != str:
+                        return False
+                if item["type"] == "hysteria2":
+                    # see: https://wiki.metacubex.one/config/proxies/hysteria2
+                    authentication = "password"
+                    if "obfs" in item:
+                        obfs = utils.trim(item.get("obfs", ""))
+                        if obfs != "salamander":
+                            return False
+                    if "obfs-password" in item and type(item["obfs-password"]) != str:
+                        return False
+                else:
+                    # see: https://wiki.metacubex.one/config/proxies/hysteria
+                    authentication = "auth-str" if "auth-str" in item else "auth_str"
+
+                    for property in ["auth-str", "auth_str", "obfs"]:
+                        if property in item and type(item[property]) != str:
+                            return False
+                    for property in ["disable_mtu_discovery", "fast-open"]:
+                        if property in item and item[property] not in [False, True]:
+                            return False
+                    if "protocol" in item:
+                        protocol = utils.trim(item.get("protocol", ""))
+                        if protocol not in ["udp", "wechat-video", "faketcp"]:
+                            return False
+                    if "ports" in item:
+                        ports = utils.trim(item.get("ports", [])).split(",")
+                        if not ports:
+                            return False
+                        for port in ports:
+                            # port must be valid port number
+                            if not utils.is_number(port) or int(port) <= 0 or int(port) > 65535:
+                                return False
+                    for property in ["recv_window_conn", "recv-window-conn", "recv_window", "recv-window"]:
+                        if property not in item:
+                            continue
+                        window = item.get(property, "")
+                        if not utils.is_number(window):
+                            return False
         else:
             return False
 
-        if not item[authentication] or utils.is_number(item[authentication]):
+        if not item.get(authentication, ""):
             return False
+
+        if utils.is_number(item[authentication]):
+            item[authentication] = str(item[authentication])
 
         return True
     except:
@@ -379,3 +584,23 @@ def check(
     finally:
         if semaphore is not None and isinstance(semaphore, Semaphore):
             semaphore.release()
+
+
+def is_meta() -> bool:
+    base = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+    clash_bin, _ = executable.which_bin()
+    binpath = os.path.join(base, "clash", clash_bin)
+
+    try:
+        utils.chmod(binpath)
+        _, output = utils.cmd([binpath, "-v"], True)
+        return re.search("Mihomo Meta", output, flags=re.I) is not None
+    except:
+        return False
+
+
+def wrap(text: str) -> str:
+    if utils.is_number(text):
+        text = str(text)
+
+    return utils.trim(text)
