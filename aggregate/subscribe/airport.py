@@ -51,9 +51,6 @@ LETTERS = set(string.ascii_letters + string.digits)
 # 标记数字位数
 # SUFFIX_BITS = 2
 
-# 是否允许特殊协议
-ENABLE_SPECIAL_PROTOCOLS = os.environ.get("CLASH_META", "true").lower() in ["true", "1"] and is_meta()
-
 
 class Category(Enum):
     # 远程订阅
@@ -403,6 +400,7 @@ class AirPort:
         udp: bool = True,
         ignore_exclude: bool = False,
         chatgpt: dict = None,
+        special_protocols: bool = False,
     ) -> list:
         if "" == self.sub:
             logger.error(f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}")
@@ -474,7 +472,13 @@ class AirPort:
             chars = utils.random_chars(length=3, punctuation=False)
             artifact = f"{self.name}-{chars}"
 
-            nodes = self.decode(text=text, artifact=artifact, program=bin_name, ignore=ignore_exclude)
+            nodes = self.decode(
+                text=text,
+                artifact=artifact,
+                program=bin_name,
+                ignore=ignore_exclude,
+                special=special_protocols,
+            )
 
             if not nodes:
                 logger.info(f"cannot found any proxy, domain: {self.ref}")
@@ -582,7 +586,7 @@ class AirPort:
             return []
 
     @staticmethod
-    def decode(text: str, program: str, artifact: str = "", ignore: bool = False) -> list:
+    def decode(text: str, program: str, artifact: str = "", ignore: bool = False, special: bool = False) -> list:
         text, nodes = utils.trim(text=text), []
         if not text:
             return []
@@ -654,4 +658,8 @@ class AirPort:
                 yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
                 nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
 
-        return [x for x in nodes if verify(x, ENABLE_SPECIAL_PROTOCOLS)]
+        return [x for x in nodes if verify(x, special)]
+
+    @staticmethod
+    def enable_special_protocols() -> bool:
+        return os.environ.get("CLASH_META", "true").lower() in ["true", "1"] and is_meta()

@@ -6,7 +6,6 @@
 import json
 import os
 import re
-import subprocess
 from dataclasses import dataclass
 
 import renewal
@@ -71,6 +70,9 @@ class TaskConfig:
     # 覆盖subconverter默认exclude规则
     ignorede: bool = False
 
+    # 是否允许特殊协议
+    special_protocols: bool = False
+
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf:
@@ -107,6 +109,7 @@ def execute(task_conf: TaskConfig) -> list:
         allow_insecure=task_conf.allow_insecure,
         ignore_exclude=task_conf.ignorede,
         chatgpt=task_conf.chatgpt,
+        special_protocols=task_conf.special_protocols,
     )
 
     logger.info(

@@ -23,6 +23,7 @@ import push
 import utils
 import workflow
 import yaml
+from airport import AirPort
 from logger import logger
 from origin import Origin
 from workflow import TaskConfig
@@ -206,6 +207,10 @@ def assign(
 ) -> tuple[list[TaskConfig], dict, list]:
     tasks, groups, arrays = [], {}, []
     retry, globalid = max(1, retry), 0
+
+    # 是否允许特殊协议
+    special_protocols = AirPort.enable_special_protocols()
+
     for site in sites:
         if not site:
             continue
@@ -283,6 +288,7 @@ def assign(
                 coupon=coupon,
                 allow_insecure=allow_insecure,
                 ignorede=ignoreder,
+                special_protocols=special_protocols,
             )
             found = workflow.exists(tasks=tasks, task=task)
             if found:
@@ -318,6 +324,7 @@ def assign(
                     index=-1,
                     retry=retry,
                     bin_name=bin_name,
+                    special_protocols=special_protocols,
                 )
             )
             taskids.append(globalid)

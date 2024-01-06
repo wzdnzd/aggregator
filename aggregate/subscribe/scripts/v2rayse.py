@@ -36,6 +36,9 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 # last modified key name
 LAST_MODIFIED = "lastModified"
 
+# whether enable special protocols
+SPECIAL_PROTOCOLS = AirPort.enable_special_protocols()
+
 
 def current_time(utc: bool = True) -> datetime:
     now = datetime.utcnow()
@@ -133,7 +136,7 @@ def fetchone(
 
     if not noproxies:
         try:
-            proxies = AirPort.decode(text=content, program=subconverter)
+            proxies = AirPort.decode(text=content, program=subconverter, special=SPECIAL_PROTOCOLS)
 
             # detect if it contains shared proxy nodes
             if detect(
