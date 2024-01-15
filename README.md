@@ -6,7 +6,7 @@
 -->
 
 > 说明: 
-> + `auto-checkin.py`用于基于SS-Panel搭建的机场签到，`renewal.py`用于基于V2Board搭建的机场订阅续期
+> + `auto-checkin.py`用于基于SS-Panel搭建的机场签到，`renewal.py`用于基于V2Board搭建的机场订阅续期 
 > + 支持`Python2` 和 `Python3`
 > + 目前不支持任何带有验证码（登陆或签到时需要输入验证码）功能的机场
 > + 对于本项目来说，签到是最不起眼的一个小功能。如果你喜欢探索，你将获得如下成果。
