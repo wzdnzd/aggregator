@@ -1015,7 +1015,7 @@ if "!force!" == "1" (
     @echo [%ESC%[!infocolor!m信息%ESC%[0m] 检查并更新订阅，仅刷新 %ESC%[!warncolor!mHTTP%ESC%[0m 类型的订阅
 )
 
-call :filerefresh changed "^\s+health-check:(\s+)?$" "www.gstatic.com cp.cloudflare.com" "!force!" subfiles "proxies"
+call :filerefresh changed "^\s+(health-check:(\s+)?|<<:\s+\*.*)$|^proxy-providers:(\s+)?$" "www.gstatic.com cp.cloudflare.com" "!force!" subfiles "proxies"
 set "%~1=!subfiles!"
 goto :eof
 
@@ -2084,11 +2084,10 @@ if "!rawurl!" == "" goto :eof
 set proxy_urls[0]=https://mirror.ghproxy.com
 set proxy_urls[1]=https://github.moeyy.xyz
 set proxy_urls[2]=https://gh.ddlc.top
-set proxy_urls[3]=https://ghps.cc
-set proxy_urls[4]=https://hub.gitmirror.com
+set proxy_urls[3]=https://hub.gitmirror.com
 
-@REM random [0, 4]
-set /a num=!random! %% 5
+@REM random [0, 3]
+set /a num=!random! %% 4
 set "ghproxy=!proxy_urls[%num%]!"
 
 @REM github proxy

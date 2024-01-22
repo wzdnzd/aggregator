@@ -401,6 +401,8 @@ class AirPort:
         ignore_exclude: bool = False,
         chatgpt: dict = None,
         special_protocols: bool = False,
+        emoji_patterns: dict = None,
+        remained: bool = False,
     ) -> list:
         if "" == self.sub:
             logger.error(f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}")
@@ -540,6 +542,11 @@ class AirPort:
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tchatgpt: {pattern}\tdomain: {self.ref}"
                     )
 
+                # 是否添加 emoji
+                indexers = emoji_patterns
+                if remained and not re.search(r"^[\U0001F1E6-\U0001F1FF]{2}", name):
+                    indexers = None
+
                 name = re.sub(
                     r"\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
                     " ",
@@ -561,6 +568,10 @@ class AirPort:
                     i, j, k, n = 10, 4, 4, len(name)
                     abbreviation = "".join(random.sample([x for x in name[i : n - j] if x in LETTERS], k)).strip()
                     name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
+
+                if indexers:
+                    emoji = utils.get_emoji(text=name, patterns=indexers, default="🇺🇸")
+                    name = f"{emoji} {name}" if emoji else name
 
                 item["name"] = name.upper()
 

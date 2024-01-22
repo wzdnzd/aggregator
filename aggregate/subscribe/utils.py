@@ -411,3 +411,38 @@ def url_complete(url: str, secret: bool = False) -> str:
             url = f"https://{url}"
 
     return url
+
+
+def load_emoji_pattern(filepath: str) -> dict:
+    filepath = trim(filepath)
+    if not os.path.exists(filepath) or not os.path.isfile(filepath):
+        logger.warning(f"cannot parse emoji config due to file {filepath} not exists")
+        return {}
+
+    # see: https://github.com/tindy2013/subconverter/blob/master/base/snippets/emoji.txt
+    patterns = {}
+    with open(filepath, "r", encoding="utf-8") as f:
+        for line in f.readlines():
+            line = trim(line)
+            if not line or line.startswith("#"):
+                continue
+
+            try:
+                regex, emoji = line.rsplit(",", maxsplit=1)
+                pattern = re.compile(regex, flags=re.I)
+                patterns[pattern] = emoji
+            except ValueError:
+                logger.warning(f"cannot parse emoji config due to invalid line: {line}")
+
+    return patterns
+
+
+def get_emoji(text: str, patterns: dict, default: str = "") -> str:
+    if not patterns or type(patterns) != dict or not text or type(text) != str:
+        return default
+
+    for pattern, emoji in patterns.items():
+        if pattern.search(text):
+            return emoji
+
+    return default
