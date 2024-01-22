@@ -211,6 +211,10 @@ def assign(
     # 是否允许特殊协议
     special_protocols = AirPort.enable_special_protocols()
 
+    # 解析 emoji 配置
+    emoji_conf = os.path.join(PATH, "subconverter", "snippets", "emoji.txt")
+    emoji_patterns = utils.load_emoji_pattern(filepath=emoji_conf)
+
     for site in sites:
         if not site:
             continue
@@ -242,6 +246,9 @@ def assign(
         allow_insecure = site.get("insecure", False)
         # 覆盖subconverter默认exclude规则
         ignoreder = site.get("ignorede", False)
+
+        # 是否添加国旗 emoji
+        emoji = site.get("emoji", False)
 
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
@@ -289,6 +296,7 @@ def assign(
                 allow_insecure=allow_insecure,
                 ignorede=ignoreder,
                 special_protocols=special_protocols,
+                emoji_patterns=emoji_patterns if emoji else None,
             )
             found = workflow.exists(tasks=tasks, task=task)
             if found:
@@ -324,7 +332,9 @@ def assign(
                     index=-1,
                     retry=retry,
                     bin_name=bin_name,
+                    remained=True,
                     special_protocols=special_protocols,
+                    emoji_patterns=emoji_patterns,
                 )
             )
             taskids.append(globalid)

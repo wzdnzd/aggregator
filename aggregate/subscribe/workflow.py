@@ -73,6 +73,11 @@ class TaskConfig:
     # 是否允许特殊协议
     special_protocols: bool = False
 
+    # emoji 匹配规则
+    emoji_patterns: dict = None
+
+    remained: bool = False
+
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf:
@@ -110,6 +115,8 @@ def execute(task_conf: TaskConfig) -> list:
         ignore_exclude=task_conf.ignorede,
         chatgpt=task_conf.chatgpt,
         special_protocols=task_conf.special_protocols,
+        emoji_patterns=task_conf.emoji_patterns,
+        remained=task_conf.remained,
     )
 
     logger.info(
