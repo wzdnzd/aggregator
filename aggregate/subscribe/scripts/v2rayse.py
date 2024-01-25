@@ -309,10 +309,15 @@ def fetch(params: dict) -> list:
             f"[V2RaySE] finished crawl for date: {date}, found {len(nodes)} proxies and {count} subscriptions, cost: {cost}"
         )
 
+    logger.info(
+        f"[V2RaySE] finished all crawl tasks, found {len(proxies)} proxies and {len(subscriptions)} subscriptions: {list(subscriptions)}"
+    )
+
     for sub in subscriptions:
         config = deepcopy(params.get("config", {}))
         config["sub"] = sub
         config["checked"] = False
+        config["saved"] = False
         config["origin"] = Origin.V2RAYSE.name
         config["name"] = naming_task(sub)
         config["push_to"] = list(set(config.get("push_to", [])))
