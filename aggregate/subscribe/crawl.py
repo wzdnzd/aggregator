@@ -208,7 +208,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                         if not item or type(item) != dict:
                             continue
 
-                        if item.pop("saved", False):
+                        if item.get("saved", False):
                             datasets.append(item)
                             continue
 
@@ -254,6 +254,10 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                 pass
 
         if not records:
+            if peristedtasks and should_persist and MODE != 2:
+                content = json.dumps(peristedtasks)
+                pushtool.push_to(content=content, push_conf=subspushconf, group="crwal")
+
             logger.debug("[CrawlInfo] cannot found any subscribe from Google/Telegram/Github and Page with crawler")
             return datasets
 
