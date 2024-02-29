@@ -201,6 +201,16 @@ SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2"])
 XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
 
 
+def is_hex(word: str) -> bool:
+    digits = set("0123456789abcdef")
+    word = word.lower().strip()
+    for c in word:
+        if not (c in digits):
+            return False
+
+    return True
+
+
 def verify(item: dict, meta: bool = True) -> bool:
     if not item or type(item) != dict or "type" not in item:
         return False
@@ -390,7 +400,11 @@ def verify(item: dict, meta: bool = True) -> bool:
                         return False
                     if "public-key" not in reality_opts or type(reality_opts["public-key"]) != str:
                         return False
-                    if "short-id" in reality_opts and type(reality_opts["short-id"]) != str:
+                    if "short-id" in reality_opts and (
+                        type(reality_opts["short-id"]) != str
+                        or len(reality_opts["short-id"]) != 8
+                        or not is_hex(reality_opts["short-id"])
+                    ):
                         return False
             elif item["type"] == "tuic":
                 # see: https://wiki.metacubex.one/config/proxies/tuic
