@@ -136,7 +136,7 @@ def fetchone(
 
     if not noproxies:
         try:
-            proxies = AirPort.decode(text=content, program=subconverter, special=SPECIAL_PROTOCOLS)
+            proxies = AirPort.decode(text=content, program=subconverter, special=SPECIAL_PROTOCOLS, throw=True)
 
             # detect if it contains shared proxy nodes
             if detect(
@@ -157,8 +157,7 @@ def fetchone(
                 except:
                     pass
         except:
-            traceback.print_exc()
-            logger.error(f"[V2RaySE] parse proxies failed, url: {url}")
+            logger.error(f"[V2RaySE] parse proxies failed, url: {url}, message: \n{traceback.format_exc()}")
 
     return proxies, subscriptions
 

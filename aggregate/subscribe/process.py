@@ -26,6 +26,7 @@ import yaml
 from airport import AirPort
 from logger import logger
 from origin import Origin
+from tqdm import tqdm
 from workflow import TaskConfig
 
 import clash
@@ -409,10 +410,7 @@ def aggregate(args: argparse.Namespace):
             proxies = clash.generate_config(workspace, proxies, filename)
 
             # 过滤出需要检查可用性的节点
-            skip = utils.trim(os.environ.get("SKIP_ALIVE_CHECK", "false")).lower() in [
-                "true",
-                "1",
-            ]
+            skip = utils.trim(os.environ.get("SKIP_ALIVE_CHECK", "false")).lower() in ["true", "1"]
             nochecks, starttime = proxies, time.time()
             if not skip:
                 checks, nochecks = workflow.liveness_fillter(proxies=proxies)
@@ -436,7 +434,7 @@ def aggregate(args: argparse.Namespace):
                     semaphore = multiprocessing.Semaphore(args.num)
                     time.sleep(random.randint(5, 8))
 
-                    for proxy in checks:
+                    for proxy in tqdm(checks, desc="Progress", leave=True):
                         semaphore.acquire()
                         p = multiprocessing.Process(
                             target=clash.check,
@@ -531,7 +529,8 @@ def aggregate(args: argparse.Namespace):
             "update": update_conf,
         }
 
-        workflow.refresh(config=config, push=pushtool, alives=dict(subscribes))
+        skip_remark = utils.trim(os.environ.get("SKIP_REMARK", "false")).lower() in ["true", "1"]
+        workflow.refresh(config=config, push=pushtool, alives=dict(subscribes), skip_remark=skip_remark)
 
 
 if __name__ == "__main__":
