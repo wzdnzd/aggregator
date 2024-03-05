@@ -566,7 +566,12 @@ class AirPort:
 
                 if len(name) > 30:
                     i, j, k, n = 10, 4, 4, len(name)
-                    abbreviation = "".join(random.sample([x for x in name[i : n - j] if x in LETTERS], k)).strip()
+                    alphabets = [x for x in name[i : n - j] if x in LETTERS]
+                    if len(alphabets) > k:
+                        abbreviation = "".join(random.sample(alphabets, k)).strip()
+                    else:
+                        abbreviation = "".join(alphabets)
+
                     name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
 
                 if indexers:
@@ -598,6 +603,23 @@ class AirPort:
 
     @staticmethod
     def decode(text: str, program: str, artifact: str = "", ignore: bool = False, special: bool = False) -> list:
+        def clean_text(document: str) -> str:
+            document = utils.trim(text=document)
+            if not document:
+                return ""
+
+            url_decode = lambda m: (
+                f'"name": "{urllib.parse.unquote(m.group(1))}",'
+                if m and m.group(1)
+                else f'"name": "{utils.random_chars(6)}",'
+            )
+            document = re.sub(r'"name":(?:\s+)?"(%.*)",', url_decode, document, flags=re.I)
+
+            add_quote = lambda m: f"- '{m.group(1)}'" if m and m.group(1) else f"- '{utils.random_chars(6)}'"
+            document = re.sub(r'-\s+("?%.*"?)', add_quote, document, flags=re.I)
+
+            return document
+
         text, nodes = utils.trim(text=text), []
         if not text:
             return []
@@ -647,7 +669,7 @@ class AirPort:
             if not success:
                 return []
 
-            with open(clash_file, "r", encoding="utf8") as reader:
+            with open(clash_file, "r", encoding="utf8", errors="ignore") as reader:
                 try:
                     config = yaml.load(reader, Loader=yaml.SafeLoader)
                 except yaml.constructor.ConstructorError:
@@ -664,6 +686,9 @@ class AirPort:
             os.remove(clash_file)
         else:
             try:
+                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
+            except yaml.scanner.ScannerError:
+                text = clean_text(document=text)
                 nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
             except yaml.constructor.ConstructorError:
                 yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)

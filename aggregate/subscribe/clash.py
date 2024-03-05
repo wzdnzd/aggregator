@@ -202,13 +202,15 @@ XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
 
 
 def is_hex(word: str) -> bool:
-    digits = set("0123456789abcdef")
+    digits, flag = set("0123456789abcdef"), False
     word = word.lower().strip()
     for c in word:
         if not (c in digits):
             return False
 
-    return True
+        flag = flag and ("a" <= c <= "f")
+
+    return flag
 
 
 def verify(item: dict, meta: bool = True) -> bool:
