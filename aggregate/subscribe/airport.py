@@ -597,12 +597,15 @@ class AirPort:
 
             return proxies
         except:
-            traceback.print_exc()
-            logger.error(f"[ParseError] occur error when parse data, domain: {self.ref}")
+            logger.error(
+                f"[ParseError] occur error when parse data, domain: {self.ref}, message:\n{traceback.format_exc()}"
+            )
             return []
 
     @staticmethod
-    def decode(text: str, program: str, artifact: str = "", ignore: bool = False, special: bool = False) -> list:
+    def decode(
+        text: str, program: str, artifact: str = "", ignore: bool = False, special: bool = False, throw: bool = False
+    ) -> list:
         def clean_text(document: str) -> str:
             document = utils.trim(text=document)
             if not document:
@@ -670,6 +673,7 @@ class AirPort:
                 return []
 
             with open(clash_file, "r", encoding="utf8", errors="ignore") as reader:
+                config = None
                 try:
                     config = yaml.load(reader, Loader=yaml.SafeLoader)
                 except yaml.constructor.ConstructorError:
@@ -680,11 +684,18 @@ class AirPort:
                         Loader=yaml.SafeLoader,
                     )
                     config = yaml.load(reader, Loader=yaml.SafeLoader)
-                nodes = config.get("proxies", [])
+                except Exception as e:
+                    if throw:
+                        raise e
+                    else:
+                        logger.error(f"cannot load yaml file, artifact: {artifact}, message:\n{traceback.format_exc()}")
+
+                nodes = [] if not config else config.get("proxies", [])
 
             # 已经读取，可以删除
             os.remove(clash_file)
         else:
+            nodes = None
             try:
                 nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
             except yaml.scanner.ScannerError:
@@ -693,8 +704,13 @@ class AirPort:
             except yaml.constructor.ConstructorError:
                 yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
                 nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
+            except Exception as e:
+                if throw:
+                    raise e
+                else:
+                    logger.error(f"cannot load yaml file, artifact: {artifact}, message:\n{traceback.format_exc()}")
 
-        return [x for x in nodes if verify(x, special)]
+        return [] if not nodes else [x for x in nodes if verify(x, special)]
 
     @staticmethod
     def enable_special_protocols() -> bool:
