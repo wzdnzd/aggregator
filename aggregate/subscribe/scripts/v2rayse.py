@@ -157,6 +157,7 @@ def fetchone(
                 except:
                     pass
         except:
+            traceback.print_exc()
             logger.error(f"[V2RaySE] parse proxies failed, url: {url}")
 
     return proxies, subscriptions
