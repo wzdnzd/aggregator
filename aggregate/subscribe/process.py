@@ -17,9 +17,11 @@ import sys
 import time
 from copy import deepcopy
 
+import clash
 import crawl
 import executable
 import push
+import subconverter
 import utils
 import workflow
 import yaml
@@ -28,9 +30,6 @@ from logger import logger
 from origin import Origin
 from tqdm import tqdm
 from workflow import TaskConfig
-
-import clash
-import subconverter
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -434,7 +433,11 @@ def aggregate(args: argparse.Namespace):
                     semaphore = multiprocessing.Semaphore(args.num)
                     time.sleep(random.randint(5, 8))
 
-                    for proxy in tqdm(checks, desc="Progress", leave=True):
+                    progressbar = utils.trim(os.environ.get("SHOW_PROGRESS", "false")).lower() in ["true", "1"]
+                    if progressbar:
+                        checks = tqdm(checks, desc="Progress", leave=True)
+
+                    for proxy in checks:
                         semaphore.acquire()
                         p = multiprocessing.Process(
                             target=clash.check,
