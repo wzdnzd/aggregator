@@ -213,6 +213,35 @@ def is_hex(word: str) -> bool:
     return flag
 
 
+def check_ports(port: str, ranges: str, protocol: str) -> bool:
+    protocol = utils.trim(protocol).lower()
+
+    try:
+        flag = 0 < int(port) <= 65535
+        if not flag or protocol not in ["hysteria", "hysteria2"] or not ranges:
+            return flag
+    except:
+        return False
+
+    nums = re.split(r"/|,", utils.trim(ranges))
+    if not nums:
+        return False
+
+    for num in nums:
+        start, end = num, num
+        if "-" in num:
+            start, end = num.split("-", maxsplit=1)
+
+        try:
+            start, end = int(start), int(end)
+            if start <= 0 or start > 65535 or end <= 0 or end > 65535 or start > end:
+                return False
+        except:
+            return False
+
+    return True
+
+
 def verify(item: dict, meta: bool = True) -> bool:
     if not item or type(item) != dict or "type" not in item:
         return False
@@ -230,8 +259,8 @@ def verify(item: dict, meta: bool = True) -> bool:
             return False
         item["server"] = server
 
-        item["port"] = int(item["port"])
-        if item["port"] <= 0 or item["port"] > 65535:
+        # port must be valid port number
+        if not check_ports(item.get("port", ""), item.get("ports", None), item.get("type", "")):
             return False
 
         # check uuid
