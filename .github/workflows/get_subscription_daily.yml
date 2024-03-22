@@ -30,15 +30,17 @@ jobs:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
       run: |
         cd aggregate
-        gh gist view ${{ secrets.GIST_ID }} --files subscribes.txt > old-subscribes.txt
+        gh gist view ${{ secrets.GIST_ID }} --files subscribes.txt > old-subscribes.txt || true
 
     - name: Collect Subscribe
       id: collect
       run: |
         cd aggregate
         python -u subscribe/collect.py
-        cat old-subscribes.txt subscribes.txt | sort | uniq > merged-subscribes.txt
-        mv merged-subscribes.txt subscribes.txt
+        if [ -s old-subscribes.txt ]; then
+          cat old-subscribes.txt subscribes.txt | sort | uniq > merged-subscribes.txt
+          mv merged-subscribes.txt subscribes.txt
+        fi
 
     - name: Create/Update Gist
       env:
