@@ -27,14 +27,6 @@ jobs:
         touch proxies.yaml
         echo 'test me' > proxies.yaml
 
-    - name: Gist Write Action
-      uses: sergeysova/gist-write-action@v1
-      with:
-        GITHUB_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
-        gist_id: ${{ secrets.GIST_ID }}
-        file_name: proxies.yaml
-        content: ${{steps.collect.outputs.value}}
-
     - name: Create/Update Gist
       env:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
