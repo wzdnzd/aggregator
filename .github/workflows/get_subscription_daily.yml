@@ -1,4 +1,4 @@
-name: get_subscription_daily
+name: Get Subscription Daily
 
 on:
   schedule:
@@ -32,14 +32,16 @@ jobs:
         cd aggregate
         python -u subscribe/collect.py
 
-    - name: Save proxies.yaml to Gist
-      uses: actions/github-script@v4.1
+    - name: Gist Write Action
+      # You may pin to the exact commit or the version.
+      # uses: sergeysova/gist-write-action@0c014107a8b6ac1c6ab495d6253f3c00f9905737
+      uses: sergeysova/gist-write-action@v1.0.0
       with:
         script: |
           const fs = require('fs');
           const proxies = fs.readFileSync('aggregate/proxies.yaml', 'utf8');
-          const token = process.env.GIST_TOKEN; // 从环境变量中获取 Gist 令牌
-          const gistId = 'xxxxxxxx'; // 将此处替换为你的 Gist 的 ID
+          const token = env.GH_TOKEN; // 从环境变量中获取 Gist 令牌
+          const gistId = '1ca7ef662fdce2d9c3add3e9689d4659'; // 将此处替换为你的 Gist 的 ID
           const octokit = github.getOctokit(token);
           await octokit.gists.update({
             gist_id: gistId,
@@ -49,5 +51,6 @@ jobs:
               }
             }
           });
-        env:
-          GIST_TOKEN: '1ca7ef662fdce2d9c3add3e9689d4659' # 密钥的名称应与保存访问令牌的密钥名称相匹配
+          env:
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
