@@ -2,7 +2,7 @@ name: Get Subscription Daily
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 每天凌晨（UTC 时间）执行
+    - cron: '0 16 * * 6'  # 北京时间每周日凌晨执行
   workflow_dispatch: # 允许手动触发
 
 permissions:
@@ -20,18 +20,25 @@ jobs:
       with:
         python-version: "3.10"
 
-    - name: Install pyYAML
-      run: pip3 install pyYAML
-
-    - name: Install other dependencies
+    - name: Install dependencies
       run: |
+        pip3 install pyYAML
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Fetch previous subscribes.txt from Gist
+      env:
+        GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
+      run: |
+        cd aggregate
+        gh gist view ${{ secrets.GIST_ID }} --files subscribes.txt > old-subscribes.txt
 
     - name: Collect Subscribe
       id: collect
       run: |
         cd aggregate
         python -u subscribe/collect.py
+        cat old-subscribes.txt subscribes.txt | sort | uniq > merged-subscribes.txt
+        mv merged-subscribes.txt subscribes.txt
 
     - name: Create/Update Gist
       env:
@@ -39,4 +46,6 @@ jobs:
       run: |
         cd aggregate
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
-          
+        gh gist edit ${{ secrets.GIST_ID }} --add "subscribes.txt"
+        gh gist edit ${{ secrets.GIST_ID }} --add "domains.txt"
+        gh gist edit ${{ secrets.GIST_ID }} --add "valid-domains.txt"
