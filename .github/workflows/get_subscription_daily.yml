@@ -33,7 +33,7 @@ jobs:
         cd aggregate
         python -u subscribe/collect.py
         cat /home/runner/work/aggregator/aggregator/aggregate/proxies.yaml
-        echo "::set-output name=value::$(cat /home/runner/work/aggregator/aggregator/aggregate/proxies.yaml)"
+        echo "::set-output name=value::$(cat /home/runner/work/aggregator/aggregator/aggregate/proxies.yaml | awk '{printf "%s\n", $0}')"
 
     - name: Gist Write Action
       uses: sergeysova/gist-write-action@v1
