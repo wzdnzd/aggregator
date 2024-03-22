@@ -27,30 +27,17 @@ jobs:
       run: |
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Execute Python Script
+    - name: Collect Subscribe
+      id: collect
       run: |
         cd aggregate
         python -u subscribe/collect.py
+        echo "::set-output name=value::$(cat /home/runner/work/aggregator/aggregator/aggregate/proxies.yaml)"
 
     - name: Gist Write Action
-      # You may pin to the exact commit or the version.
-      # uses: sergeysova/gist-write-action@0c014107a8b6ac1c6ab495d6253f3c00f9905737
-      uses: sergeysova/gist-write-action@v1.0.0
+      uses: sergeysova/gist-write-action@v1
       with:
-        script: |
-          const fs = require('fs');
-          const proxies = fs.readFileSync('/home/runner/work/aggregator/aggregator/aggregate/proxies.yaml', 'utf8');
-          const token = env.GH_TOKEN; // 从环境变量中获取 Gist 令牌
-          const gistId = '1ca7ef662fdce2d9c3add3e9689d4659'; // 将此处替换为你的 Gist 的 ID
-          const octokit = github.getOctokit(token);
-          await octokit.gists.update({
-            gist_id: gistId,
-            files: {
-              'proxies.yaml': {
-                content: proxies
-              }
-            }
-          });
-          env:
-            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        gist_id: 7bcddb642d16d291959642fc60feec9b
+        file_name: proxies.yaml
+        content: ${{steps.collect.outputs.value}}
           
