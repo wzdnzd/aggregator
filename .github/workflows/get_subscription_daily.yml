@@ -1,0 +1,53 @@
+name: get_subscription_daily
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天凌晨（UTC 时间）执行
+  workflow_dispatch: # 允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  execute-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+
+    - name: Install pyYAML
+      run: pip3 install pyYAML
+
+    - name: Install other dependencies
+      run: |
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Execute Python Script
+      run: |
+        cd aggregate
+        python -u subscribe/collect.py
+
+    - name: Save proxies.yaml to Gist
+      uses: actions/github-script@v4.1
+      with:
+        script: |
+          const fs = require('fs');
+          const proxies = fs.readFileSync('aggregate/proxies.yaml', 'utf8');
+          const token = process.env.GIST_TOKEN; // 从环境变量中获取 Gist 令牌
+          const gistId = 'xxxxxxxx'; // 将此处替换为你的 Gist 的 ID
+          const octokit = github.getOctokit(token);
+          await octokit.gists.update({
+            gist_id: gistId,
+            files: {
+              'proxies.yaml': {
+                content: proxies
+              }
+            }
+          });
+        env:
+          GIST_TOKEN: '1ca7ef662fdce2d9c3add3e9689d4659' # 密钥的名称应与保存访问令牌的密钥名称相匹配
