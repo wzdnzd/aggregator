@@ -24,7 +24,7 @@ jobs:
       id: collect
       run: |
         cd aggregate
-        echo "::set-output name=value::$(cat 'test')"
+        echo "::set-output name=value::$(echo 'test')"
 
     - name: Gist Write Action
       uses: sergeysova/gist-write-action@v1
