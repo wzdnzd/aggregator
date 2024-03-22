@@ -39,7 +39,7 @@ jobs:
       with:
         script: |
           const fs = require('fs');
-          const proxies = fs.readFileSync('aggregate/proxies.yaml', 'utf8');
+          const proxies = fs.readFileSync('/home/runner/work/aggregator/aggregator/aggregate/proxies.yaml', 'utf8');
           const token = env.GH_TOKEN; // 从环境变量中获取 Gist 令牌
           const gistId = '1ca7ef662fdce2d9c3add3e9689d4659'; // 将此处替换为你的 Gist 的 ID
           const octokit = github.getOctokit(token);
