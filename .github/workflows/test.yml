@@ -29,8 +29,10 @@ jobs:
     - name: Gist Write Action
       uses: sergeysova/gist-write-action@v1
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: env.GH_TOKEN
         gist_id: 7bcddb642d16d291959642fc60feec9b
         file_name: proxies.yaml
         content: ${{steps.collect.outputs.value}}
+      env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
