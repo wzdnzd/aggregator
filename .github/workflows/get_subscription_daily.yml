@@ -32,14 +32,11 @@ jobs:
       run: |
         cd aggregate
         python -u subscribe/collect.py
-        cat /home/runner/work/aggregator/aggregator/aggregate/proxies.yaml
-        echo "::set-output name=value::$(cat /home/runner/work/aggregator/aggregator/aggregate/proxies.yaml | awk '{printf "%s\n", $0}')"
 
-    - name: Gist Write Action
-      uses: sergeysova/gist-write-action@v1
-      with:
-        GITHUB_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
-        gist_id: ${{ secrets.GIST_ID }}
-        file_name: proxies.yaml
-        content: ${{steps.collect.outputs.value}}
+    - name: Create/Update Gist
+      env:
+        GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
+      run: |
+        cd aggregate
+        gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
           
