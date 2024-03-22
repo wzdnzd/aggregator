@@ -3,9 +3,10 @@ name: Daily Python Script Execution
 on:
   schedule:
     - cron: '0 0 * * *'  # 每天凌晨（UTC 时间）执行
+  workflow_dispatch: # 允许手动触发
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   execute-script:
