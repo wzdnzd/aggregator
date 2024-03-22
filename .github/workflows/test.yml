@@ -1,4 +1,4 @@
-name: Get Subscription Daily
+name: 测试
 
 on:
   schedule:
