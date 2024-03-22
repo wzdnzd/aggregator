@@ -1,0 +1,32 @@
+name: Daily Python Script Execution
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天凌晨（UTC 时间）执行
+
+permissions:
+  contents: read
+
+jobs:
+  execute-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+
+    - name: Install pyYAML
+      run: pip3 install pyYAML
+
+    - name: Install other dependencies
+      run: |
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Execute Python Script
+      run: |
+        cd aggregate
+        python -u subscribe/collect.py
