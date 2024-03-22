@@ -32,6 +32,5 @@ jobs:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
       run: |
         cd aggregate
-        echo $GH_TOKEN | gh auth login --with-token
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
           
