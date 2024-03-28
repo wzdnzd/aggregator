@@ -40,6 +40,7 @@ jobs:
         if [ -s old-subscribes.txt ]; then
           cat old-subscribes.txt subscribes.txt | sort | uniq > merged-subscribes.txt
           mv merged-subscribes.txt subscribes.txt
+          sed 's/https:/\n&/2g' subscribes.txt  > temp.txt && mv temp.txt subscribes.txt
         fi
         
     - name: Check and remove invalid links
