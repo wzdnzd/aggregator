@@ -30,7 +30,7 @@ jobs:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
       run: |
         cd aggregate
-        gh gist view ${{ secrets.GIST_ID }} --files subscribes.txt > old-subscribes.txt || true
+        gh gist view ${{ secrets.GIST_ID }} -f subscribes.txt > old-subscribes.txt || true
 
     - name: Collect Subscribe
       id: collect
@@ -43,10 +43,6 @@ jobs:
           sed 's/https:/\n&/2g' subscribes.txt  > temp.txt && mv temp.txt subscribes.txt
         fi
         
-    - name: Check and remove invalid links
-      run: |
-        cd aggregate
-        python -u subscribe/check_links.py
 
     - name: Create/Update Gist
       env:
