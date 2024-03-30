@@ -304,7 +304,7 @@ def verify(item: dict, meta: bool = True) -> bool:
             authentication = "uuid"
 
             network = item.get("network", "ws")
-            if network not in ["ws", "h2", "http", "grpc"]:
+            if network not in ["ws", "h2", "http", "grpc", "httpupgrade"]:
                 return False
             if item.get("network", "ws") in ["h2", "grpc"] and not item.get("tls", False):
                 return False
@@ -333,7 +333,7 @@ def verify(item: dict, meta: bool = True) -> bool:
                 if "headers" in http_opts and type(http_opts["headers"]) != dict:
                     return False
             elif "ws-opts" in item:
-                if network != "ws":
+                if network != "ws" and network != "httpupgrade":
                     return False
 
                 ws_opts = item.get("ws-opts", {})

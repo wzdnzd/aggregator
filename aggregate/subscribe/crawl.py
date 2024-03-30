@@ -256,7 +256,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         if not records:
             if peristedtasks and should_persist and MODE != 2:
                 content = json.dumps(peristedtasks)
-                pushtool.push_to(content=content, push_conf=subspushconf, group="crwal")
+                pushtool.push_to(content=content, push_conf=subspushconf, group="crawl")
 
             logger.debug("[CrawlInfo] cannot found any subscribe from Google/Telegram/Github and Page with crawler")
             return datasets
@@ -338,8 +338,16 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscriptions")
 
         if MODE != 2 and should_persist and peristedtasks:
-            content = json.dumps(peristedtasks)
-            pushtool.push_to(content=content, push_conf=subspushconf, group="crwal")
+            survivors = {k: v for k, v in peristedtasks.items() if not v.pop("nocache", False)}
+
+            total, rest = len(peristedtasks), len(survivors)
+            logger.info(
+                f"[CrawlInfo] to be saved subscriptions filtering completed, total: {total}, discard: {total - rest}, rest: {rest}"
+            )
+
+            if rest:
+                content = json.dumps(survivors)
+                pushtool.push_to(content=content, push_conf=subspushconf, group="crawl")
     except:
         logger.error("[CrawlError] crawl from web error")
         traceback.print_exc()
@@ -562,8 +570,15 @@ def crawl_yandex(
 
     starttime = time.time()
 
+    headers = {
+        "User-Agent": utils.USER_AGENT,
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip",
+    }
+
     # get total pages
-    content = utils.http_get(url=url)
+    content = utils.http_get(url=url, headers=headers)
     if content:
         regex = r'<a class="VanillaReact Pager-Item Pager-Item_type_page" href=".*?" aria-label="Page \d+".*?>(\d+)</a>'
         groups = re.findall(regex, content, flags=re.I)
@@ -573,7 +588,7 @@ def crawl_yandex(
     collections, pages = {}, max(1, pages)
 
     for page in range(0, pages):
-        content = utils.http_get(url=f"{url}&p={page}")
+        content = utils.http_get(url=f"{url}&p={page}", headers=headers)
         if not content:
             logger.error(f"[YandexCrawl] cannot get content from page: {page}")
             continue
@@ -828,6 +843,7 @@ def crawl_single_page(
     config: dict = {},
     headers: dict = None,
     origin: str = Origin.PAGE.name,
+    nocache: bool = False,
 ) -> dict:
     if not url or not push_to:
         logger.error(f"[PageCrawl] cannot crawl from page: {url}")
@@ -844,6 +860,7 @@ def crawl_single_page(
         exclude=exclude,
         config=config,
         source=origin,
+        nocache=nocache,
     )
 
 
@@ -865,8 +882,9 @@ def crawl_pages(
         include = v.get("include", "").strip()
         exclude = v.get("exclude", "").strip()
         config = v.get("config", {})
+        nocache = v.get("nocache", False)
 
-        params.append([k, push_to, include, exclude, config, headers, origin])
+        params.append([k, push_to, include, exclude, config, headers, origin, nocache])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
@@ -1058,6 +1076,7 @@ def extract_subscribes(
     source: str = Origin.OWNED.name,
     config: dict = {},
     reversed: bool = False,
+    nocache: bool = False,
 ) -> dict:
     if not content:
         return {}
@@ -1065,7 +1084,7 @@ def extract_subscribes(
         limits, collections, proxies = max(1, limits), {}, []
         sub_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
         extra_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/sub\?(?:\S+)?target=\S+"
-        protocal_regex = r"(?:vmess|trojan|ss|ssr|snell)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
+        protocal_regex = r"(?:vmess|trojan|ss|ssr|snell|hysteria2|vless|hysteria)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
 
         regex = f"{sub_regex}|{extra_regex}"
 
@@ -1123,7 +1142,7 @@ def extract_subscribes(
 
                 # 强制使用https协议
                 # s = s.replace("http://", "https://", 1).strip()
-                params = {"push_to": push_to, "origin": source}
+                params = {"push_to": push_to, "origin": source, "nocache": nocache}
                 if config:
                     params.update(config)
                 collections[s] = params
