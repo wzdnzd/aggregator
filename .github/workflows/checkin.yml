@@ -1,5 +1,6 @@
 name: checkin
 on:
+  workflow_dispatch:
   schedule:
     - cron: "45 02 * * *"
 
@@ -23,4 +24,4 @@ jobs:
 
       - name: timestamp
         run: date
-workflow_dispatch:
+
