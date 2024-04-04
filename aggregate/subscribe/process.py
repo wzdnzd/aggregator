@@ -17,11 +17,9 @@ import sys
 import time
 from copy import deepcopy
 
-import clash
 import crawl
 import executable
 import push
-import subconverter
 import utils
 import workflow
 import yaml
@@ -30,6 +28,9 @@ from logger import logger
 from origin import Origin
 from tqdm import tqdm
 from workflow import TaskConfig
+
+import clash
+import subconverter
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -143,8 +144,32 @@ def load_configs(url: str, only_check: bool = False) -> tuple[list, dict, dict, 
             if not enable or not url or not push_to:
                 continue
 
-            page["push_to"] = push_to
-            pages[url] = page
+            multiple = page.pop("multiple", False)
+            if not multiple:
+                page["push_to"] = push_to
+                pages[url] = page
+            else:
+                placeholder = utils.trim(page.pop("placeholder", ""))
+                if not placeholder or placeholder not in url:
+                    continue
+
+                # page number range
+                start, end = -1, -1
+                try:
+                    start = int(page.pop("start", 1))
+                    end = int(page.pop("end", 1))
+                except:
+                    pass
+
+                if start < 0 or end < start:
+                    continue
+
+                for i in range(start, end + 1):
+                    copypage = deepcopy(page)
+                    link = url.replace(placeholder, str(i))
+                    copypage["url"] = link
+                    copypage["push_to"] = push_to
+                    pages[link] = copypage
 
         params["pages"] = pages
 
