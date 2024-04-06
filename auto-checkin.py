@@ -12,11 +12,11 @@ import re
 import sys
 import time
 import warnings
-import simplejson as json
-from simplejson.decoder import JSONDecodeError
 
 import requests
+import simplejson as json
 from requests.exceptions import RequestException
+from simplejson.decoder import JSONDecodeError
 
 warnings.filterwarnings("ignore")
 
