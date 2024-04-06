@@ -237,30 +237,28 @@ def check(domain: str) -> bool:
     return False
 
 
-def scanone(domain: str, email: str, passwd: str) -> list:
-    if utils.isblank(domain) or utils.isblank(email) or utils.isblank(passwd):
-        logger.error(f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}")
-        return []
+def get_payload(email: str, passwd: str) -> dict:
+    if not email:
+        email = utils.random_chars(length=8, punctuation=False) + "@gmail.com"
+    if not passwd:
+        passwd = utils.random_chars(length=10, punctuation=True)
 
-    # 检测是否符合条件
-    if not check(domain):
-        logger.info("[ScanerError] cannot crack, domain: {}".format(domain))
-        return []
-
-    register_url = domain + "/auth/register"
-    params = {
+    return {
         "name": email.split("@")[0],
         "email": email,
         "passwd": passwd,
         "repasswd": passwd,
+        "tos": True,
+        "imtype": "1",
+        "wechat": utils.random_chars(length=8, punctuation=False),
     }
 
-    # 注册失败后不立即返回 因为可能已经注册过
-    if not register(register_url, params, 3):
-        logger.debug("[ScanerInfo] register failed, domain: {}".format(domain))
 
+def scanone(domain: str, email: str, passwd: str) -> list:
     # 获取机场所有节点信息
-    content = fetch_nodes(domain=domain, email=email, passwd=passwd, subflag=False)
+    content = get_userinfo(domain=domain, email=email, passwd=passwd, subflag=False, verify=True)
+
+    # 解析节点
     proxies = convert(content)
 
     logger.info("[ScanerInfo] found {} nodes, domain: {}".format(len(proxies), domain))
@@ -268,24 +266,9 @@ def scanone(domain: str, email: str, passwd: str) -> list:
 
 
 def getsub(domain: str, email: str, passwd: str) -> str:
-    if utils.isblank(domain) or utils.isblank(email) or utils.isblank(passwd):
-        logger.error(f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}")
-        return ""
+    # 获取用户信息
+    content = get_userinfo(domain=domain, email=email, passwd=passwd, subflag=True, verify=False)
 
-    register_url = domain + "/auth/register"
-    params = {
-        "name": email.split("@")[0],
-        "email": email,
-        "passwd": passwd,
-        "repasswd": passwd,
-    }
-
-    # 注册失败后不立即返回 因为可能已经注册过
-    if not register(register_url, params, 3):
-        logger.error("[ScanerInfo] register failed, domain: {}".format(domain))
-
-    # 获取机场所有节点信息
-    content = fetch_nodes(domain=domain, email=email, passwd=passwd, subflag=True)
     if content is None or b"" == content:
         logger.error("[ScanerInfo] cannot found subscribe url, domain: {}".format(domain))
         return ""
@@ -301,6 +284,27 @@ def getsub(domain: str, email: str, passwd: str) -> str:
     except Exception as e:
         logger.error("[ScanerError] extract subUrl error: {}".format(str(e)))
         return ""
+
+
+def get_userinfo(domain: str, email: str, passwd: str, subflag: bool, verify: bool = False) -> str:
+    if utils.isblank(domain) or utils.isblank(email) or utils.isblank(passwd):
+        logger.error(f"[ScanerError] skip scan because found invalidate arguments, domain: {domain}")
+        return ""
+
+    # 检测是否符合条件
+    if verify and not check(domain):
+        logger.info("[ScanerError] cannot crack, domain: {}".format(domain))
+        return ""
+
+    register_url = domain + "/auth/register"
+    params = get_payload(email=email, passwd=passwd)
+
+    # 注册失败后不立即返回 因为可能已经注册过
+    if not register(register_url, params, 3):
+        logger.debug("[ScanerInfo] register failed, domain: {}".format(domain))
+
+    # 获取机场所有节点信息
+    return fetch_nodes(domain=domain, email=email, passwd=passwd, subflag=subflag)
 
 
 def filter_task(tasks: dict) -> list:
@@ -344,8 +348,8 @@ def scan(params: dict) -> list:
         return []
 
     cpu_count = multiprocessing.cpu_count()
-    thread_num = min(len(tasks), cpu_count * 5)
-    pool = multiprocessing.Pool(thread_num)
+    num_thread = min(len(tasks), cpu_count * 5)
+    pool = multiprocessing.Pool(num_thread)
 
     results = pool.starmap(scanone, tasks)
     proxies = list(itertools.chain.from_iterable(results))

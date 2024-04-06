@@ -17,9 +17,11 @@ import sys
 import time
 from copy import deepcopy
 
+import clash
 import crawl
 import executable
 import push
+import subconverter
 import utils
 import workflow
 import yaml
@@ -28,9 +30,6 @@ from logger import logger
 from origin import Origin
 from tqdm import tqdm
 from workflow import TaskConfig
-
-import clash
-import subconverter
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -229,6 +228,7 @@ def assign(
     pushtool: push.PushTo,
     push_conf: dict = {},
     only_check=False,
+    rigid: bool = True,
 ) -> tuple[list[TaskConfig], dict, list]:
     tasks, groups, arrays = [], {}, []
     retry, globalid = max(1, retry), 0
@@ -320,6 +320,7 @@ def assign(
                 coupon=coupon,
                 allow_insecure=allow_insecure,
                 ignorede=ignoreder,
+                rigid=rigid,
                 special_protocols=special_protocols,
                 emoji_patterns=emoji_patterns if emoji else None,
             )
@@ -385,6 +386,7 @@ def aggregate(args: argparse.Namespace):
         pushtool=pushtool,
         push_conf=push_configs,
         only_check=args.check,
+        rigid=not args.flexible,
     )
     if not tasks:
         logger.error("cannot found any valid config, exit")
@@ -567,6 +569,24 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "-c",
+        "--check",
+        dest="check",
+        action="store_true",
+        default=False,
+        help="only check proxies are alive",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--flexible",
+        dest="flexible",
+        action="store_true",
+        default=False,
+        help="try registering with a gmail alias when you encounter a whitelisted mailbox",
+    )
+
+    parser.add_argument(
         "-n",
         "--num",
         type=int,
@@ -576,12 +596,30 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-o",
+        "--overwrite",
+        dest="overwrite",
+        action="store_true",
+        default=False,
+        help="exclude remains proxies",
+    )
+
+    parser.add_argument(
         "-r",
         "--retry",
         type=int,
         required=False,
         default=3,
         help="retry times when http request failed",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--server",
+        type=str,
+        required=False,
+        default=os.environ.get("SUBSCRIBE_CONF", "").strip(),
+        help="remote config file",
     )
 
     parser.add_argument(
@@ -600,33 +638,6 @@ if __name__ == "__main__":
         required=False,
         default="https://www.google.com/generate_204",
         help="test url",
-    )
-
-    parser.add_argument(
-        "-s",
-        "--server",
-        type=str,
-        required=False,
-        default=os.environ.get("SUBSCRIBE_CONF", "").strip(),
-        help="remote config file",
-    )
-
-    parser.add_argument(
-        "-o",
-        "--overwrite",
-        dest="overwrite",
-        action="store_true",
-        default=False,
-        help="exclude remains proxies",
-    )
-
-    parser.add_argument(
-        "-c",
-        "--check",
-        dest="check",
-        action="store_true",
-        default=False,
-        help="only check proxies are alive",
     )
 
     args = parser.parse_args()

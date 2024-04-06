@@ -1427,19 +1427,20 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
         return list(itertools.chain.from_iterable(results))
 
 
-def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
+def collect_airport(channel: str, page_num: int, num_thread: int = 50, rigid: bool = True) -> list:
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
 
     if not domains:
         return []
 
+    logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start to check it now")
     with multiprocessing.Manager() as manager:
         availables = manager.list()
         processes = []
-        semaphore = multiprocessing.Semaphore(thread_num)
+        semaphore = multiprocessing.Semaphore(num_thread)
         for domain in list(set(domains)):
             semaphore.acquire()
-            p = multiprocessing.Process(target=validate_domain, args=(domain, availables, semaphore))
+            p = multiprocessing.Process(target=validate_domain, args=(domain, availables, semaphore, rigid))
             p.start()
             processes.append(p)
         for p in processes:
@@ -1447,20 +1448,18 @@ def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
 
         domains = list(availables)
         logger.info(
-            f"[AirPortCollector] finished collect air port from telegram channel: {channel}, availables: {len(domain)}"
+            f"[AirPortCollector] finished collect airport from telegram channel: {channel}, availables: {len(domains)}"
         )
         return domains
 
 
-def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> None:
+def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore, rigid: bool = True) -> None:
     try:
         if not url:
             return
 
         rr = airport.AirPort.get_register_require(domain=url)
-
-        # if rr.invite or rr.recaptcha:
-        if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify):
+        if rr.invite or rr.recaptcha or (rigid and rr.whitelist and rr.verify):
             return
 
         availables.append(url)
@@ -1474,11 +1473,11 @@ def batch_call(tasks: dict) -> list:
         return []
 
     try:
-        thread_num = max(min(len(tasks), 50), 1)
+        num_thread = max(min(len(tasks), 50), 1)
         with multiprocessing.Manager() as manager:
             availables = manager.list()
             processes = []
-            semaphore = multiprocessing.Semaphore(thread_num)
+            semaphore = multiprocessing.Semaphore(num_thread)
             time.sleep(random.randint(1, 3))
             for k, v in tasks.items():
                 semaphore.acquire()

@@ -88,9 +88,8 @@ def getrss(params: dict) -> list:
     emails = [x for x in emails if x not in exists.keys()]
 
     cpu_count = multiprocessing.cpu_count()
-    # thread_num = len(emails) if len(emails) < cpu_count else cpu_count
-    thread_num = min(len(emails), cpu_count * 5)
-    pool = multiprocessing.Pool(thread_num)
+    num_thread = min(len(emails), cpu_count * 5)
+    pool = multiprocessing.Pool(num_thread)
 
     results, subscribes = pool.map(fetch, emails), []
     exists.update(filter(data=dict(zip(emails, results))))
@@ -141,8 +140,8 @@ def filter(data: dict) -> dict:
     if not data or type(data) != dict:
         return {}
 
-    thread_num = min(len(data), multiprocessing.cpu_count() * 5)
-    pool = multiprocessing.Pool(thread_num)
+    num_thread = min(len(data), multiprocessing.cpu_count() * 5)
+    pool = multiprocessing.Pool(num_thread)
     emails, subscribes = list(data.keys()), list(data.values())
     usables = pool.map(check, subscribes)
     for i in range(len(usables)):

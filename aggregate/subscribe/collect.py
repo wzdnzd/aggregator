@@ -16,6 +16,7 @@ import traceback
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Semaphore
 
+import clash
 import crawl
 import executable
 import utils
@@ -23,8 +24,6 @@ import workflow
 import yaml
 from logger import logger
 from workflow import TaskConfig
-
-import clash
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
@@ -35,6 +34,7 @@ def assign(
     filename: str = "",
     overwrite: bool = False,
     pages: int = sys.maxsize,
+    rigid: bool = True,
 ) -> list:
     domains = []
     if filename and os.path.exists(filename) and os.path.isfile(filename):
@@ -46,7 +46,7 @@ def assign(
                 domains.append(line)
 
     if not domains or overwrite:
-        urls = crawl.collect_airport(channel="jichang_list", page_num=pages)
+        urls = crawl.collect_airport(channel="jichang_list", page_num=pages, rigid=rigid)
         domains.extend(urls)
         overwrite = True
 
@@ -90,6 +90,7 @@ def aggregate(args: argparse.Namespace):
         filename=os.path.join(PATH, "domains.txt"),
         overwrite=args.overwrite,
         pages=args.pages,
+        rigid=not args.relaxed,
     )
 
     if not tasks:
@@ -130,75 +131,92 @@ def aggregate(args: argparse.Namespace):
             sys.exit(0)
 
         workspace = os.path.join(PATH, "clash")
-        binpath = os.path.join(workspace, clash_bin)
-        filename = "config.yaml"
-        proxies = clash.generate_config(workspace, list(proxies), filename)
 
-        # 可执行权限
-        utils.chmod(binpath)
+        if args.skip:
+            nodes, subscriptions = [], set()
+            for p in proxies:
+                if not p or not isinstance(p, dict):
+                    continue
 
-        nodes, availables = manager.list(), manager.dict()
-        logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
-        process = subprocess.Popen(
-            [
-                binpath,
-                "-d",
-                workspace,
-                "-f",
-                os.path.join(workspace, filename),
-            ]
-        )
+                # remove unused key
+                p.pop("chatgpt", False)
+                sub = p.pop("sub", "")
+                if sub:
+                    subscriptions.add(sub)
 
-        logger.info(f"clash start success, begin check proxies, num: {len(proxies)}")
+                nodes.append(p)
 
-        time.sleep(random.randint(3, 6))
-        for proxy in proxies:
-            semaphore.acquire()
-            p = multiprocessing.Process(
-                target=clash.check,
-                args=(
-                    nodes,
-                    proxy,
-                    clash.EXTERNAL_CONTROLLER,
-                    semaphore,
-                    args.timeout,
-                    args.url,
-                    args.delay,
-                    availables,
-                ),
+            data = {"proxies": nodes}
+            urls = list(subscriptions)
+        else:
+            binpath = os.path.join(workspace, clash_bin)
+            filename = "config.yaml"
+            proxies = clash.generate_config(workspace, list(proxies), filename)
+
+            # 可执行权限
+            utils.chmod(binpath)
+
+            nodes, availables = manager.list(), manager.dict()
+            logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
+            process = subprocess.Popen(
+                [
+                    binpath,
+                    "-d",
+                    workspace,
+                    "-f",
+                    os.path.join(workspace, filename),
+                ]
             )
-            p.start()
-            processes.append(p)
-        for p in processes:
-            p.join()
 
-        time.sleep(random.randint(1, 3))
+            logger.info(f"clash start success, begin check proxies, num: {len(proxies)}")
 
-        # 关闭clash
-        try:
-            process.terminate()
-        except:
-            logger.error(f"terminate clash process error")
+            time.sleep(random.randint(3, 6))
+            for proxy in proxies:
+                semaphore.acquire()
+                p = multiprocessing.Process(
+                    target=clash.check,
+                    args=(
+                        nodes,
+                        proxy,
+                        clash.EXTERNAL_CONTROLLER,
+                        semaphore,
+                        args.timeout,
+                        args.url,
+                        args.delay,
+                        availables,
+                    ),
+                )
+                p.start()
+                processes.append(p)
+            for p in processes:
+                p.join()
 
-        if len(nodes) <= 0:
-            logger.error(f"cannot fetch any proxy")
-            sys.exit(0)
+            time.sleep(random.randint(1, 3))
 
-        data = {"proxies": list(nodes)}
+            # 关闭clash
+            try:
+                process.terminate()
+            except:
+                logger.error(f"terminate clash process error")
+
+            if len(nodes) <= 0:
+                logger.error(f"cannot fetch any proxy")
+                sys.exit(0)
+
+            data = {"proxies": list(nodes)}
+            urls = availables.keys()
+
         os.makedirs(args.output, exist_ok=True)
         proxies_file = os.path.join(args.output, args.filename)
         with open(proxies_file, "w+", encoding="utf8") as f:
             yaml.dump(data, f, allow_unicode=True)
             logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
 
-        urls = availables.keys()
         utils.write_file(filename=os.path.join(args.output, "subscribes.txt"), lines=urls)
-
         domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
 
         # 更新 domains.txt 文件为实际可使用的网站列表
         utils.write_file(filename=os.path.join(PATH, "valid-domains.txt"), lines=domains)
-
         workflow.cleanup(workspace, [])
 
 
@@ -275,6 +293,24 @@ if __name__ == "__main__":
         required=False,
         default=sys.maxsize,
         help="crawl page num",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--relaxed",
+        dest="relaxed",
+        action="store_true",
+        default=False,
+        help="try registering with a gmail alias when you encounter a whitelisted mailbox",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--skip",
+        dest="skip",
+        action="store_true",
+        default=False,
+        help="skip usability checks",
     )
 
     args = parser.parse_args()

@@ -119,7 +119,7 @@ def http_get(
         if isinstance(e, urllib.error.HTTPError):
             try:
                 message = str(e.read(), encoding="utf8")
-            except UnicodeDecodeError:
+            except:
                 message = "unknown error"
 
             if e.code != 503 or "token" in message:
