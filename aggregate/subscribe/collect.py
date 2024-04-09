@@ -4,17 +4,12 @@
 # @Time    : 2022-07-15
 
 import argparse
-
-# import itertools
-import multiprocessing
+import itertools
 import os
 import random
 import subprocess
 import sys
 import time
-import traceback
-from multiprocessing.managers import ListProxy
-from multiprocessing.synchronize import Semaphore
 
 import clash
 import crawl
@@ -35,7 +30,9 @@ def assign(
     overwrite: bool = False,
     pages: int = sys.maxsize,
     rigid: bool = True,
-) -> list:
+    display: bool = True,
+    num_threads: int = 0,
+) -> list[TaskConfig]:
     domains = []
     if filename and os.path.exists(filename) and os.path.isfile(filename):
         with open(filename, "r", encoding="UTF8") as f:
@@ -46,7 +43,13 @@ def assign(
                 domains.append(line)
 
     if not domains or overwrite:
-        urls = crawl.collect_airport(channel="jichang_list", page_num=pages, rigid=rigid)
+        urls = crawl.collect_airport(
+            channel="jichang_list",
+            page_num=pages,
+            num_thread=num_threads,
+            rigid=rigid,
+            display=display,
+        )
         domains.extend(urls)
         overwrite = True
 
@@ -66,24 +69,14 @@ def assign(
     return tasks
 
 
-def execute(config: TaskConfig, proxies: ListProxy, semaphore: Semaphore) -> None:
-    try:
-        result = workflow.execute(task_conf=config)
-        if result and proxies != None:
-            proxies.extend(result)
-    except:
-        traceback.print_exc()
-    finally:
-        if semaphore is not None and isinstance(semaphore, Semaphore):
-            semaphore.release()
-
-
-def aggregate(args: argparse.Namespace):
+def aggregate(args: argparse.Namespace) -> None:
     if not args or not args.output:
         logger.error(f"config error, output: {args.output}")
         return
 
     clash_bin, subconverter_bin = executable.which_bin()
+    display = not args.invisible
+
     tasks = assign(
         retry=3,
         bin_name=subconverter_bin,
@@ -91,6 +84,8 @@ def aggregate(args: argparse.Namespace):
         overwrite=args.overwrite,
         pages=args.pages,
         rigid=not args.relaxed,
+        display=display,
+        num_threads=args.num,
     )
 
     if not tasks:
@@ -102,145 +97,90 @@ def aggregate(args: argparse.Namespace):
     if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
         os.remove(generate_conf)
 
-    with multiprocessing.Manager() as manager:
-        proxies, processes = manager.list(), []
-        semaphore = multiprocessing.Semaphore(args.num)
+    results = utils.multi_process_run(func=workflow.execute, tasks=tasks)
+    proxies = list(itertools.chain.from_iterable(results))
 
-        for task in tasks:
-            semaphore.acquire()
-            p = multiprocessing.Process(target=execute, args=(task, proxies, semaphore))
-            p.start()
-            processes.append(p)
-        for p in processes:
-            p.join()
+    if len(proxies) == 0:
+        logger.error("exit because cannot fetch any proxy node")
+        sys.exit(0)
 
-        # 清除任务
-        processes.clear()
+    nodes, workspace = [], os.path.join(PATH, "clash")
 
-        # cpu_count = multiprocessing.cpu_count()
-        # num = len(tasks) if len(tasks) <= cpu_count else cpu_count
+    if args.skip:
+        nodes = [p for p in proxies if p and isinstance(p, dict)]
+    else:
+        binpath = os.path.join(workspace, clash_bin)
+        filename = "config.yaml"
+        proxies = clash.generate_config(workspace, list(proxies), filename)
 
-        # pool = multiprocessing.Pool(num)
-        # results = pool.map(workflow.execute, tasks)
-        # pool.close()
+        # 可执行权限
+        utils.chmod(binpath)
 
-        # proxies = list(itertools.chain.from_iterable(results))
+        logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
+        process = subprocess.Popen(
+            [
+                binpath,
+                "-d",
+                workspace,
+                "-f",
+                os.path.join(workspace, filename),
+            ]
+        )
+        logger.info(f"clash start success, begin check proxies, num: {len(proxies)}")
 
-        if len(proxies) == 0:
-            logger.error("exit because cannot fetch any proxy node")
+        time.sleep(random.randint(3, 6))
+        params = [
+            [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, args.delay, False]
+            for p in proxies
+            if isinstance(p, dict)
+        ]
+
+        masks = utils.multi_thread_run(
+            func=clash.check,
+            tasks=params,
+            num_threads=args.num,
+            show_progress=display,
+        )
+
+        # 关闭clash
+        try:
+            process.terminate()
+        except:
+            logger.error(f"terminate clash process error")
+
+        if len(nodes) <= 0:
+            logger.error(f"cannot fetch any proxy")
             sys.exit(0)
 
-        workspace = os.path.join(PATH, "clash")
+        nodes = [proxies[i] for i in range(len(proxies)) if masks[i]]
 
-        if args.skip:
-            nodes, subscriptions = [], set()
-            for p in proxies:
-                if not p or not isinstance(p, dict):
-                    continue
+    subscriptions = set()
+    for p in proxies:
+        # remove unused key
+        p.pop("chatgpt", False)
+        sub = p.pop("sub", "")
+        if sub:
+            subscriptions.add(sub)
 
-                # remove unused key
-                p.pop("chatgpt", False)
-                sub = p.pop("sub", "")
-                if sub:
-                    subscriptions.add(sub)
+    data = {"proxies": nodes}
+    urls = list(subscriptions)
 
-                nodes.append(p)
+    os.makedirs(args.output, exist_ok=True)
+    proxies_file = os.path.join(args.output, args.filename)
+    with open(proxies_file, "w+", encoding="utf8") as f:
+        yaml.dump(data, f, allow_unicode=True)
+        logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
 
-            data = {"proxies": nodes}
-            urls = list(subscriptions)
-        else:
-            binpath = os.path.join(workspace, clash_bin)
-            filename = "config.yaml"
-            proxies = clash.generate_config(workspace, list(proxies), filename)
+    utils.write_file(filename=os.path.join(args.output, "subscribes.txt"), lines=urls)
+    domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
 
-            # 可执行权限
-            utils.chmod(binpath)
-
-            nodes, availables = manager.list(), manager.dict()
-            logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
-            process = subprocess.Popen(
-                [
-                    binpath,
-                    "-d",
-                    workspace,
-                    "-f",
-                    os.path.join(workspace, filename),
-                ]
-            )
-
-            logger.info(f"clash start success, begin check proxies, num: {len(proxies)}")
-
-            time.sleep(random.randint(3, 6))
-            for proxy in proxies:
-                semaphore.acquire()
-                p = multiprocessing.Process(
-                    target=clash.check,
-                    args=(
-                        nodes,
-                        proxy,
-                        clash.EXTERNAL_CONTROLLER,
-                        semaphore,
-                        args.timeout,
-                        args.url,
-                        args.delay,
-                        availables,
-                    ),
-                )
-                p.start()
-                processes.append(p)
-            for p in processes:
-                p.join()
-
-            time.sleep(random.randint(1, 3))
-
-            # 关闭clash
-            try:
-                process.terminate()
-            except:
-                logger.error(f"terminate clash process error")
-
-            if len(nodes) <= 0:
-                logger.error(f"cannot fetch any proxy")
-                sys.exit(0)
-
-            data = {"proxies": list(nodes)}
-            urls = availables.keys()
-
-        os.makedirs(args.output, exist_ok=True)
-        proxies_file = os.path.join(args.output, args.filename)
-        with open(proxies_file, "w+", encoding="utf8") as f:
-            yaml.dump(data, f, allow_unicode=True)
-            logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
-
-        utils.write_file(filename=os.path.join(args.output, "subscribes.txt"), lines=urls)
-        domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
-
-        # 更新 domains.txt 文件为实际可使用的网站列表
-        utils.write_file(filename=os.path.join(PATH, "valid-domains.txt"), lines=domains)
-        workflow.cleanup(workspace, [])
+    # 更新 domains.txt 文件为实际可使用的网站列表
+    utils.write_file(filename=os.path.join(PATH, "valid-domains.txt"), lines=domains)
+    workflow.cleanup(workspace, [])
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "-n",
-        "--num",
-        type=int,
-        required=False,
-        default=50,
-        help="threads num for check proxy",
-    )
-
-    parser.add_argument(
-        "-t",
-        "--timeout",
-        type=int,
-        required=False,
-        default=5000,
-        help="timeout",
-    )
-
     parser.add_argument(
         "-d",
         "--delay",
@@ -248,24 +188,6 @@ if __name__ == "__main__":
         required=False,
         default=5000,
         help="proxies max delay allowed",
-    )
-
-    parser.add_argument(
-        "-u",
-        "--url",
-        type=str,
-        required=False,
-        default="https://www.google.com/generate_204",
-        help="test url",
-    )
-
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        required=False,
-        default=PATH,
-        help="output directory",
     )
 
     parser.add_argument(
@@ -278,12 +200,30 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-w",
-        "--overwrite",
-        dest="overwrite",
+        "-i",
+        "--invisible",
+        dest="invisible",
         action="store_true",
         default=False,
-        help="overwrite domains",
+        help="don't show check progress bar",
+    )
+
+    parser.add_argument(
+        "-n",
+        "--num",
+        type=int,
+        required=False,
+        default=64,
+        help="threads num for check proxy",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        required=False,
+        default=PATH,
+        help="output directory",
     )
 
     parser.add_argument(
@@ -313,5 +253,31 @@ if __name__ == "__main__":
         help="skip usability checks",
     )
 
-    args = parser.parse_args()
-    aggregate(args=args)
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=int,
+        required=False,
+        default=5000,
+        help="timeout",
+    )
+
+    parser.add_argument(
+        "-u",
+        "--url",
+        type=str,
+        required=False,
+        default="https://www.google.com/generate_204",
+        help="test url",
+    )
+
+    parser.add_argument(
+        "-w",
+        "--overwrite",
+        dest="overwrite",
+        action="store_true",
+        default=False,
+        help="overwrite domains",
+    )
+
+    aggregate(args=parser.parse_args())
