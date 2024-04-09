@@ -5,7 +5,6 @@
 
 import base64
 import json
-import multiprocessing
 import os
 import re
 import sys
@@ -287,10 +286,7 @@ def fetch(params: dict) -> list:
 
         count = min(max(1, params.get("count", sys.maxsize)), len(files))
         files = files[:count]
-
-        cpu_count = multiprocessing.cpu_count()
-        pool = multiprocessing.Pool(min(count, cpu_count * 2))
-        results = pool.starmap(fetchone, files)
+        results = utils.multi_process_run(func=fetchone, tasks=files)
 
         nodes, subs, count = [], [], 0
         for result in results:

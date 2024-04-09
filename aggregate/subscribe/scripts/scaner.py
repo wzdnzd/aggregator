@@ -5,7 +5,6 @@
 
 import itertools
 import json
-import multiprocessing
 import random
 import re
 import urllib
@@ -347,11 +346,7 @@ def scan(params: dict) -> list:
         logger.error(f"[ScanerError] cannot scan proxies bcause missing some parameters")
         return []
 
-    cpu_count = multiprocessing.cpu_count()
-    num_thread = min(len(tasks), cpu_count * 5)
-    pool = multiprocessing.Pool(num_thread)
-
-    results = pool.starmap(scanone, tasks)
+    results = utils.multi_process_run(func=scanone, tasks=tasks)
     proxies = list(itertools.chain.from_iterable(results))
     if proxies:
         content = yaml.dump(data={"proxies": proxies}, allow_unicode=True)

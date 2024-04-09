@@ -6,7 +6,6 @@
 import base64
 import gzip
 import json
-import multiprocessing
 import random
 import re
 import time
@@ -87,11 +86,7 @@ def getrss(params: dict) -> list:
     exists = load(persist=persist)
     emails = [x for x in emails if x not in exists.keys()]
 
-    cpu_count = multiprocessing.cpu_count()
-    num_thread = min(len(emails), cpu_count * 5)
-    pool = multiprocessing.Pool(num_thread)
-
-    results, subscribes = pool.map(fetch, emails), []
+    results, subscribes = utils.multi_thread_run(func=fetch, tasks=emails), []
     exists.update(filter(data=dict(zip(emails, results))))
 
     # persist subscribes
@@ -140,10 +135,8 @@ def filter(data: dict) -> dict:
     if not data or type(data) != dict:
         return {}
 
-    num_thread = min(len(data), multiprocessing.cpu_count() * 5)
-    pool = multiprocessing.Pool(num_thread)
     emails, subscribes = list(data.keys()), list(data.values())
-    usables = pool.map(check, subscribes)
+    usables = utils.multi_thread_run(func=check, tasks=subscribes)
     for i in range(len(usables)):
         if not usables[i]:
             data.pop(emails[i], "")

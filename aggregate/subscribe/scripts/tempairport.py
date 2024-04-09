@@ -4,7 +4,6 @@
 # @Time    : 2022-11-12
 
 import json
-import multiprocessing
 from copy import deepcopy
 
 import push
@@ -59,11 +58,7 @@ def fetchsub(params: dict) -> list:
         return []
 
     if unregisters:
-        cpu_count = multiprocessing.cpu_count()
-        num_thread = min(len(unregisters), cpu_count * 5)
-        pool = multiprocessing.Pool(num_thread)
-
-        airports = pool.starmap(register, unregisters)
+        airports = utils.multi_thread_run(func=register, tasks=unregisters)
         for airport in airports:
             if not airport:
                 continue
@@ -166,10 +161,7 @@ def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
         if not domains:
             return exists, unregisters, unknowns, rawdata
 
-        num_thread = min(len(domains), multiprocessing.cpu_count() * 5)
-        pool = multiprocessing.Pool(num_thread)
-        results = pool.starmap(is_available, subscribes)
-
+        results = utils.multi_thread_run(func=is_available, tasks=subscribes)
         for i in range(len(results)):
             if not results[i]:
                 item = exists.pop(domains[i], {})
