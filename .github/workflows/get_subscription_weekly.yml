@@ -1,4 +1,4 @@
-name: Get Subscription Daily
+name: Get Subscription Weekly
 
 on:
   schedule:
@@ -25,29 +25,12 @@ jobs:
         pip3 install pyYAML requests
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Fetch previous subscribes.txt from Gist
-      env:
-        GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
-      run: |
-        cd aggregate
-        gh gist view ${{ secrets.GIST_ID }} --files subscribes.txt > old-subscribes.txt || true
-
     - name: Collect Subscribe
       id: collect
       run: |
         cd aggregate
         python -u subscribe/collect.py
-        if [ -s old-subscribes.txt ]; then
-          cat old-subscribes.txt subscribes.txt | sort | uniq > merged-subscribes.txt
-          mv merged-subscribes.txt subscribes.txt
-          sed 's/https:/\n&/2g' subscribes.txt  > temp.txt && mv temp.txt subscribes.txt
-        fi
-        
-    - name: Check and remove invalid links
-      run: |
-        cd aggregate
-        python -u subscribe/check_links.py
-
+      
     - name: Create/Update Gist
       env:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
