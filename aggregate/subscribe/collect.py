@@ -64,7 +64,7 @@ def assign(
 
     for domain in domains:
         name = crawl.naming_task(url=domain)
-        tasks.append(TaskConfig(name=name, domain=domain, bin_name=bin_name))
+        tasks.append(TaskConfig(name=name, domain=domain, bin_name=bin_name, rigid=rigid))
 
     return tasks
 
@@ -97,7 +97,7 @@ def aggregate(args: argparse.Namespace) -> None:
     if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
         os.remove(generate_conf)
 
-    results = utils.multi_process_run(func=workflow.execute, tasks=tasks)
+    results = utils.multi_thread_run(func=workflow.execute, tasks=tasks, num_threads=args.num)
     proxies = list(itertools.chain.from_iterable(results))
 
     if len(proxies) == 0:
@@ -148,11 +148,10 @@ def aggregate(args: argparse.Namespace) -> None:
         except:
             logger.error(f"terminate clash process error")
 
+        nodes = [proxies[i] for i in range(len(proxies)) if masks[i]]
         if len(nodes) <= 0:
             logger.error(f"cannot fetch any proxy")
             sys.exit(0)
-
-        nodes = [proxies[i] for i in range(len(proxies)) if masks[i]]
 
     subscriptions = set()
     for p in proxies:
