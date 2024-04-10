@@ -33,7 +33,7 @@ jobs:
       
     - name: Create/Update Gist
       env:
-        GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
+        GH_TOKEN: ${{ secrets.PAT }}
       run: |
         cd aggregate
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
