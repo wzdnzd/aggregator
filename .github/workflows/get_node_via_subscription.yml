@@ -1,8 +1,8 @@
-name: Get node via subscription
+name: Get Node Via Subscription
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 13 * * *'
   workflow_dispatch: # 允许手动触发
 
 permissions:
@@ -29,11 +29,11 @@ jobs:
       id: collect
       run: |
         cd aggregate
-        python -u subscribe/merge.py -u "${{ secrets.SUBS_LINK }}" -f "proxies_new.yaml"
+        python -u subscribe/merge.py -u "${{ secrets.SUBS_LINK }}" -f "proxies.yaml"
       
     - name: Create/Update Gist
       env:
         GH_TOKEN: ${{ secrets.PAT }}
       run: |
         cd aggregate
-        gh gist edit ${{ secrets.GIST_ID }} --add "proxies_new.yaml"
+        gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
