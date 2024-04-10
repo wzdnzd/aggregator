@@ -1,0 +1,39 @@
+name: Get node via subscription
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 允许手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  execute-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies
+      run: |
+        pip3 install pyYAML requests
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Collect Subscribe
+      id: collect
+      run: |
+        cd aggregate
+        python -u subscribe/merge.py -u "${{ secrets.SUBS_LINK }}" -f "proxies_new.yaml"
+      
+    - name: Create/Update Gist
+      env:
+        GH_TOKEN: ${{ secrets.PAT }}
+      run: |
+        cd aggregate/subscribe/
+        gh gist edit ${{ secrets.GIST_ID }} --add "proxies_new.yaml"
