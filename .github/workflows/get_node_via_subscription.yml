@@ -35,5 +35,5 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.PAT }}
       run: |
-        cd aggregate/subscribe/
+        cd aggregate
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies_new.yaml"
