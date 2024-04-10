@@ -97,8 +97,8 @@ def aggregate(args: argparse.Namespace) -> None:
     if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
         os.remove(generate_conf)
 
-    results = utils.multi_thread_run(func=workflow.execute, tasks=tasks, num_threads=args.num)
-    proxies = list(itertools.chain.from_iterable(results))
+    results = utils.multi_thread_run(func=workflow.executewrapper, tasks=tasks, num_threads=args.num)
+    proxies = list(itertools.chain.from_iterable([x[1] for x in results if x]))
 
     if len(proxies) == 0:
         logger.error("exit because cannot fetch any proxy node")
@@ -157,6 +157,8 @@ def aggregate(args: argparse.Namespace) -> None:
     for p in proxies:
         # remove unused key
         p.pop("chatgpt", False)
+        p.pop("liveness", True)
+        
         sub = p.pop("sub", "")
         if sub:
             subscriptions.add(sub)
