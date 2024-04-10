@@ -9,6 +9,7 @@ import utils
 import workflow
 import yaml
 from logger import logger
+import concurrent.futures
 from workflow import TaskConfig
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -42,7 +43,15 @@ def main(args: argparse.Namespace) -> None:
     if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
         os.remove(generate_conf)
 
-    results = utils.multi_thread_run(func=workflow.execute, tasks=tasks, num_threads=args.num)
+    #results = utils.multi_thread_run(func=workflow.execute, tasks=tasks, num_threads=args.num)
+    # 创建一个线程池
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        # 提交任务到线程池，并获取返回的 Future 对象列表
+        futures = [executor.submit(workflow.execute, task) for task in tasks]
+
+        # 等待所有任务完成，并获取结果
+        results = [future.result() for future in concurrent.futures.as_completed(futures)]
+
     proxies = list(itertools.chain.from_iterable(results))
 
     if len(proxies) == 0:
