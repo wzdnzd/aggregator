@@ -29,7 +29,7 @@ jobs:
       id: collect
       run: |
         cd aggregate
-        python -u subscribe/collect.py
+        python -u subscribe/collect.py -s
       
     - name: Create/Update Gist
       env:
