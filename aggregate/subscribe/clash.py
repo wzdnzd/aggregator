@@ -5,8 +5,6 @@
 
 import itertools
 import json
-
-# import multiprocessing
 import os
 import random
 import re
@@ -16,8 +14,6 @@ import urllib
 import urllib.parse
 import urllib.request
 from collections import defaultdict
-from multiprocessing.managers import DictProxy, ListProxy
-from multiprocessing.synchronize import Semaphore
 
 import executable
 import utils
@@ -555,17 +551,7 @@ def verify(item: dict, meta: bool = True) -> bool:
         return False
 
 
-def check(
-    availables: ListProxy,
-    proxy: dict,
-    api_url: str,
-    semaphore: Semaphore,
-    timeout: int,
-    test_url: str,
-    delay: int,
-    validates: DictProxy,
-    strict: bool = False,
-) -> None:
+def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, strict: bool = False) -> bool:
     proxy_name = urllib.parse.quote(proxy.get("name", ""))
     base_url = f"http://{api_url}/proxies/{proxy_name}/delay?timeout={str(timeout)}&url="
 
@@ -620,15 +606,9 @@ def check(
                 except Exception:
                     pass
 
-            sub = proxy.pop("sub", "")
-            availables.append(proxy)
-            if validates != None and sub:
-                validates[sub] = True
+        return alive
     except:
-        pass
-    finally:
-        if semaphore is not None and isinstance(semaphore, Semaphore):
-            semaphore.release()
+        return False
 
 
 def is_meta() -> bool:

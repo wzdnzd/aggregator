@@ -8,7 +8,6 @@ import base64
 import copy
 import itertools
 import json
-import multiprocessing
 import os
 import random
 import re
@@ -17,25 +16,28 @@ import sys
 import time
 from copy import deepcopy
 
+import clash
 import crawl
 import executable
 import push
+import subconverter
 import utils
 import workflow
 import yaml
 from airport import AirPort
 from logger import logger
 from origin import Origin
-from tqdm import tqdm
 from workflow import TaskConfig
-
-import clash
-import subconverter
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
-def load_configs(url: str, only_check: bool = False) -> tuple[list, dict, dict, dict, int]:
+def load_configs(
+    url: str,
+    only_check: bool = False,
+    num_threads: int = 0,
+    display: bool = True,
+) -> tuple[list, dict, dict, dict, int]:
     def parse_config(config: dict) -> None:
         sites.extend(config.get("domains", []))
         push_conf.update(config.get("push", {}))
@@ -207,7 +209,7 @@ def load_configs(url: str, only_check: bool = False) -> tuple[list, dict, dict, 
 
         # execute crawl tasks
         if params:
-            result = crawl.batch_crawl(conf=params)
+            result = crawl.batch_crawl(conf=params, num_threads=num_threads, display=display)
             sites.extend(result)
     except SystemExit as e:
         if e.code != 0:
@@ -229,6 +231,7 @@ def assign(
     pushtool: push.PushTo,
     push_conf: dict = {},
     only_check=False,
+    rigid: bool = True,
 ) -> tuple[list[TaskConfig], dict, list]:
     tasks, groups, arrays = [], {}, []
     retry, globalid = max(1, retry), 0
@@ -320,6 +323,7 @@ def assign(
                 coupon=coupon,
                 allow_insecure=allow_insecure,
                 ignorede=ignoreder,
+                rigid=rigid,
                 special_protocols=special_protocols,
                 emoji_patterns=emoji_patterns if emoji else None,
             )
@@ -367,16 +371,27 @@ def assign(
     return tasks, groups, arrays
 
 
-def aggregate(args: argparse.Namespace):
+def aggregate(args: argparse.Namespace) -> None:
     if not args:
         return
 
     pushtool = push.get_instance()
     clash_bin, subconverter_bin = executable.which_bin()
 
-    sites, push_configs, crawl_conf, update_conf, delay = load_configs(url=args.server, only_check=args.check)
+    display = not args.invisible
+
+    # parse config
+    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
+        url=args.server,
+        only_check=args.check,
+        num_threads=args.num,
+        display=display,
+    )
+
     push_configs = pushtool.filter_push(push_configs)
     retry = min(max(1, args.retry), 10)
+
+    # generate tasks
     tasks, groups, sites = assign(
         sites=sites,
         retry=retry,
@@ -385,180 +400,163 @@ def aggregate(args: argparse.Namespace):
         pushtool=pushtool,
         push_conf=push_configs,
         only_check=args.check,
+        rigid=not args.flexible,
     )
     if not tasks:
         logger.error("cannot found any valid config, exit")
         sys.exit(0)
 
-    with multiprocessing.Manager() as manager:
-        subscribes = manager.dict()
+    # fetch all subscriptions
+    generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
+    if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+        os.remove(generate_conf)
 
-        # fetch all subscriptions
-        generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
-        if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-            os.remove(generate_conf)
+    logger.info(f"start fetch all subscriptions, count: [{len(tasks)}]")
+    results = utils.multi_process_run(func=workflow.executewrapper, tasks=tasks)
 
-        cpu_count = multiprocessing.cpu_count()
-        num = len(tasks) if len(tasks) <= cpu_count else cpu_count
-        pool = multiprocessing.Pool(num)
+    subscribes, datasets = {}, {}
+    for i in range(len(results)):
+        data = results[i]
+        if not data or data[0] < 0 or not data[1]:
+            # not contain any proxy
+            if tasks[i] and tasks[i].sub:
+                subscribes[tasks[i].sub] = False
+            continue
 
-        logger.info(f"start fetch all subscriptions, count: [{len(tasks)}]")
-        results = pool.map(workflow.executewrapper, tasks)
-        pool.close()
+        datasets[data[0]] = data[1]
 
-        datasets = {}
-        for i in range(len(results)):
-            data = results[i]
-            if not data or data[0] < 0 or not data[1]:
-                # not contain any proxy
-                if tasks[i] and tasks[i].sub:
-                    subscribes[tasks[i].sub] = False
+    for k, v in groups.items():
+        if not v:
+            logger.error(f"task is empty, group=[{k}]")
+            continue
+
+        arrays = [datasets.get(x, []) for x in v]
+        proxies = list(itertools.chain.from_iterable(arrays))
+        if len(proxies) == 0:
+            logger.error(f"exit because cannot fetch any proxy node, group=[{k}]")
+            continue
+
+        workspace = os.path.join(PATH, "clash")
+        binpath = os.path.join(workspace, clash_bin)
+        filename = "config.yaml"
+        proxies = clash.generate_config(workspace, proxies, filename)
+
+        # filer
+        skip = utils.trim(os.environ.get("SKIP_ALIVE_CHECK", "false")).lower() in ["true", "1"]
+        nochecks, starttime = proxies, time.time()
+
+        if not skip:
+            checks, nochecks = workflow.liveness_fillter(proxies=proxies)
+            if checks:
+                # executable
+                utils.chmod(binpath)
+
+                logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
+                process = subprocess.Popen(
+                    [
+                        binpath,
+                        "-d",
+                        workspace,
+                        "-f",
+                        os.path.join(workspace, filename),
+                    ]
+                )
+
+                logger.info(f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}")
+                time.sleep(random.randint(5, 8))
+
+                params = [
+                    [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, delay, False]
+                    for p in proxies
+                    if isinstance(p, dict)
+                ]
+
+                # check
+                masks = utils.multi_thread_run(
+                    func=clash.check,
+                    tasks=params,
+                    num_threads=args.num,
+                    show_progress=display,
+                )
+
+                # close clash client
+                try:
+                    process.terminate()
+                except:
+                    logger.error(f"terminate clash process error, group: {k}")
+
+                availables = [proxies[i] for i in range(len(proxies)) if masks[i]]
+                nochecks.extend(availables)
+
+        for item in nochecks:
+            item.pop("sub", "")
+
+        cost = "{:.2f}s".format(time.time() - starttime)
+        if len(nochecks) <= 0:
+            logger.error(f"cannot fetch any proxy, group=[{k}], cost: {cost}")
+            continue
+
+        logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
+
+        data = {"proxies": nochecks}
+        push_conf = push_configs.get(k, {})
+        if push_conf.get("target") in ["v2ray", "mixed"]:
+            source_file = "config.yaml"
+            filepath = os.path.join(PATH, "subconverter", source_file)
+            with open(filepath, "w+", encoding="utf8") as f:
+                yaml.dump(data, f, allow_unicode=True)
+
+            # convert
+            dest_file = "subscribe.txt"
+            artifact = "convert"
+
+            if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+                os.remove(generate_conf)
+
+            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, "mixed")
+            if not success:
+                logger.error(f"cannot generate subconverter config file, group=[{k}]")
                 continue
 
-            datasets[data[0]] = data[1]
+            if subconverter.convert(binname=subconverter_bin, artifact=artifact):
+                # save to remote server
+                filepath = os.path.join(PATH, "subconverter", dest_file)
 
-        for k, v in groups.items():
-            if not v:
-                logger.error(f"task is empty, group=[{k}]")
-                continue
-
-            arrays = [datasets.get(x, []) for x in v]
-            proxies = list(itertools.chain.from_iterable(arrays))
-            if len(proxies) == 0:
-                logger.error(f"exit because cannot fetch any proxy node, group=[{k}]")
-                continue
-
-            workspace = os.path.join(PATH, "clash")
-            binpath = os.path.join(workspace, clash_bin)
-            filename = "config.yaml"
-            proxies = clash.generate_config(workspace, proxies, filename)
-
-            # 过滤出需要检查可用性的节点
-            skip = utils.trim(os.environ.get("SKIP_ALIVE_CHECK", "false")).lower() in ["true", "1"]
-            nochecks, starttime = proxies, time.time()
-            if not skip:
-                checks, nochecks = workflow.liveness_fillter(proxies=proxies)
-                if checks:
-                    utils.chmod(binpath)
-                    availables = manager.list()
-                    logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
-                    process = subprocess.Popen(
-                        [
-                            binpath,
-                            "-d",
-                            workspace,
-                            "-f",
-                            os.path.join(workspace, filename),
-                        ]
-                    )
-
-                    logger.info(f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}")
-
-                    processes = []
-                    semaphore = multiprocessing.Semaphore(args.num)
-                    time.sleep(random.randint(5, 8))
-
-                    progressbar = utils.trim(os.environ.get("SHOW_PROGRESS", "false")).lower() in ["true", "1"]
-                    if progressbar:
-                        checks = tqdm(checks, desc="Progress", leave=True)
-
-                    for proxy in checks:
-                        semaphore.acquire()
-                        p = multiprocessing.Process(
-                            target=clash.check,
-                            args=(
-                                availables,
-                                proxy,
-                                clash.EXTERNAL_CONTROLLER,
-                                semaphore,
-                                args.timeout,
-                                args.url,
-                                delay,
-                                subscribes,
-                            ),
-                        )
-                        p.start()
-                        processes.append(p)
-                    for p in processes:
-                        p.join()
-
-                    nochecks.extend(list(availables))
-
-                    # 关闭clash
-                    try:
-                        process.terminate()
-                    except:
-                        logger.error(f"terminate clash process error, group: {k}")
-            else:
-                for item in nochecks:
-                    item.pop("sub", "")
-
-            cost = "{:.2f}s".format(time.time() - starttime)
-            if len(nochecks) <= 0:
-                logger.error(f"cannot fetch any proxy, group=[{k}], cost: {cost}")
-                continue
-
-            logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
-
-            data = {"proxies": nochecks}
-            push_conf = push_configs.get(k, {})
-            if push_conf.get("target") in ["v2ray", "mixed"]:
-                source_file = "config.yaml"
-                filepath = os.path.join(PATH, "subconverter", source_file)
-                with open(filepath, "w+", encoding="utf8") as f:
-                    yaml.dump(data, f, allow_unicode=True)
-
-                # 转换成通用订阅模式
-                dest_file = "subscribe.txt"
-                artifact = "convert"
-
-                if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-                    os.remove(generate_conf)
-
-                success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, "mixed")
-                if not success:
-                    logger.error(f"cannot generate subconverter config file, group=[{k}]")
+                # base64 encode
+                if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                    logger.error(f"converted file {filepath} not found, group: {k}")
                     continue
 
-                if subconverter.convert(binname=subconverter_bin, artifact=artifact):
-                    # 推送到远端
-                    filepath = os.path.join(PATH, "subconverter", dest_file)
-                    # pushtool.push_file(filepath=filepath, push_conf=push_conf, group=k)
-
-                    # base64 encode
-                    if not os.path.exists(filepath) or not os.path.isfile(filepath):
-                        logger.error(f"converted file {filepath} not found, group: {k}")
+                content = " "
+                with open(filepath, "r", encoding="utf8") as f:
+                    content = f.read()
+                if not utils.isb64encode(content=content):
+                    try:
+                        content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
+                    except Exception as e:
+                        logger.error(f"base64 encode error, message: {str(e)}")
                         continue
-                    content = " "
-                    with open(filepath, "r", encoding="utf8") as f:
-                        content = f.read()
-                    if not utils.isb64encode(content=content):
-                        try:
-                            content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
-                        except Exception as e:
-                            logger.error(f"base64 encode error, message: {str(e)}")
-                            continue
 
-                    pushtool.push_to(content=content, push_conf=push_conf, group=k)
-
-                # 删除订阅转换文件及配置
-                workflow.cleanup(
-                    os.path.join(PATH, "subconverter"),
-                    [source_file, dest_file, "generate.ini"],
-                )
-            else:
-                content = yaml.dump(data=data, allow_unicode=True)
                 pushtool.push_to(content=content, push_conf=push_conf, group=k)
 
-        config = {
-            "domains": sites,
-            "crawl": crawl_conf,
-            "push": push_configs,
-            "update": update_conf,
-        }
+            # clean workspace
+            workflow.cleanup(
+                os.path.join(PATH, "subconverter"),
+                [source_file, dest_file, "generate.ini"],
+            )
+        else:
+            content = yaml.dump(data=data, allow_unicode=True)
+            pushtool.push_to(content=content, push_conf=push_conf, group=k)
 
-        skip_remark = utils.trim(os.environ.get("SKIP_REMARK", "false")).lower() in ["true", "1"]
-        workflow.refresh(config=config, push=pushtool, alives=dict(subscribes), skip_remark=skip_remark)
+    config = {
+        "domains": sites,
+        "crawl": crawl_conf,
+        "push": push_configs,
+        "update": update_conf,
+    }
+
+    skip_remark = utils.trim(os.environ.get("SKIP_REMARK", "false")).lower() in ["true", "1"]
+    workflow.refresh(config=config, push=pushtool, alives=dict(subscribes), skip_remark=skip_remark)
 
 
 if __name__ == "__main__":
@@ -567,12 +565,48 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
+        "-c",
+        "--check",
+        dest="check",
+        action="store_true",
+        default=False,
+        help="only check proxies are alive",
+    )
+
+    parser.add_argument(
+        "-f",
+        "--flexible",
+        dest="flexible",
+        action="store_true",
+        default=False,
+        help="try registering with a gmail alias when you encounter a whitelisted mailbox",
+    )
+
+    parser.add_argument(
+        "-i",
+        "--invisible",
+        dest="invisible",
+        action="store_true",
+        default=False,
+        help="don't show check progress bar",
+    )
+
+    parser.add_argument(
         "-n",
         "--num",
         type=int,
         required=False,
-        default=50,
+        default=64,
         help="threads num for check proxy",
+    )
+
+    parser.add_argument(
+        "-o",
+        "--overwrite",
+        dest="overwrite",
+        action="store_true",
+        default=False,
+        help="exclude remains proxies",
     )
 
     parser.add_argument(
@@ -582,6 +616,15 @@ if __name__ == "__main__":
         required=False,
         default=3,
         help="retry times when http request failed",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--server",
+        type=str,
+        required=False,
+        default=os.environ.get("SUBSCRIBE_CONF", "").strip(),
+        help="remote config file",
     )
 
     parser.add_argument(
@@ -600,33 +643,6 @@ if __name__ == "__main__":
         required=False,
         default="https://www.google.com/generate_204",
         help="test url",
-    )
-
-    parser.add_argument(
-        "-s",
-        "--server",
-        type=str,
-        required=False,
-        default=os.environ.get("SUBSCRIBE_CONF", "").strip(),
-        help="remote config file",
-    )
-
-    parser.add_argument(
-        "-o",
-        "--overwrite",
-        dest="overwrite",
-        action="store_true",
-        default=False,
-        help="exclude remains proxies",
-    )
-
-    parser.add_argument(
-        "-c",
-        "--check",
-        dest="check",
-        action="store_true",
-        default=False,
-        help="only check proxies are alive",
     )
 
     args = parser.parse_args()

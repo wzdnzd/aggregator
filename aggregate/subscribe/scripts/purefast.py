@@ -6,7 +6,6 @@
 import concurrent.futures
 import gzip
 import json
-import multiprocessing
 import os
 import random
 import re
@@ -428,9 +427,4 @@ def main(filepath: str) -> None:
         sys.exit(1)
 
     params = [[domain, x, 300] for x in accounts if x]
-    cpu_count = multiprocessing.cpu_count()
-    num = len(params) if len(params) <= cpu_count else cpu_count
-
-    pool = multiprocessing.Pool(num)
-    pool.starmap(aboartable_run, params)
-    pool.close()
+    utils.multi_thread_run(func=aboartable_run, tasks=params, show_progress=True)
