@@ -10,6 +10,6 @@ jobs:
       - name: Delete
         uses: GitRML/delete-workflow-runs@main
         with:
-          token: ${{ github.token }}
+          token: ${{ GH_TOKEN }}
           repository: ${{ github.repository }}
           retain_days: 30
