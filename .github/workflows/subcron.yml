@@ -1,4 +1,4 @@
-name: Generate and Commit File
+name: AUTO VPN CRON
 
 on:
   schedule:
