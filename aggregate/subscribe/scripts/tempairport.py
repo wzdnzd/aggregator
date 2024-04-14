@@ -4,14 +4,11 @@
 # @Time    : 2022-11-12
 
 import json
-import multiprocessing
-import urllib
-import urllib.request
 from copy import deepcopy
 
 import push
 import utils
-from airport import AirPort
+from airport import AirPort, issspanel
 from crawl import is_available
 from logger import logger
 from urlvalidator import isurl
@@ -61,11 +58,7 @@ def fetchsub(params: dict) -> list:
         return []
 
     if unregisters:
-        cpu_count = multiprocessing.cpu_count()
-        thread_num = min(len(unregisters), cpu_count * 5)
-        pool = multiprocessing.Pool(thread_num)
-
-        airports = pool.starmap(register, unregisters)
+        airports = utils.multi_thread_run(func=register, tasks=unregisters)
         for airport in airports:
             if not airport:
                 continue
@@ -168,10 +161,7 @@ def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
         if not domains:
             return exists, unregisters, unknowns, rawdata
 
-        thread_num = min(len(domains), multiprocessing.cpu_count() * 5)
-        pool = multiprocessing.Pool(thread_num)
-        results = pool.starmap(is_available, subscribes)
-
+        results = utils.multi_thread_run(func=is_available, tasks=subscribes)
         for i in range(len(results)):
             if not results[i]:
                 item = exists.pop(domains[i], {})
@@ -185,28 +175,3 @@ def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
         return exists, unregisters, unknowns, rawdata
     except:
         return {}, [], {}, {}
-
-
-class NoRedirHandler(urllib.request.HTTPRedirectHandler):
-    def http_error_302(self, req, fp, code, msg, headers):
-        return fp
-
-    http_error_301 = http_error_302
-
-
-def sniff(url: str) -> int:
-    if utils.isblank(url):
-        return -1
-
-    try:
-        opener = urllib.request.build_opener(NoRedirHandler)
-        opener.addheaders = [("User-Agent", utils.USER_AGENT)]
-        response = opener.open(fullurl=url, timeout=10)
-        return response.getcode()
-    except Exception:
-        return -2
-
-
-def issspanel(domain: str) -> bool:
-    url = f"{domain}/api/v1/passport/auth/login"
-    return False if sniff(url=url) == 200 else sniff(url=f"{domain}/auth/login") == 200
