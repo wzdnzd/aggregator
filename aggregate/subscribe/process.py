@@ -507,6 +507,8 @@ def aggregate(args: argparse.Namespace) -> None:
         # compress if data is too large
         compress = False if mixed else len(nochecks) >= 300
 
+        persisted, content = False, ""
+
         if mixed or compress:
             source_file = "config.yaml"
             filepath = os.path.join(PATH, "subconverter", source_file)
@@ -545,7 +547,7 @@ def aggregate(args: argparse.Namespace) -> None:
                         continue
 
                 # save to remote server
-                pushtool.push_to(content=content, push_conf=push_conf, group=k)
+                persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
 
             # clean workspace
             workflow.cleanup(
@@ -554,7 +556,13 @@ def aggregate(args: argparse.Namespace) -> None:
             )
         else:
             content = yaml.dump(data=data, allow_unicode=True)
-            pushtool.push_to(content=content, push_conf=push_conf, group=k)
+            persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
+
+        if content and not persisted:
+            filename = os.path.join(PATH, "data", f"{k}.txt")
+
+            logger.error(f"failed to push config to remote server, group: {k}, save it to {filename}")
+            utils.write_file(filename=filename, content=content)
 
     config = {
         "domains": sites,
