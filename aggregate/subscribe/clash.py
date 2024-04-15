@@ -194,7 +194,8 @@ VMESS_SUPPORTED_CIPHERS = ["auto", "aes-128-gcm", "chacha20-poly1305", "none"]
 
 SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2"])
 
-XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
+# xtls-rprx-direct and xtls-rprx-origin are deprecated and no longer supported
+# XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
 
 
 def is_hex(word: str) -> bool:
@@ -306,6 +307,8 @@ def verify(item: dict, meta: bool = True) -> bool:
                 return False
             if item["cipher"] not in VMESS_SUPPORTED_CIPHERS:
                 return False
+            if "alterId" not in item or not utils.is_number(item["alterId"]):
+                return False
 
             # https://dreamacro.github.io/clash/zh_CN/configuration/configuration-reference.html
             if "h2-opts" in item:
@@ -326,8 +329,16 @@ def verify(item: dict, meta: bool = True) -> bool:
                     return False
                 if "path" in http_opts and type(http_opts["path"]) != list:
                     return False
-                if "headers" in http_opts and type(http_opts["headers"]) != dict:
-                    return False
+                if "headers" in http_opts:
+                    headers = http_opts.get("headers", {})
+                    if not isinstance(headers, dict):
+                        return False
+
+                    for key, value in headers.items():
+                        if not isinstance(key, str):
+                            return False
+                        if key.lower() == "host" and not isinstance(value, list):
+                            return False
             elif "ws-opts" in item:
                 if network != "ws" and network != "httpupgrade":
                     return False
@@ -399,7 +410,9 @@ def verify(item: dict, meta: bool = True) -> bool:
                     return False
                 if "flow" in item:
                     flow = utils.trim(item.get("flow", ""))
-                    if flow and flow not in XTLS_FLOWS:
+
+                    # if flow and flow not in XTLS_FLOWS:
+                    if flow and flow != "xtls-rprx-vision":
                         return False
                 if "ws-opts" in item:
                     if network != "ws":
