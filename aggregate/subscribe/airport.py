@@ -63,6 +63,14 @@ class Category(Enum):
     LINK = 3
 
 
+# deal with !<str>
+def str_constructor(loader, node):
+    return str(loader.construct_scalar(node))
+
+yaml.SafeLoader.add_constructor(u'str', str_constructor)
+yaml.FullLoader.add_constructor(u'str', str_constructor)
+
+
 def lookup(name: str) -> Category:
     name = utils.trim(name)
     for item in Category:
@@ -580,7 +588,7 @@ class AirPort:
                 ).strip()
 
                 name = (
-                    re.sub(r"\s+|\r", " ", name)
+                    re.sub(r"\s+|\r|\n|\\r|\\n", " ", name, flags=re.I)
                     .replace("_", "-")
                     .replace("+", "-")
                     .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
