@@ -1,175 +1,118 @@
 proxies:
-- cipher: chacha20-ietf-poly1305
-  name: 香港1
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 17969
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 香港2 ×3X
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 56327
-  server: zjcm.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 新加坡1
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 27078
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 新加坡2
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 36713
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 美国1
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 43937
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 美国2
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 27251
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 日本1
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 22493
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 日本2 ×3X
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 30702
-  server: zjcm.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 香港3
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 10624
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 香港4
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 18825
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 香港5
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 18825
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 香港6
-  password: b5f91a59-1774-4567-bd1e-16ba3983063e
-  port: 18825
-  server: pgzz.dyqufx.com
-  type: ss
-  udp: true
 - alterId: 0
   cipher: auto
-  name: 澳大利亚 01
+  name: SD-UNQ
   network: ws
-  port: 2086
-  server: au01.appleid.bf
+  port: 1548
+  server: opiyxu1hd2pu09xuev99jx6bm1vtxn.fly64jfgwhale.xyz
+  servername: opiyxu1hd2pu09xuev99jx6bm1vtxn.fly64jfgwhale.xyz
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 6bff1f53-6def-49de-a566-199836ceb6d5
+  ws-opts:
+    headers:
+      Host: azure.com
+    path: /WER3R21T
+- alterId: 0
+  cipher: auto
+  name: 香港 1 LV0-HK
+  port: 22300
+  server: 223.113.130.62
   skip-cert-verify: true
   tls: false
   type: vmess
   udp: true
-  uuid: 0f55a7fd-7c2d-44a2-8b29-f6c659c6b0c7
-  ws-opts:
-    headers:
-      Host: au01.appleid.bf
-    path: /ws?ed=2048
-- alterId: 0
-  cipher: auto
-  name: 澳大利亚 02
-  network: ws
-  port: 2086
-  server: au01.appleid.bf
-  skip-cert-verify: true
-  tls: false
-  type: vmess
+  uuid: 2695263d-aec9-476c-8398-69b22b5f6c5a
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡03
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15627
+  server: sz.zj.my.1.76po.com
+  type: ss
   udp: true
-  uuid: 0f55a7fd-7c2d-44a2-8b29-f6c659c6b0c7
-  ws-opts:
-    headers:
-      Host: au01.appleid.bf
-    path: /ws?ed=2048
-- alterId: 0
-  cipher: auto
-  name: 德国 01
-  network: ws
-  port: 2086
-  server: de01.appleid.bf
-  skip-cert-verify: true
-  tls: false
-  type: vmess
+- cipher: chacha20-ietf-poly1305
+  name: 美国02
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15628
+  server: sz.zj.my.1.76po.com
+  type: ss
   udp: true
-  uuid: 0f55a7fd-7c2d-44a2-8b29-f6c659c6b0c7
-  ws-opts:
-    headers:
-      Host: de01.appleid.bf
-    path: /ws?ed=2048
-- alterId: 0
-  cipher: auto
-  name: 德国 02
-  network: ws
-  port: 2086
-  server: de01.appleid.bf
-  skip-cert-verify: true
-  tls: false
-  type: vmess
+- cipher: chacha20-ietf-poly1305
+  name: 英国02
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15629
+  server: sz.zj.my.1.76po.com
+  type: ss
   udp: true
-  uuid: 0f55a7fd-7c2d-44a2-8b29-f6c659c6b0c7
-  ws-opts:
-    headers:
-      Host: de01.appleid.bf
-    path: /ws?ed=2048
-- alterId: 0
-  cipher: auto
-  name: 韩国 01
-  network: ws
-  port: 2086
-  server: kr01.appleid.bf
-  skip-cert-verify: true
-  tls: false
-  type: vmess
+- cipher: chacha20-ietf-poly1305
+  name: 香港01
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15630
+  server: sz.zj.my.1.76po.com
+  type: ss
   udp: true
-  uuid: 0f55a7fd-7c2d-44a2-8b29-f6c659c6b0c7
-  ws-opts:
-    headers:
-      Host: kr01.appleid.bf
-    path: /ws?ed=2048
-- alterId: 0
-  cipher: auto
-  name: 韩国 02
-  network: ws
-  port: 2086
-  server: kr01.appleid.bf
-  skip-cert-verify: true
-  tls: false
-  type: vmess
+- cipher: chacha20-ietf-poly1305
+  name: 香港02
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15631
+  server: sz.zj.my.1.76po.com
+  type: ss
   udp: true
-  uuid: 0f55a7fd-7c2d-44a2-8b29-f6c659c6b0c7
-  ws-opts:
-    headers:
-      Host: kr01.appleid.bf
-    path: /ws?ed=2048
+- cipher: chacha20-ietf-poly1305
+  name: 美国01
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15532
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 台湾01
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15632
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 英国01
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15634
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港03
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15635
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡01
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15636
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡02
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15637
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港04
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15638
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港05
+  password: 4c61e5ff-2b6a-4518-83d3-1378c9f53905
+  port: 15639
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
