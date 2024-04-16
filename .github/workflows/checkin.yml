@@ -9,17 +9,18 @@ jobs:
     name: auto checkin for traffic
 
     steps:
-      - name: checkout
+      - name: Checkout code
         uses: actions/checkout@v3
         with:
           ref: master
 
-      - name: checkin
-        uses: actions/setup-python@v2
+      - name: Set up Python
+        uses: actions/setup-python@v3
         with:
-          python-version: "3.x"
-          architecture: "x64"
-      - run: python ./.github/actions/checkin/universal.py
+          python-version: '3.10'
+      - run: |
+          cd .github
+          python actions/checkin/universal.py
 
       - name: timestamp
         run: date
