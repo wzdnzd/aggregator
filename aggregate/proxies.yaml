@@ -1,162 +1,423 @@
 proxies:
 - alterId: 0
   cipher: auto
-  name: S0-ESD
+  name: 澳大利亚 01
   network: ws
-  port: 1548
-  server: opiyxu1hd2pu09xuev99jx6bm1vtxn.fly64jfgwhale.xyz
-  servername: opiyxu1hd2pu09xuev99jx6bm1vtxn.fly64jfgwhale.xyz
+  port: 2086
+  server: au01.appleid.bf
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: a850b511-4d9f-486d-ab97-40ada42fbfc4
+  ws-opts:
+    headers:
+      Host: au01.appleid.bf
+    path: /ws?ed=2048
+- alterId: 0
+  cipher: auto
+  name: 澳大利亚 02
+  network: ws
+  port: 2086
+  server: au01.appleid.bf
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: a850b511-4d9f-486d-ab97-40ada42fbfc4
+  ws-opts:
+    headers:
+      Host: au01.appleid.bf
+    path: /ws?ed=2048
+- alterId: 0
+  cipher: auto
+  name: 德国 01
+  network: ws
+  port: 2086
+  server: de01.appleid.bf
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: a850b511-4d9f-486d-ab97-40ada42fbfc4
+  ws-opts:
+    headers:
+      Host: de01.appleid.bf
+    path: /ws?ed=2048
+- alterId: 0
+  cipher: auto
+  name: 德国 02
+  network: ws
+  port: 2086
+  server: de01.appleid.bf
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: a850b511-4d9f-486d-ab97-40ada42fbfc4
+  ws-opts:
+    headers:
+      Host: de01.appleid.bf
+    path: /ws?ed=2048
+- alterId: 0
+  cipher: auto
+  name: 韩国 01
+  network: ws
+  port: 2086
+  server: kr01.appleid.bf
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: a850b511-4d9f-486d-ab97-40ada42fbfc4
+  ws-opts:
+    headers:
+      Host: kr01.appleid.bf
+    path: /ws?ed=2048
+- alterId: 0
+  cipher: auto
+  name: 韩国 02
+  network: ws
+  port: 2086
+  server: kr01.appleid.bf
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: a850b511-4d9f-486d-ab97-40ada42fbfc4
+  ws-opts:
+    headers:
+      Host: kr01.appleid.bf
+    path: /ws?ed=2048
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡03
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15627
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 美国02
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15628
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 英国02
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15629
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港01
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15630
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港02
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15631
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 美国01
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15532
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 台湾01
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15632
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 英国01
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15634
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港03
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15635
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡01
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15636
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡02
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15637
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港04
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15638
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港05
+  password: 6cd483d3-934e-4e4a-b34f-71ad780e608c
+  port: 15639
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- alterId: 0
+  cipher: auto
+  name: 您的ISP 美国南卡罗来纳
+  network: ws
+  port: 2086
+  server: cf-test.q5wrff7jtkdg23.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: cf-test.q5wrff7jtkdg23.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 卡密 9647
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: cf-test.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 洛杉矶-直连A
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: us-ca.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 洛杉矶-直连B
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: la-b.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 纽约-直连A
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: nyc1.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 纽约-直连B
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: nyc2.gas51qwrhmzz8.top
+    path: /
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡高速×5
+  password: d51d3f78-bd62-43b6-875c-db16d166cc35
+  port: 39822
+  server: dxshmwy.domiw.com
+  type: ss
+  udp: true
+- alterId: 0
+  cipher: auto
+  name: 新加坡-直连A
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: sg1.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 新加坡-直连B
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: sgv7.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 新加坡-直连C
+  network: ws
+  port: 2082
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: sgv8.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 香港-直连
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: hkv16.gas51qwrhmzz8.top
+    path: /
+- cipher: chacha20-ietf-poly1305
+  name: 东京高速×5
+  password: d51d3f78-bd62-43b6-875c-db16d166cc35
+  port: 52020
+  server: dxshmwy.domiw.com
+  type: ss
+  udp: true
+- alterId: 0
+  cipher: auto
+  name: 东京-直连A
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: jpv12.gas51qwrhmzz8.top
+    path: /
+- alterId: 0
+  cipher: auto
+  name: 东京-直连B
+  network: ws
+  port: 2086
+  server: cf-test.gas51qwrhmzz8.top
+  skip-cert-verify: true
+  tls: false
+  type: vmess
+  udp: true
+  uuid: d51d3f78-bd62-43b6-875c-db16d166cc35
+  ws-opts:
+    headers:
+      Host: jpv13.gas51qwrhmzz8.top
+    path: /
+- cipher: aes-256-gcm
+  name: 首尔高速×3
+  password: d51d3f78-bd62-43b6-875c-db16d166cc35
+  port: 41502
+  server: dxshmwy.domiw.com
+  type: ss
+  udp: true
+- name: TW-板桥2-2
+  password: b46f9548-be9a-4ba2-95d8-f4f6128522ae
+  port: 19489
+  server: b22.ntbq.dynu.net
+  skip-cert-verify: true
+  sni: b22.ntbq.dynu.net
+  type: trojan
+  udp: true
+- alterId: 0
+  cipher: auto
+  name: 电信推荐|美国|解锁|X2.0X速
+  network: ws
+  port: 62368
+  server: shdx.kd69.vip
+  servername: usa1.connectnaif.xyz
   skip-cert-verify: true
   tls: true
   type: vmess
   udp: true
-  uuid: 4888ec31-f3ea-46e5-85d5-f960cf98d65b
+  uuid: 123f86ec-8d2e-44c9-947b-4a7a5b31d301
   ws-opts:
     headers:
-      Host: azure.com
-    path: /WER3R21T
+      Host: aa.com
+    path: /
 - alterId: 0
   cipher: auto
-  name: 香港五小时试用节点
-  port: 22733
-  server: 03.xissyun.com
+  name: 移动推荐|日本|解锁|X2.0X速
+  network: ws
+  port: 61656
+  server: hzyd.kd69.vip
+  servername: jp1.connectnaif.xyz
   skip-cert-verify: true
-  tls: false
+  tls: true
   type: vmess
   udp: true
-  uuid: 3d0e77e2-2575-44d2-8156-84dc24d78096
-- alterId: 0
-  cipher: auto
-  name: 日本五小时试用节点
-  port: 11317
-  server: 03.xissyun.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3d0e77e2-2575-44d2-8156-84dc24d78096
-- cipher: aes-128-gcm
-  name: 香港HK01
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56701
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 香港HK02
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56702
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 香港HK03
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56703
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 新加坡SG01
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56704
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 新加坡SG02
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56705
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 新加坡SG03
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56706
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 日本JP01
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56707
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 日本JP02
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56708
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 日本JP03
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56709
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 日本JP04
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56710
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- cipher: aes-128-gcm
-  name: 日本JP05
-  password: 88d05675-a572-42f7-b56b-531f731ed601
-  port: 56711
-  server: gz.666666222.shop
-  type: ss
-  udp: true
-- name: 香港01 | HKBN | 1X
-  password: 88b5aa44-9fff-4d60-8309-6e86ce3c3af0
-  port: 42030
-  server: hkg01.service.nahidacloud.top
-  skip-cert-verify: true
-  sni: hkg01.service.nahidacloud.top
-  type: trojan
-  udp: true
-- name: 美国01 | 1X
-  password: 88b5aa44-9fff-4d60-8309-6e86ce3c3af0
-  port: 443
-  server: us01.service.nahidacloud.top
-  skip-cert-verify: true
-  sni: us01.service.nahidacloud.top
-  type: trojan
-  udp: true
-- name: 新加坡01 | 1X
-  password: 88b5aa44-9fff-4d60-8309-6e86ce3c3af0
-  port: 11000
-  server: sg01.service.nahidacloud.top
-  skip-cert-verify: true
-  sni: sg01.service.nahidacloud.top
-  type: trojan
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 台湾01 | 1X
-  password: 88b5aa44-9fff-4d60-8309-6e86ce3c3af0
-  port: 33143
-  server: sz.zj.my.1.76po.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 香港02 | 1X
-  password: 88b5aa44-9fff-4d60-8309-6e86ce3c3af0
-  port: 51663
-  server: sz.zj.my.1.76po.com
-  type: ss
-  udp: true
-- alterId: 0
-  cipher: auto
-  name: 美国01-流媒体服务器 速率100M
-  port: 10000
-  server: 23.224.152.36
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: b12d46b7-e87c-46de-a2f6-67bba7587b25
+  uuid: 123f86ec-8d2e-44c9-947b-4a7a5b31d301
+  ws-opts:
+    headers:
+      Host: aa.com
+    path: /
