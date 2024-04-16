@@ -491,15 +491,11 @@ def aggregate(args: argparse.Namespace) -> None:
         for item in nochecks:
             item.pop("sub", "")
 
-        cost = "{:.2f}s".format(time.time() - starttime)
         if len(nochecks) <= 0:
-            logger.error(f"cannot fetch any proxy, group=[{k}], cost: {cost}")
+            logger.error(f"cannot fetch any proxy, group=[{k}], cost: {time.time()-starttime:.2f}s")
             continue
 
-        logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
-
         data = {"proxies": nochecks}
-
         push_conf = push_configs.get(k, {})
         target = utils.trim(push_conf.get("target", "")) or "clash"
         mixed = target in ["v2ray", "mixed"]
@@ -563,6 +559,9 @@ def aggregate(args: argparse.Namespace) -> None:
 
             logger.error(f"failed to push config to remote server, group: {k}, save it to {filename}")
             utils.write_file(filename=filename, content=content)
+
+        cost = "{:.2f}s".format(time.time() - starttime)
+        logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
 
     config = {
         "domains": sites,
