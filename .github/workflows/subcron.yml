@@ -35,7 +35,6 @@ jobs:
 
     - name: Commit and push changes
       run: |
-        git diff
         git add .
         git commit -m "Add generated output.yaml"
         git push
