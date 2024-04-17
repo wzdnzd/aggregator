@@ -491,16 +491,21 @@ def aggregate(args: argparse.Namespace) -> None:
         for item in nochecks:
             item.pop("sub", "")
 
-        cost = "{:.2f}s".format(time.time() - starttime)
         if len(nochecks) <= 0:
-            logger.error(f"cannot fetch any proxy, group=[{k}], cost: {cost}")
+            logger.error(f"cannot fetch any proxy, group=[{k}], cost: {time.time()-starttime:.2f}s")
             continue
-
-        logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
 
         data = {"proxies": nochecks}
         push_conf = push_configs.get(k, {})
-        if push_conf.get("target") in ["v2ray", "mixed"]:
+        target = utils.trim(push_conf.get("target", "")) or "clash"
+        mixed = target in ["v2ray", "mixed"]
+
+        # compress if data is too large
+        compress = False if mixed else len(nochecks) >= 300
+
+        persisted, content = False, ""
+
+        if mixed or compress:
             source_file = "config.yaml"
             filepath = os.path.join(PATH, "subconverter", source_file)
             with open(filepath, "w+", encoding="utf8") as f:
@@ -513,16 +518,14 @@ def aggregate(args: argparse.Namespace) -> None:
             if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
                 os.remove(generate_conf)
 
-            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, "mixed")
+            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target)
             if not success:
                 logger.error(f"cannot generate subconverter config file, group=[{k}]")
                 continue
 
             if subconverter.convert(binname=subconverter_bin, artifact=artifact):
-                # save to remote server
                 filepath = os.path.join(PATH, "subconverter", dest_file)
 
-                # base64 encode
                 if not os.path.exists(filepath) or not os.path.isfile(filepath):
                     logger.error(f"converted file {filepath} not found, group: {k}")
                     continue
@@ -530,14 +533,17 @@ def aggregate(args: argparse.Namespace) -> None:
                 content = " "
                 with open(filepath, "r", encoding="utf8") as f:
                     content = f.read()
-                if not utils.isb64encode(content=content):
+
+                if mixed and not utils.isb64encode(content=content):
+                    # base64 encode
                     try:
                         content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
                     except Exception as e:
                         logger.error(f"base64 encode error, message: {str(e)}")
                         continue
 
-                pushtool.push_to(content=content, push_conf=push_conf, group=k)
+                # save to remote server
+                persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
 
             # clean workspace
             workflow.cleanup(
@@ -546,7 +552,16 @@ def aggregate(args: argparse.Namespace) -> None:
             )
         else:
             content = yaml.dump(data=data, allow_unicode=True)
-            pushtool.push_to(content=content, push_conf=push_conf, group=k)
+            persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
+
+        if content and not persisted:
+            filename = os.path.join(PATH, "data", f"{k}.txt")
+
+            logger.error(f"failed to push config to remote server, group: {k}, save it to {filename}")
+            utils.write_file(filename=filename, content=content)
+
+        cost = "{:.2f}s".format(time.time() - starttime)
+        logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
 
     config = {
         "domains": sites,

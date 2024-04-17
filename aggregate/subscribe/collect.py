@@ -22,6 +22,8 @@ from workflow import TaskConfig
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
+DATA_BASE = os.path.join(PATH, "data")
+
 
 def assign(
     retry: int,
@@ -80,7 +82,7 @@ def aggregate(args: argparse.Namespace) -> None:
     tasks = assign(
         retry=3,
         bin_name=subconverter_bin,
-        filename=os.path.join(PATH, "domains.txt"),
+        filename=os.path.join(DATA_BASE, "domains.txt"),
         overwrite=args.overwrite,
         pages=args.pages,
         rigid=not args.relaxed,
@@ -158,7 +160,7 @@ def aggregate(args: argparse.Namespace) -> None:
         # remove unused key
         p.pop("chatgpt", False)
         p.pop("liveness", True)
-        
+
         sub = p.pop("sub", "")
         if sub:
             subscriptions.add(sub)
@@ -176,7 +178,7 @@ def aggregate(args: argparse.Namespace) -> None:
     domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
 
     # 更新 domains.txt 文件为实际可使用的网站列表
-    utils.write_file(filename=os.path.join(PATH, "valid-domains.txt"), lines=domains)
+    utils.write_file(filename=os.path.join(args.output, "valid-domains.txt"), lines=domains)
     workflow.cleanup(workspace, [])
 
 
@@ -223,7 +225,7 @@ if __name__ == "__main__":
         "--output",
         type=str,
         required=False,
-        default=PATH,
+        default=DATA_BASE,
         help="output directory",
     )
 
