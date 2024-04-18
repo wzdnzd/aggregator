@@ -5,6 +5,7 @@
 
 import gzip
 import json
+import multiprocessing
 import os
 import platform
 import random
@@ -20,9 +21,11 @@ import urllib
 import urllib.parse
 import urllib.request
 import uuid
+from concurrent import futures
 from http.client import HTTPMessage, HTTPResponse
 
 from logger import logger
+from tqdm import tqdm
 from urlvalidator import isurl
 
 CTX = ssl.create_default_context()
@@ -30,7 +33,7 @@ CTX.check_hostname = False
 CTX.verify_mode = ssl.CERT_NONE
 
 USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
 )
 
 
@@ -119,7 +122,7 @@ def http_get(
         if isinstance(e, urllib.error.HTTPError):
             try:
                 message = str(e.read(), encoding="utf8")
-            except UnicodeDecodeError:
+            except:
                 message = "unknown error"
 
             if e.code != 503 or "token" in message:
@@ -446,3 +449,83 @@ def get_emoji(text: str, patterns: dict, default: str = "") -> str:
             return emoji
 
     return default
+
+
+def multi_process_run(func: typing.Callable, tasks: list) -> list:
+    if not func or not isinstance(func, typing.Callable):
+        logger.error(f"skip execute due to func is not callable")
+        return []
+
+    if not tasks or type(tasks) != list:
+        logger.error(f"skip execute due to tasks is empty or invalid")
+        return []
+
+    cpu_count = multiprocessing.cpu_count()
+    num = len(tasks) if len(tasks) <= cpu_count else cpu_count
+
+    starttime, results = time.time(), []
+
+    # TODO: handle KeyboardInterrupt and exit program immediately
+    with multiprocessing.Pool(num) as pool:
+        try:
+            if isinstance(tasks[0], (list, tuple)):
+                results = pool.starmap(func, tasks)
+            else:
+                results = pool.map(func, tasks)
+        except KeyboardInterrupt:
+            logger.error(f"the tasks has been cancelled and the program will exit now")
+
+            pool.terminate()
+            pool.join()
+
+    funcname = getattr(func, "__name__", repr(func))
+    logger.info(
+        f"process concurrent execute [{funcname}] finished, count: {len(tasks)}, cost: {time.time()-starttime:.2f}s"
+    )
+
+    return results
+
+
+def multi_thread_run(
+    func: typing.Callable,
+    tasks: list,
+    num_threads: int = None,
+    padding: bool = True,
+    show_progress: bool = False,
+    description: str = "",
+) -> list:
+    if not func or not tasks or not isinstance(tasks, list):
+        return []
+
+    if num_threads is None or num_threads <= 0:
+        num_threads = min(len(tasks), (os.cpu_count() or 1) * 2)
+
+    results, starttime = [], time.time()
+    with futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
+        if isinstance(tasks[0], (list, tuple)):
+            collections = [executor.submit(func, *param) for param in tasks]
+        else:
+            collections = [executor.submit(func, param) for param in tasks]
+
+        items = futures.as_completed(collections)
+        if show_progress:
+            description = trim(description) or "Progress"
+
+            # TODO: use p_tqdm instead of tqdm, see https://github.com/swansonk14/p_tqdm
+            items = tqdm(items, total=len(collections), desc=description, leave=True)
+
+        for future in items:
+            try:
+                results.append(future.result())
+            except Exception as e:
+                logger.error(f"function execution generated an exception: {e}")
+
+                if padding:
+                    results.append(None)
+
+    funcname = getattr(func, "__name__", repr(func))
+    logger.info(
+        f"thread concurrent execute [{funcname}] finished, count: {len(tasks)}, cost: {time.time()-starttime:.2f}s"
+    )
+
+    return results

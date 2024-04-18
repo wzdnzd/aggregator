@@ -656,7 +656,7 @@ class Emailnator(TemporaryMail):
 
     def get_domains_list(self) -> list:
         # unable to obtain the supported email domain through web api
-        return ["gmail.com", "femailtor.com", "smartnator.com", "psnator.com"]
+        return ["gmail.com", "googlemail.com", "smartnator.com", "psnator.com", "tmpmailtor.com", "mydefipet.live"]
 
     def _get_xsrf_token(self, retry: int = 3) -> tuple[str, str]:
         cookies, xsrf_token, count = "", "", 1
@@ -690,7 +690,7 @@ class Emailnator(TemporaryMail):
         self.headers["X-XSRF-TOKEN"] = xsrf_token
 
         url = f"{self.api_address}/generate-email"
-        params = ["plusGmail", "dotGmail"] if self.only_gmail else ["domain", "plusGmail", "dotGmail"]
+        params = ["plusGmail", "dotGmail"] if self.only_gmail else ["domain", "plusGmail", "dotGmail", "googleMail"]
 
         try:
             data = bytes(json.dumps({"email": params}), "UTF8")
@@ -777,16 +777,9 @@ class Emailnator(TemporaryMail):
         return True
 
 
-def create_instance() -> TemporaryMail:
-    # num = random.randint(0, 3)
-    # if num == 0:
-    #     return SnapMail()
-    # elif num == 1:
-    #     return LinShiEmail()
-    # elif num == 2:
-    #     return MailTM()
-    # else:
-    #     return MOAKT()
+def create_instance(onlygmail: bool = False) -> TemporaryMail:
+    if onlygmail:
+        return Emailnator(onlygmail=True)
 
     num = random.randint(0, 2)
     if num == 0:

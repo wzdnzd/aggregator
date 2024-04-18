@@ -5,7 +5,6 @@
 
 import base64
 import json
-import multiprocessing
 import os
 import re
 import sys
@@ -16,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from http.client import IncompleteRead
 
 import push
+import subconverter
 import utils
 import workflow
 import yaml
@@ -24,8 +24,6 @@ from crawl import naming_task
 from executable import which_bin
 from logger import logger
 from origin import Origin
-
-import subconverter
 
 # outbind type
 SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "vless", "hysteria2", "hysteria", "http", "socks5"]
@@ -288,10 +286,7 @@ def fetch(params: dict) -> list:
 
         count = min(max(1, params.get("count", sys.maxsize)), len(files))
         files = files[:count]
-
-        cpu_count = multiprocessing.cpu_count()
-        pool = multiprocessing.Pool(min(count, cpu_count * 2))
-        results = pool.starmap(fetchone, files)
+        results = utils.multi_process_run(func=fetchone, tasks=files)
 
         nodes, subs, count = [], [], 0
         for result in results:
@@ -362,7 +357,10 @@ def fetch(params: dict) -> list:
 
     success = pushtool.push_to(content=content, push_conf=proxies_store, group="v2rayse")
     if not success:
-        logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies")
+        filename = os.path.join(os.path.dirname(datapath), "data", "v2rayse.txt")
+        logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies, will save it to local file {filename}")
+
+        utils.write_file(filename=filename, lines=content)
         return tasks
 
     # save last modified time

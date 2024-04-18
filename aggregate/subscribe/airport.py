@@ -19,13 +19,13 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 import mailtm
-import renewal
+import subconverter
 import utils
 import yaml
+from clash import is_meta, verify
 from logger import logger
 
-import subconverter
-from clash import is_meta, verify
+import renewal
 
 EMAILS_DOMAINS = [
     "gmail.com",
@@ -63,6 +63,14 @@ class Category(Enum):
     LINK = 3
 
 
+# deal with !<str>
+def str_constructor(loader, node):
+    return str(loader.construct_scalar(node))
+
+yaml.SafeLoader.add_constructor(u'str', str_constructor)
+yaml.FullLoader.add_constructor(u'str', str_constructor)
+
+
 def lookup(name: str) -> Category:
     name = utils.trim(name)
     for item in Category:
@@ -85,6 +93,33 @@ class RegisterRequire:
 
     # 邮箱域名白名单
     whitelist: list = field(default_factory=list)
+
+    # 是否是 sspanel 面板
+    sspanel: bool = False
+
+
+class NoRedirHandler(urllib.request.HTTPRedirectHandler):
+    def http_error_302(self, req, fp, code, msg, headers):
+        return fp
+
+    http_error_301 = http_error_302
+
+
+def issspanel(domain: str) -> bool:
+    def sniff(url: str) -> int:
+        if utils.isblank(url):
+            return -1
+
+        try:
+            opener = urllib.request.build_opener(NoRedirHandler)
+            opener.addheaders = [("User-Agent", utils.USER_AGENT)]
+            response = opener.open(fullurl=url, timeout=10)
+            return response.getcode()
+        except Exception:
+            return -2
+
+    url = f"{domain}/api/v1/passport/auth/login"
+    return False if sniff(url=url) == 200 else sniff(url=f"{domain}/auth/login") == 200
 
 
 class AirPort:
@@ -141,7 +176,7 @@ class AirPort:
         url = f"{domain}/api/v1/guest/comm/config"
         content = utils.http_get(url=url, retry=2, proxy=proxy)
         if not content or not content.startswith("{") and content.endswith("}"):
-            logger.info(f"[QueryError] cannot get register require, domain: {domain}")
+            logger.debug(f"[QueryError] cannot get register require, domain: {domain}")
             return RegisterRequire(verify=default, invite=default, recaptcha=default)
 
         try:
@@ -319,15 +354,14 @@ class AirPort:
         except:
             return []
 
-    def get_subscribe(self, retry: int, rr: RegisterRequire = None) -> tuple[str, str]:
+    def get_subscribe(self, retry: int, rr: RegisterRequire = None, rigid: bool = True) -> tuple[str, str]:
         if self.registed:
             return "", ""
 
         rr = rr if rr is not None else self.get_register_require(domain=self.ref, default=False)
 
         # 需要邀请码或者强制验证
-        # if rr.invite or rr.recaptcha:
-        if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify):
+        if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify and (rigid or "gmail.com" not in rr.whitelist)):
             self.available = False
             return "", ""
 
@@ -343,14 +377,13 @@ class AirPort:
             email = f"{email}@{email_domain}"
             return self.register(email=email, password=password, retry=retry)
         else:
-            try:
-                # onlygmail = True if rr.whitelist else False
-                # mailbox = mailtm.create_instance(onlygmail=onlygmail)
+            onlygmail = True if rr.whitelist and rr.verify else False
 
-                mailbox = mailtm.create_instance()
+            try:
+                mailbox = mailtm.create_instance(onlygmail=onlygmail)
                 account = mailbox.get_account()
                 if not account:
-                    logger.error(f"cannot create account, site: {self.ref}")
+                    logger.error(f"cannot create temporary email account, site: {self.ref}")
                     return "", ""
 
                 message = None
@@ -555,7 +588,7 @@ class AirPort:
                 ).strip()
 
                 name = (
-                    re.sub(r"\s+|\r", " ", name)
+                    re.sub(r"\s+|\r|\n|\\r|\\n", " ", name, flags=re.I)
                     .replace("_", "-")
                     .replace("+", "-")
                     .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)

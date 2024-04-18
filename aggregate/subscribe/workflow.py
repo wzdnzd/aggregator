@@ -8,12 +8,13 @@ import os
 import re
 from dataclasses import dataclass
 
-import renewal
 import utils
 from airport import AirPort
 from logger import logger
 from origin import Origin
 from push import PushTo
+
+import renewal
 
 
 @dataclass
@@ -78,6 +79,9 @@ class TaskConfig:
 
     remained: bool = False
 
+    # 对于具有邮箱域名白名单且需要验证码的情况，是否使用 Gmail 别名邮箱尝试，为 True 时表示不使用
+    rigid: bool = True
+
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf:
@@ -103,7 +107,7 @@ def execute(task_conf: TaskConfig) -> list:
             obj.registed = True
             obj.sub = sub_url
 
-    cookie, authorization = obj.get_subscribe(retry=task_conf.retry)
+    cookie, authorization = obj.get_subscribe(retry=task_conf.retry, rigid=task_conf.rigid)
     proxies = obj.parse(
         cookie=cookie,
         auth=authorization,
@@ -263,13 +267,13 @@ def merge_config(configs: list) -> list:
     return items
 
 
-def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "") -> None:
+def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_remark: bool = False) -> None:
     if not config or not push:
         logger.error("[UpdateError] cannot update remote config because content is empty")
         return
 
     # mark invalid crawled subscription
-    invalidsubs = None if not alives else [k for k, v in alives.items() if not v]
+    invalidsubs = None if (skip_remark or not alives) else [k for k, v in alives.items() if not v]
     if invalidsubs:
         crawledsub = config.get("crawl", {}).get("persist", {}).get("subs", "")
         threshold = max(config.get("threshold", 1), 1)

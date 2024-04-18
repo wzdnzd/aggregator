@@ -20,7 +20,8 @@ import urllib
 import urllib.parse
 import urllib.request
 from copy import deepcopy
-from multiprocessing.managers import DictProxy, ListProxy
+from dataclasses import dataclass
+from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Semaphore
 
 import airport
@@ -34,6 +35,21 @@ from urlvalidator import isurl
 from yaml.constructor import ConstructorError
 
 SEPARATOR = "-"
+
+
+@dataclass
+class ValidateResult(object):
+    # single node collections
+    proxies: set = None
+
+    # valid subscription
+    available: dict = None
+
+    # valid or to be observed
+    potential: dict = None
+
+    # unknown
+    unknown: str = None
 
 
 def crawlable() -> tuple[int, bool]:
@@ -60,15 +76,8 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     if not func or not params or type(params) != list:
         return {}
 
-    cpu_count = multiprocessing.cpu_count()
-    num = len(params) if len(params) <= cpu_count else cpu_count
-
-    pool = multiprocessing.Pool(num)
-    if type(params[0]) == list or type(params[0]) == tuple:
-        results = pool.starmap(func, params)
-    else:
-        results = pool.map(func, params)
-    pool.close()
+    # concurrent run
+    results = utils.multi_thread_run(func=func, tasks=params)
 
     funcname = getattr(func, "__name__", repr(func)).replace("_", "-")
     tasks, uri = {}, f"{SINGLE_LINK_FLAG}{funcname}"
@@ -96,7 +105,7 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     return tasks
 
 
-def batch_crawl(conf: dict, thread: int = 50) -> list:
+def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list[dict]:
     if not conf or not conf.get("enable", True):
         # only crawl if mode == 1
         if MODE == 1:
@@ -229,7 +238,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
                             else:
                                 records.update({sub: task})
 
-        # Remain
+        # remain
         if should_persist:
             url = pushtool.raw_url(push_conf=subspushconf)
             try:
@@ -268,72 +277,60 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
         tokens = {utils.parse_token(k): k for k in records.keys()}
         tasks = {k: records[k] for k in tokens.values()}
 
-        with multiprocessing.Manager() as manager:
-            availables, unknowns, potentials, proxylinks = (
-                manager.list(),
-                manager.list(),
-                manager.dict(),
-                manager.list(),
+        time.sleep(random.randint(1, 3))
+
+        proxiesconf, jobs = {}, []
+        for key, value in tasks.items():
+            for k, v in taskconf.items():
+                if k not in value:
+                    value[k] = v
+
+            jobs.append([key, value, exclude, threshold])
+
+            # generate single link's configuration
+            if key.startswith(SINGLE_LINK_FLAG):
+                proxiesconf.update(value)
+
+        availables, unknowns, potentials, proxylinks = [], [], {}, set()
+        results = utils.multi_thread_run(func=validate, tasks=jobs, num_threads=num_threads, show_progress=display)
+        for result in results:
+            if result.available:
+                availables.append(result.available)
+            if result.potential:
+                potentials.update(result.potential)
+            if result.proxies:
+                proxylinks.update(result.proxies)
+            if result.unknown:
+                unknowns.append(result.unknown)
+
+        datasets.extend(availables)
+        peristedtasks.update(potentials)
+
+        if ALLOW_SINGLE_LINK:
+            proxies = list(proxylinks)
+            logger.info(f"[CrawlInfo] crawl finished, found {len(proxies)} proxy links")
+
+            if len(proxies) > 0:
+                try:
+                    content = base64.b64encode("\n".join(proxies).encode()).decode()
+                    success = pushtool.push_to(content=content, push_conf=linkspushconf, group="proxies")
+                    if success:
+                        singlelink = pushtool.raw_url(push_conf=linkspushconf)
+                        item = {
+                            "name": "singlelink",
+                            "sub": singlelink,
+                            "debut": True,
+                        }
+                        item.update(proxiesconf)
+                        datasets.append(item)
+                except:
+                    logger.error("[CrawlError] base64 encode error for proxies links")
+
+        if len(unknowns) > 0:
+            unknowns = [utils.mask(url=x) for x in unknowns]
+            logger.warn(
+                f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {unknowns}"
             )
-            processes, proxiesconf = [], {}
-            semaphore = multiprocessing.Semaphore(max(thread, 1))
-            time.sleep(random.randint(1, 3))
-            for key, value in tasks.items():
-                for k, v in taskconf.items():
-                    if k not in value:
-                        value[k] = v
-
-                # generate single link's configuration
-                if key.startswith(SINGLE_LINK_FLAG):
-                    proxiesconf.update(value)
-
-                semaphore.acquire()
-                p = multiprocessing.Process(
-                    target=validate,
-                    args=(
-                        key,
-                        value,
-                        availables,
-                        unknowns,
-                        potentials,
-                        proxylinks,
-                        semaphore,
-                        exclude,
-                        threshold,
-                    ),
-                )
-                p.start()
-                processes.append(p)
-            for p in processes:
-                p.join()
-
-            datasets.extend(list(availables))
-            peristedtasks.update(dict(potentials))
-
-            if ALLOW_SINGLE_LINK:
-                proxies = list(set(proxylinks))
-                logger.info(f"[CrawlInfo] crawl finished, found {len(proxies)} proxy links")
-                if len(proxies) > 0:
-                    try:
-                        content = base64.b64encode("\n".join(proxies).encode()).decode()
-                        success = pushtool.push_to(content=content, push_conf=linkspushconf, group="proxies")
-                        if success:
-                            singlelink = pushtool.raw_url(push_conf=linkspushconf)
-                            item = {
-                                "name": "singlelink",
-                                "sub": singlelink,
-                                "debut": True,
-                            }
-                            item.update(proxiesconf)
-                            datasets.append(item)
-                    except:
-                        logger.error("[CrawlError] base64 encode error for proxies links")
-
-            if len(unknowns) > 0:
-                unknowns = [utils.mask(url=x) for x in unknowns]
-                logger.warn(
-                    f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {unknowns}"
-                )
 
         logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscriptions")
 
@@ -360,7 +357,7 @@ def batch_crawl(conf: dict, thread: int = 50) -> list:
     return datasets
 
 
-def generate_telegram_task(channel: str, config: dict, pages: int, limits: int):
+def generate_telegram_task(channel: str, config: dict, pages: int, limits: int) -> list[list]:
     include = config.get("include", "")
     exclude = config.get("exclude", "").strip()
     pts = config.get("push_to", [])
@@ -413,12 +410,7 @@ def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
     starttime = time.time()
 
     params = [[k, v, pages, limits] for k, v in users.items()]
-    cpu_count = multiprocessing.cpu_count()
-    num = len(params) if len(params) <= cpu_count else cpu_count
-
-    pool = multiprocessing.Pool(num)
-    results = pool.starmap(generate_telegram_task, params)
-    pool.close()
+    results = utils.multi_thread_run(func=generate_telegram_task, tasks=params)
 
     tasks = list(itertools.chain.from_iterable(results))
     subscribes = multi_thread_crawl(func=crawl_telegram_page, params=tasks)
@@ -468,7 +460,7 @@ def crawl_single_repo(username: str, repo: str, push_to: list = [], limits: int 
         return {}
 
 
-def crawl_github_repo(repos: dict):
+def crawl_github_repo(repos: dict) -> list[dict]:
     if not repos:
         return {}
     params = []
@@ -673,7 +665,7 @@ def paging(start: int, end: int, peer_page: int) -> list[int]:
     return pages
 
 
-def search_github_issues(page: int, cookie: str) -> list:
+def search_github_issues(page: int, cookie: str) -> list[str]:
     content = search_github(page=page, cookie=cookie, searchtype="Issues", sortedby="created")
     if utils.isblank(content):
         return []
@@ -688,7 +680,7 @@ def search_github_issues(page: int, cookie: str) -> list:
         return []
 
 
-def search_github_issues_byapi(peer_page: int = 50, page: int = 1) -> list:
+def search_github_issues_byapi(peer_page: int = 50, page: int = 1) -> list[str]:
     peer_page, page = min(max(peer_page, 1), 100), max(1, page)
     url = f"https://api.github.com/search/issues?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=created&order=desc&per_page={peer_page}&page={page}"
     content = utils.http_get(url=url)
@@ -709,7 +701,7 @@ def search_github_issues_byapi(peer_page: int = 50, page: int = 1) -> list:
         return []
 
 
-def search_github_code_byapi(token: str, peer_page: int = 50, page: int = 1, excludes: list = []) -> list:
+def search_github_code_byapi(token: str, peer_page: int = 50, page: int = 1, excludes: list = []) -> list[str]:
     """
     curl -Ls -o response.json -H "Authorization: Bearer <token>" https://api.github.com/search/code?q=%22%2Fapi%2Fv1%2Fclient%2Fsubscribe%3Ftoken%3D%22&sort=indexed&order=desc&per_page=30&page=1
     """
@@ -746,7 +738,7 @@ def search_github_code_byapi(token: str, peer_page: int = 50, page: int = 1, exc
         return []
 
 
-def search_github_code(page: int, cookie: str, excludes: list = []) -> list:
+def search_github_code(page: int, cookie: str, excludes: list = []) -> list[str]:
     content = search_github(page=page, cookie=cookie, searchtype="Code", sortedby="indexed")
     if utils.isblank(content):
         return []
@@ -779,19 +771,6 @@ def intercept(text: str, excludes: list = []) -> bool:
     return False
 
 
-def batchextract_github_pages(func: typing.Callable, params: list) -> list:
-    if not func or not params or type(params) != list:
-        return []
-
-    cpu_count = multiprocessing.cpu_count()
-    num = len(params) if len(params) <= cpu_count else cpu_count
-
-    pool = multiprocessing.Pool(num)
-    results = pool.starmap(func, params)
-    pool.close()
-    return list(set(itertools.chain.from_iterable(results)))
-
-
 def crawl_github(limits: int = 3, push_to: list = [], spams: list = [], exclude: str = "") -> dict:
     # user_session=${any}
     cookie = os.environ.get("GH_COOKIE", "").strip()
@@ -808,13 +787,20 @@ def crawl_github(limits: int = 3, push_to: list = [], spams: list = [], exclude:
         pages = [x for x in range(1, limits + 1)] * 2
         params = [[x, cookie, spams] for x in pages]
 
-        links.extend(batchextract_github_pages(func=search_github_code, params=params))
+        results = utils.multi_thread_run(func=search_github_code, tasks=params)
+        items = list(set(itertools.chain.from_iterable(results)))
+
+        links.extend(items)
         links.extend(search_github_issues(page=1, cookie=cookie))
     else:
         peer_page, count = 50, 10
         pages = paging(start=1, end=limits * count, peer_page=peer_page)
         params = [[token, peer_page, x, spams] for x in pages] * 2
-        links.extend(batchextract_github_pages(func=search_github_code_byapi, params=params))
+
+        results = utils.multi_thread_run(func=search_github_code_byapi, tasks=params)
+        items = list(set(itertools.chain.from_iterable(results)))
+
+        links.extend(items)
         links.extend(search_github_issues_byapi(peer_page=5, page=1))
 
     if links:
@@ -1033,11 +1019,7 @@ def crawl_twitter(tasks: dict) -> dict:
 
     # username to uid
     params = [[k, headers] for k in candidates.keys()]
-    cpu_count = multiprocessing.cpu_count()
-    count = len(params) if len(params) <= cpu_count else cpu_count
-    pool = multiprocessing.Pool(count)
-    uids = pool.starmap(username_to_id, params)
-    pool.close()
+    uids = utils.multi_thread_run(func=username_to_id, tasks=params)
 
     for i in range(len(uids)):
         uid = uids[i]
@@ -1172,62 +1154,49 @@ def extract_subscribes(
         return {}
 
 
-def validate(
-    url: str,
-    params: dict,
-    availables: ListProxy,
-    unknows: ListProxy,
-    potentials: DictProxy,
-    proxylinks: ListProxy,
-    semaphore: Semaphore,
-    exclude: str = "",
-    threshold: int = 1,
-) -> None:
-    try:
-        if (
-            not params
-            or not params.get("push_to", None)
-            or not params.get("origin", "")
-            or (exclude and re.search(exclude, url))
-        ):
-            return
+def validate(url: str, params: dict, exclude: str = "", threshold: int = 1) -> ValidateResult:
+    if (
+        not params
+        or not params.get("push_to", None)
+        or not params.get("origin", "")
+        or (exclude and re.search(exclude, url))
+    ):
+        return ValidateResult()
 
-        if url.startswith(SINGLE_LINK_FLAG):
-            proxies = params.get("proxies", [])
-            if proxies and type(proxies) == list:
-                proxylinks.extend(proxies)
+    result = ValidateResult()
+    if url.startswith(SINGLE_LINK_FLAG):
+        proxies = params.get("proxies", [])
+        if proxies and type(proxies) == list:
+            result.proxies = set(proxies)
 
-            return
+        return result
 
-        threshold = max(threshold, 1)
-        defeat = params.get("defeat", 0) + 1
-        discovered = params.get("discovered", False)
+    threshold = max(threshold, 1)
+    defeat = params.get("defeat", 0) + 1
+    discovered = params.get("discovered", False)
 
-        # 过期后最多等待3天
-        reachable, expired = check_status(url=url, retry=2, remain=5, spare_time=12, tolerance=72)
-        if reachable:
-            item = {"name": naming_task(url), "sub": url, "debut": True}
-            item.update(params)
-            availables.append(item)
-            # reset defeat to 0
-            defeat = 0
-            discovered = True
+    reachable, expired = check_status(url=url, retry=2, remain=5, spare_time=12, tolerance=72)
+    if reachable:
+        item = {"name": naming_task(url), "sub": url, "debut": True}
+        item.update(params)
+        result.available = item
 
-        if params.pop("saved", False):
-            return
+        # reset defeat to 0
+        defeat = 0
+        discovered = True
 
+    if not params.pop("saved", False):
         if reachable or (discovered and defeat <= threshold and not expired):
             # don't storage temporary link shared by someone
             if not workflow.standard_sub(url=url) and MODE != 1:
-                return
+                return result
 
             remark(source=params, defeat=defeat, discovered=True)
-            potentials[url] = params
+            result.potential = {url: params}
         elif not CONNECTABLE and not expired:
-            unknows.append(url)
-    finally:
-        if semaphore is not None and isinstance(semaphore, Semaphore):
-            semaphore.release()
+            result.unknown = url
+
+    return result
 
 
 def remark(source: dict, defeat: int = 0, discovered: bool = True) -> None:
@@ -1358,7 +1327,7 @@ def is_available(url: str, retry: int = 2, remain: float = 0, spare_time: float 
     return available
 
 
-def naming_task(url):
+def naming_task(url) -> str:
     prefix = utils.extract_domain(url=url).replace(".", "") + SEPARATOR
     return prefix + "".join(random.sample(string.digits + string.ascii_lowercase, random.randint(3, 5)))
 
@@ -1380,7 +1349,7 @@ def get_telegram_pages(channel: str) -> int:
     return before
 
 
-def extract_airport_site(url: str) -> list:
+def extract_airport_site(url: str) -> list[str]:
     if not url:
         return []
 
@@ -1398,7 +1367,7 @@ def extract_airport_site(url: str) -> list:
         return []
 
 
-def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
+def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list[str]:
     """crawl from telegram channel"""
     if not channel or not fun or not isinstance(fun, typing.Callable):
         return []
@@ -1417,68 +1386,59 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
         logger.info(f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}")
 
         urls = [f"{url}?before={x}" for x in pages[:page_num]]
-        cpu_count = multiprocessing.cpu_count()
-        num = len(urls) if len(urls) <= cpu_count else cpu_count
-
-        pool = multiprocessing.Pool(num)
-        results = pool.map(fun, urls)
-        pool.close()
+        results = utils.multi_thread_run(func=fun, tasks=urls)
 
         return list(itertools.chain.from_iterable(results))
 
 
-def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
+def collect_airport(
+    channel: str,
+    page_num: int,
+    num_thread: int = 64,
+    rigid: bool = True,
+    display: bool = True,
+) -> list[str]:
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
-
     if not domains:
         return []
 
-    with multiprocessing.Manager() as manager:
-        availables = manager.list()
-        processes = []
-        semaphore = multiprocessing.Semaphore(thread_num)
-        for domain in list(set(domains)):
-            semaphore.acquire()
-            p = multiprocessing.Process(target=validate_domain, args=(domain, availables, semaphore))
-            p.start()
-            processes.append(p)
-        for p in processes:
-            p.join()
+    logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start to check it now")
 
-        domains = list(availables)
-        logger.info(
-            f"[AirPortCollector] finished collect air port from telegram channel: {channel}, availables: {len(domain)}"
-        )
-        return domains
+    tasks = [[domain, rigid] for domain in domains]
+    result = utils.multi_thread_run(func=validate_domain, tasks=tasks, num_threads=num_thread, show_progress=display)
+
+    availables = [domains[i] for i in range(len(domains)) if result[i]]
+    logger.info(
+        f"[AirPortCollector] finished collect airport from telegram channel: {channel}, availables: {len(availables)}"
+    )
+
+    return availables
 
 
-def validate_domain(url: str, availables: ListProxy, semaphore: Semaphore) -> None:
+def validate_domain(url: str, rigid: bool = True) -> bool:
     try:
         if not url:
-            return
+            return False
 
         rr = airport.AirPort.get_register_require(domain=url)
+        if rr.invite or rr.recaptcha or (rigid and rr.whitelist and rr.verify):
+            return False
 
-        # if rr.invite or rr.recaptcha:
-        if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify):
-            return
-
-        availables.append(url)
-    finally:
-        if semaphore is not None and isinstance(semaphore, Semaphore):
-            semaphore.release()
+        return True
+    except:
+        return False
 
 
-def batch_call(tasks: dict) -> list:
+def batch_call(tasks: dict) -> list[dict]:
     if not tasks:
         return []
 
     try:
-        thread_num = max(min(len(tasks), 50), 1)
+        num_thread = max(min(len(tasks), 50), 1)
         with multiprocessing.Manager() as manager:
             availables = manager.list()
             processes = []
-            semaphore = multiprocessing.Semaphore(thread_num)
+            semaphore = multiprocessing.Semaphore(num_thread)
             time.sleep(random.randint(1, 3))
             for k, v in tasks.items():
                 semaphore.acquire()
@@ -1507,7 +1467,7 @@ def call(script: str, params: dict, availables: ListProxy, semaphore: Semaphore)
             semaphore.release()
 
 
-def execute_script(script: str, params: dict = {}) -> list:
+def execute_script(script: str, params: dict = {}) -> list[dict]:
     try:
         # format: a.b.c#function or a-b.c#_function or a#function and so on
         regex = r"^([a-zA-Z0-9_]+|([0-9a-zA-Z_]+([a-zA-Z0-9_\-]+)?\.)+)[a-zA-Z0-9_\-]+#[a-zA-Z_]+[0-9a-zA-Z_]+$"
