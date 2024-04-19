@@ -11,7 +11,10 @@
             "proxy": true,
             "param": {
                 "email": "email",
-                "passwd": "password"
+                "passwd": "password",
+                "couponCode": "",
+                "renewalPeriod": "month_price",
+                "planId": "1"
             }
         },
         {
