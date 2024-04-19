@@ -1244,7 +1244,7 @@ def check_status(
 
         if utils.isb64encode(content):
             # parse and detect whether the subscription has expired
-            return is_expired(subscription)
+            return is_expired(header=subscription, remain=remain, spare_time=spare_time, tolerance=tolerance)
 
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
@@ -1258,7 +1258,7 @@ def check_status(
             return False, True
 
         # 根据订阅信息判断是否有效
-        return is_expired(subscription)
+        return is_expired(header=subscription, remain=remain, spare_time=spare_time, tolerance=tolerance)
     except urllib.error.HTTPError as e:
         try:
             message = str(e.read(), encoding="utf8")
@@ -1391,17 +1391,124 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list[str
         return list(itertools.chain.from_iterable(results))
 
 
+def crawl_ccbh(url: str) -> dict:
+    def get_redirect_url(url: str, retry: int = 3) -> str:
+        if not url or retry <= 0:
+            return ""
+
+        headers = {
+            "User-Agent": utils.USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+        }
+
+        try:
+            request = urllib.request.Request(url=url, headers=headers, method="GET")
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+
+            return response.geturl()
+        except:
+            time.sleep(random.randint(1, 3))
+            return get_redirect_url(url=url, retry=retry - 1)
+
+    url = utils.trim(url)
+    if not url:
+        return {}
+
+    content = utils.http_get(url=url)
+    try:
+        groups = re.split(r"【[^【]*】", content, flags=re.M)
+        if not groups:
+            logger.warning(f"[AirPortCollector] cannot found any domains from [{url}]")
+            return {}
+
+        candidates, result = {}, {}
+        for group in groups:
+            if not group:
+                continue
+
+            texts = group.split("<br/><br/>")
+            for text in texts:
+                address_regex = r'注册地址：<a href="(https?://[^\s]+)"'
+                words = re.findall(address_regex, text, flags=re.M)
+                address = words[0] if words else ""
+
+                if not address:
+                    continue
+
+                coupon_regex = r"(?:白嫖|优惠)码[:\s：]+([^\s\r\n）]+)"
+                words = re.findall(coupon_regex, text, flags=re.M)
+                coupon = words[0] if words else ""
+
+                candidates[address] = coupon
+
+        urls = list(candidates.keys())
+        latest = utils.multi_thread_run(func=get_redirect_url, tasks=urls)
+
+        for i, x in enumerate(urls):
+            domain = utils.extract_domain(url=latest[i], include_protocal=True)
+            if not domain:
+                continue
+
+            coupon = candidates.get(x, "")
+            result[domain] = coupon
+    except:
+        logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
+
+    return result
+
+
+def crawl_maomeng(url: str) -> dict:
+    content = utils.http_get(url=utils.trim(url))
+    if not content:
+        return {}
+
+    groups = re.split(r'<h3 id="[^\r\n]+"><a href="#[^\r\n]+"', content, flags=re.M)
+    if not groups:
+        logger.warning(f"[AirPortCollector] cannot found any domains from [{url}]")
+        return {}
+
+    result = {}
+    try:
+        for group in groups:
+            regex = r"<p>官网：<a[^\r\n]+href=\"(https?://[^\s]+)\">.*</a></p>"
+            words = re.findall(regex, group, flags=re.M)
+            address = words[0] if words else ""
+            if not address:
+                continue
+
+            coupon_regex = r"<p>(?:优惠|白嫖)码：<code>([^<]+)</code></p>"
+            words = re.findall(coupon_regex, group, flags=re.M)
+            coupon = words[0] if words else ""
+
+            domain = utils.extract_domain(url=address, include_protocal=True)
+            result[domain] = coupon
+    except:
+        logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
+
+    return result
+
+
 def collect_airport(
     channel: str,
     page_num: int,
     num_thread: int = 64,
     rigid: bool = True,
     display: bool = True,
-) -> list[str]:
+) -> dict:
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
-    if not domains:
-        return []
+    candidates = {} if not domains else {x: "" for x in domains}
 
+    ccbh = crawl_ccbh(url="https://ccbaohe.com/jcjd.html")
+    if ccbh:
+        candidates.update(ccbh)
+
+    maomeng = crawl_maomeng(url="https://maomeng.xyz/2021/06/11/ji-chang-tui-jian-chang-qi-geng-xin")
+    if maomeng:
+        candidates.update(maomeng)
+
+    domains = list(candidates.keys())
     logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start to check it now")
 
     tasks = [[domain, rigid] for domain in domains]
@@ -1412,7 +1519,7 @@ def collect_airport(
         f"[AirPortCollector] finished collect airport from telegram channel: {channel}, availables: {len(availables)}"
     )
 
-    return availables
+    return {x: candidates.get(x, "") for x in availables}
 
 
 def validate_domain(url: str, rigid: bool = True) -> bool:
