@@ -1,668 +1,529 @@
 proxies:
 - cipher: chacha20-ietf-poly1305
-  name: 香港中转 沪港002 2X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 36805
-  server: llshyd.myfczy168.top
+  name: 美国01|中转
+  password: 8b9f26e6-b60d-4260-a9e8-3539a2a53b61
+  port: 17585
+  server: 36.140.181.4
   type: ss
   udp: true
 - cipher: chacha20-ietf-poly1305
-  name: 香港中转 琼港002 2X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 49588
-  server: llhk.myfczy168.top
+  name: 试用节点| 香港
+  password: 617c9e89-3303-49d4-90a7-ba9e6b8b76cf
+  port: 27891
+  server: gg.efnwgood.top
   type: ss
   udp: true
 - cipher: chacha20-ietf-poly1305
-  name: 高速线路
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 29241
-  server: shydnb.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速香港中转 广东01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 29241
-  server: gstdyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速香港中转 江西01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 44439
-  server: gstdjx.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 台湾中转 沪台001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 57228
-  server: llshyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 台湾中转 琼台001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 23759
-  server: llhk.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速线路
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 10599
-  server: shydnb.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速台湾中转 广东01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 10599
-  server: gstdyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速台湾中转 江西01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 35527
-  server: gstdjx.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 日本中转 沪日001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 34502
-  server: llshyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 日本中转 琼日001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 17516
-  server: llhk.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速线路
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 15709
-  server: shydnb.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速日本中转 广东01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 15709
-  server: gstdyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速日本中转 江西01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 34526
-  server: gstdjx.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 新加坡中转 沪新001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 23997
-  server: llshyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 新加坡中转 琼新001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 35078
-  server: llhk.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速线路
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 13275
-  server: shydnb.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速新加坡中转 广东01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 13275
-  server: gstdyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速新加坡中转 江西01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 34634
-  server: gstdjx.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 美国中转 沪美001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 45235
-  server: llshyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 美国中转 琼美001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 57889
-  server: llhk.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速线路
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 16580
-  server: shydnb.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速美国中转 江西01 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 45433
-  server: gstdjx.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 英国中转 沪英001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 20752
-  server: llshyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 英国中转 琼英001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 14864
-  server: llhk.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速线路
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 40713
-  server: shydnb.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 高速英国中转 江苏02 3X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 54332
-  server: gstdjs.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 下方节点速度稍慢
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 12241
-  server: 666.com
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 香港中转 广港002 2X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 29852
-  server: llyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 台湾中转 广台001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 21427
-  server: llyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 日本中转 广日001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 24567
-  server: llyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 新加坡中转 广新001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 23257
-  server: llyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 美国中转 广美001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 27263
-  server: llyd.myfczy168.top
-  type: ss
-  udp: true
-- cipher: chacha20-ietf-poly1305
-  name: 英国中转 广英001 1.5X
-  password: 7382f7d9-7ea5-4935-bdb8-4928449f631d
-  port: 26345
-  server: llyd.myfczy168.top
+  name: 试用节点| 新加坡
+  password: 617c9e89-3303-49d4-90a7-ba9e6b8b76cf
+  port: 28894
+  server: gran.efnwgood.top
   type: ss
   udp: true
 - alterId: 0
   cipher: auto
-  name: G美国-免费
+  name: 试用节点| 美国
   network: ws
-  port: 80
-  server: 172.64.135.137
+  port: 8880
+  server: 1.efnwgood.top
   skip-cert-verify: true
   tls: false
   type: vmess
   udp: true
-  uuid: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
+  uuid: 617c9e89-3303-49d4-90a7-ba9e6b8b76cf
   ws-opts:
     headers:
-      Host: usfree.1234585.xyz
-    path: /
-- cipher: aes-256-gcm
-  name: A台湾
-  password: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
-  port: 36070
-  server: hinet-wap.myddns.me
+      Host: buyvmus.efnwgood.top
+    path: /?ed=2048
+- cipher: chacha20-ietf-poly1305
+  name: 香港A IEPL专线 2X 原生IP
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 22184
+  server: sh.zj.my1.2.76po.com
   type: ss
-  udp: true
-- cipher: aes-256-gcm
-  name: A台湾-IPV6
-  password: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
-  port: 36070
-  server: 2001:b030:a42d:5dcd::78
-  type: ss
-  udp: true
-- cipher: aes-256-gcm
-  name: B台湾
-  password: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
-  port: 37070
-  server: hinet-wap.myddns.me
-  type: ss
-  udp: true
-- cipher: aes-256-gcm
-  name: B台湾-IPV6
-  password: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
-  port: 37070
-  server: 2001:b030:a42d:5dcd::8b
-  type: ss
-  udp: true
-- alterId: 0
-  cipher: auto
-  name: C新加坡
-  network: ws
-  port: 80
-  server: 13.33.100.13
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
-  ws-opts:
-    headers:
-      Host: d1expt612abo3m.cloudfront.net
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 日本B
-  network: ws
-  port: 80
-  server: 13.33.100.13
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
-  ws-opts:
-    headers:
-      Host: dpxpg5vk2nkog.cloudfront.net
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 巴西
-  network: ws
-  port: 43402
-  server: br-saopaolo-oracle-aa9b76.ip1.shop
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 05ee2df3-a161-4fc3-bdd8-35d6f4968394
-  ws-opts:
-    headers:
-      Host: gi.1234585.xyz
-    path: /
-- alterId: 0
-  cipher: auto
-  name: HK | 香港 LB
-  network: ws
-  port: 443
-  server: hkcft01.xqc.best
-  servername: d26d41lxntyhp6.cloudfront.net
-  skip-cert-verify: true
-  tls: true
-  type: vmess
-  udp: true
-  uuid: a21c59ad-ce86-449f-8359-4fa445b95328
-  ws-opts:
-    headers:
-      Host: d26d41lxntyhp6.cloudfront.net
-    path: /stream
-- alterId: 0
-  cipher: auto
-  name: JP | 日本 LB
-  network: ws
-  port: 443
-  server: jpcft01.xqc.best
-  servername: d3kh9mjh71ygeb.cloudfront.net
-  skip-cert-verify: true
-  tls: true
-  type: vmess
-  udp: true
-  uuid: a21c59ad-ce86-449f-8359-4fa445b95328
-  ws-opts:
-    headers:
-      Host: d3kh9mjh71ygeb.cloudfront.net
-    path: /stream
-- alterId: 0
-  cipher: auto
-  name: SG | 新加坡 LB
-  network: ws
-  port: 443
-  server: sgcft01.xqc.best
-  servername: d29fxo3fby7h57.cloudfront.net
-  skip-cert-verify: true
-  tls: true
-  type: vmess
-  udp: true
-  uuid: a21c59ad-ce86-449f-8359-4fa445b95328
-  ws-opts:
-    headers:
-      Host: d29fxo3fby7h57.cloudfront.net
-    path: /stream
-- alterId: 0
-  cipher: auto
-  name: 重要-请使用 META 内核 CLASH
-  network: ws
-  port: 80
-  server: vps789.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: f11bbf1d-75f5-4fb0-b2c2-12dfb72ddafb
-  ws-opts:
-    headers:
-      Host: mai.nekoneko.buzz
-    path: /cctv13/hd.m3u8
-- alterId: 0
-  cipher: auto
-  name: 美国03-边缘
-  network: ws
-  port: 80
-  server: vps789.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: f11bbf1d-75f5-4fb0-b2c2-12dfb72ddafb
-  ws-opts:
-    headers:
-      Host: kuus.nekoneko.buzz
-    path: /cctv13/hd.m3u8
-- alterId: 0
-  cipher: auto
-  name: 美国05-边缘
-  network: ws
-  port: 80
-  server: vps789.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: f11bbf1d-75f5-4fb0-b2c2-12dfb72ddafb
-  ws-opts:
-    headers:
-      Host: rn.nekoneko.buzz
-    path: /cctv13/hd.m3u8
-- alterId: 0
-  cipher: auto
-  name: 美国06-边缘
-  network: ws
-  port: 80
-  server: vps789.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: f11bbf1d-75f5-4fb0-b2c2-12dfb72ddafb
-  ws-opts:
-    headers:
-      Host: six.nekoneko.buzz
-    path: /cctv13/hd.m3u8
-- alterId: 0
-  cipher: auto
-  name: 加拿大01-边缘
-  network: ws
-  port: 80
-  server: vps789.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: f11bbf1d-75f5-4fb0-b2c2-12dfb72ddafb
-  ws-opts:
-    headers:
-      Host: ca.nekoneko.buzz
-    path: /cctv13/hd.m3u8
-- alterId: 0
-  cipher: auto
-  name: 罗马尼亚01-边缘
-  network: ws
-  port: 80
-  server: csgo.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: f11bbf1d-75f5-4fb0-b2c2-12dfb72ddafb
-  ws-opts:
-    headers:
-      Host: romania.nekoneko.buzz
-    path: /cctv13/hd.m3u8
-- alterId: 0
-  cipher: auto
-  name: 香港-HK-1
-  network: ws
-  port: 443
-  server: 162.159.128.17
-  skip-cert-verify: true
-  tls: true
-  type: vmess
-  udp: true
-  uuid: f3e0966b-5767-4989-8866-53ff05ced13e
-  ws-opts:
-    headers:
-      Host: v2ray.ryin.vip
-    path: /ryinsocksv2board
-- alterId: 0
-  cipher: auto
-  name: 香港-HK-2
-  network: ws
-  port: 443
-  server: 162.159.133.160
-  skip-cert-verify: true
-  tls: true
-  type: vmess
-  udp: true
-  uuid: f3e0966b-5767-4989-8866-53ff05ced13e
-  ws-opts:
-    headers:
-      Host: v2ray.ryin.vip
-    path: /ryinsocksv2board
-- name: TW-板桥2-2
-  password: 742834b6-327f-42a3-a991-c61260620723
-  port: 19489
-  server: b22.ntbq.dynu.net
-  skip-cert-verify: true
-  sni: b22.ntbq.dynu.net
-  type: trojan
-  udp: true
-- alterId: 0
-  cipher: auto
-  name: 美国1
-  network: ws
-  port: 80
-  server: 104.19.173.68
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: usvmqlsgf1ljbtzjun8.lovemianfei.store
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 美国2
-  network: ws
-  port: 80
-  server: whatismyipaddress.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: usvmqlsgf1ljbtzjun8.lovemianfei.store
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 美国3
-  network: ws
-  port: 80
-  server: fbi.gov
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: usvmqlsgf1ljbtzjun8.lovemianfei.store
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 美国4
-  network: ws
-  port: 80
-  server: www.pcmag.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: usvmqlsgf1ljbtzjun8.lovemianfei.store
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 美国5
-  network: ws
-  port: 80
-  server: www.digitalocean.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: usvmqlsgf1ljbtzjun8.lovemianfei.store
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 美国6
-  network: ws
-  port: 80
-  server: www.glassdoor.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: usvmqlsgf1ljbtzjun8.lovemianfei.store
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 美国7
-  network: ws
-  port: 80
-  server: www.udemy.com
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: usvmqlsgf1ljbtzjun8.lovemianfei.store
-    path: /
-- alterId: 0
-  cipher: auto
-  name: 美国IPV6
-  network: ws
-  port: 80
-  server: 2605:6400:20:124c:983b:d3a1:3143:f286
-  skip-cert-verify: true
-  tls: false
-  type: vmess
-  udp: true
-  uuid: 3259e1ce-296a-4c34-a740-8528a72b1102
-  ws-opts:
-    headers:
-      Host: www.apple.com
-    path: /
-- name: 香港01 | HKBN | 1X
-  password: 47336ccf-28e5-43b9-9c42-34fc72aec957
-  port: 42030
-  server: hkg01.service.nahidacloud.top
-  skip-cert-verify: true
-  sni: hkg01.service.nahidacloud.top
-  type: trojan
-  udp: true
-- name: 美国01 | 1X
-  password: 47336ccf-28e5-43b9-9c42-34fc72aec957
-  port: 443
-  server: us01.service.nahidacloud.top
-  skip-cert-verify: true
-  sni: us01.service.nahidacloud.top
-  type: trojan
-  udp: true
-- name: 新加坡01 | 1X
-  password: 47336ccf-28e5-43b9-9c42-34fc72aec957
-  port: 11000
-  server: sg01.service.nahidacloud.top
-  skip-cert-verify: true
-  sni: sg01.service.nahidacloud.top
-  type: trojan
   udp: true
 - cipher: chacha20-ietf-poly1305
-  name: 台湾01 | 1X
-  password: 47336ccf-28e5-43b9-9c42-34fc72aec957
-  port: 33143
+  name: 香港B IEPL专线 2X 原生IP
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 47396
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港C IEPL专线 2X 原生IP
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 31219
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 香港D IEPL专线 2X 原生IP
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 22387
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 美国02 双ISP家宽住宅原生IP 2X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 52175
   server: sz.zj.my.1.76po.com
   type: ss
   udp: true
 - cipher: chacha20-ietf-poly1305
-  name: 香港02 | 1X
-  password: 47336ccf-28e5-43b9-9c42-34fc72aec957
-  port: 51663
+  name: 美国03 双ISP家宽住宅原生IP 2X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 44906
   server: sz.zj.my.1.76po.com
   type: ss
   udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 台湾A 主力隧道 2X 家宽IP
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 15369
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 台湾B 主力隧道 2X 家宽IP
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 29634
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 日本A 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 31611
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 日本B 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 33547
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 韩国A 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 14805
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 韩国B 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 58341
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡A 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 57105
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 新加坡B 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 14878
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 印度A 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 18533
+  server: sh.zj.my1.2.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 印度B 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 42051
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 迪拜 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 53468
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 巴西 主力隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 31316
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 英国A 备用隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 36624
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 英国B 备用隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 57785
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- cipher: chacha20-ietf-poly1305
+  name: 英国C 备用隧道 1X
+  password: 23873aa7-924f-4ac6-8338-f50487b5c027
+  port: 42694
+  server: sz.zj.my.1.76po.com
+  type: ss
+  udp: true
+- name: 香港中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31001
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: hk-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 香港中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31002
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: hk-02.v4vip.top
+  type: trojan
+  udp: true
+- name: 香港中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31003
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: hk-03.v4vip.top
+  type: trojan
+  udp: true
+- name: 香港中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31004
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: hk-04.v4vip.top
+  type: trojan
+  udp: true
+- name: 美国中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31006
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: us-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 美国中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31007
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: us-02.v4vip.top
+  type: trojan
+  udp: true
+- name: 美国中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31008
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: us-03.v4vip.top
+  type: trojan
+  udp: true
+- name: 美国中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31009
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: us-04.v4vip.top
+  type: trojan
+  udp: true
+- name: 新加坡中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31011
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: sg-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 新加坡中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31012
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: sg-02.v4vip.top
+  type: trojan
+  udp: true
+- name: 日本中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31013
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: jp-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 日本中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31014
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: jp-02.v4vip.top
+  type: trojan
+  udp: true
+- name: 加拿大中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31015
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: ca-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 英国中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31016
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: gb-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 德国中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31017
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: de-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 印度中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31018
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: in-01.v4vip.top
+  type: trojan
+  udp: true
+- name: 澳大利亚中继-TROJAN
+  password: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+  port: 31019
+  server: sz.zj.my.1.76po.com
+  skip-cert-verify: true
+  sni: au-01.v4vip.top
+  type: trojan
+  udp: true
+- alterId: 0
+  cipher: auto
+  name: 香港中继-V2RAY
+  port: 33001
+  server: sz.zj.my.1.76po.com
+  servername: hk-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 香港中继-V2RAY
+  port: 33002
+  server: sz.zj.my.1.76po.com
+  servername: hk-02.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 香港中继-V2RAY
+  port: 33003
+  server: sz.zj.my.1.76po.com
+  servername: hk-03.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 香港中继-V2RAY
+  port: 33004
+  server: sz.zj.my.1.76po.com
+  servername: hk-04.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 香港中继-V2RAY
+  port: 33005
+  server: sz.zj.my.1.76po.com
+  servername: hk-04.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 美国中继-V2RAY
+  port: 33006
+  server: sz.zj.my.1.76po.com
+  servername: us-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 美国中继-V2RAY
+  port: 33007
+  server: sz.zj.my.1.76po.com
+  servername: us-02.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 美国中继-V2RAY
+  port: 33008
+  server: sz.zj.my.1.76po.com
+  servername: us-03.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 美国中继-V2RAY
+  port: 33009
+  server: sz.zj.my.1.76po.com
+  servername: us-04.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 美国中继-V2RAY
+  port: 33010
+  server: sz.zj.my.1.76po.com
+  servername: us-04.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 新加坡中继-V2RAY
+  port: 33011
+  server: sz.zj.my.1.76po.com
+  servername: sg-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 新加坡中继-V2RAY
+  port: 33012
+  server: sz.zj.my.1.76po.com
+  servername: sg-02.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 日本中继-V2RAY
+  port: 33013
+  server: sz.zj.my.1.76po.com
+  servername: jp-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 日本中继-V2RAY
+  port: 33014
+  server: sz.zj.my.1.76po.com
+  servername: jp-02.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 加拿大中继-V2RAY
+  port: 33015
+  server: sz.zj.my.1.76po.com
+  servername: ca-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 英国中继-V2RAY
+  port: 33016
+  server: sz.zj.my.1.76po.com
+  servername: gb-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 德国中继-V2RAY
+  port: 33017
+  server: sz.zj.my.1.76po.com
+  servername: de-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 印度中继-V2RAY
+  port: 33018
+  server: sz.zj.my.1.76po.com
+  servername: in-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
+- alterId: 0
+  cipher: auto
+  name: 澳大利亚中继-V2RAY
+  port: 33019
+  server: sz.zj.my.1.76po.com
+  servername: au-01.v4vip.top
+  skip-cert-verify: true
+  tls: true
+  type: vmess
+  udp: true
+  uuid: 76a31e36-1d62-4a3f-9515-556ea66f5f46
