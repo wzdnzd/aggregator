@@ -558,7 +558,7 @@ def aggregate(args: argparse.Namespace) -> None:
             filename = os.path.join(PATH, "data", f"{k}.txt")
 
             logger.error(f"failed to push config to remote server, group: {k}, save it to {filename}")
-            utils.write_file(filename=filename, content=content)
+            utils.write_file(filename=filename, lines=content)
 
         cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
