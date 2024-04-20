@@ -29,13 +29,13 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
       run: |
-        cd aggregate
+        cd aggregate/data/
         gh gist view ${{ secrets.GIST_ID }} -f subscribes.txt > old-subscribes.txt || true
 
     - name: Collect Subscribe
       id: collect
       run: |
-        cd aggregate
+        cd aggregate/
         python -u subscribe/collect.py
         if [ -s old-subscribes.txt ]; then
           cat old-subscribes.txt subscribes.txt | sort | uniq > merged-subscribes.txt
@@ -48,7 +48,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
       run: |
-        cd aggregate
+        cd aggregate/data/
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
         gh gist edit ${{ secrets.GIST_ID }} --add "subscribes.txt"
         gh gist edit ${{ secrets.GIST_ID }} --add "domains.txt"
