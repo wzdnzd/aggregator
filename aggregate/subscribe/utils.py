@@ -499,6 +499,8 @@ def multi_thread_run(
     if num_threads is None or num_threads <= 0:
         num_threads = min(len(tasks), (os.cpu_count() or 1) * 2)
 
+    funcname = getattr(func, "__name__", repr(func))
+
     results, starttime = [None] * len(tasks), time.time()
     with futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         if isinstance(tasks[0], (list, tuple)):
@@ -519,9 +521,8 @@ def multi_thread_run(
                 index = collections[future]
                 results[index] = result
             except Exception as e:
-                logger.error(f"function execution generated an exception: {e}")
+                logger.error(f"function {funcname} execution generated an exception: {e}")
 
-    funcname = getattr(func, "__name__", repr(func))
     logger.info(
         f"[Concurrent] multi-threaded execute [{funcname}] finished, count: {len(tasks)}, cost: {time.time()-starttime:.2f}s"
     )

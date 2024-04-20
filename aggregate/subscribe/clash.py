@@ -565,7 +565,12 @@ def verify(item: dict, meta: bool = True) -> bool:
 
 
 def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, strict: bool = False) -> bool:
-    proxy_name = urllib.parse.quote(proxy.get("name", ""))
+    proxy_name = ""
+    try:
+        proxy_name = urllib.parse.quote(proxy.get("name", ""))
+    except:
+        return False
+
     base_url = f"http://{api_url}/proxies/{proxy_name}/delay?timeout={str(timeout)}&url="
 
     # 失败重试间隔：30ms ~ 200ms
