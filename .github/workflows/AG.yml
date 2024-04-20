@@ -29,7 +29,9 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
       run: |
-        cd aggregate/data/
+        cd aggregate/
+        mkdir data/
+        cd data/
         gh gist view ${{ secrets.GIST_ID }} -f subscribes.txt > old-subscribes.txt || true
 
     - name: Collect Subscribe
