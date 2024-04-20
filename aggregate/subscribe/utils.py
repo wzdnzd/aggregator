@@ -480,7 +480,7 @@ def multi_process_run(func: typing.Callable, tasks: list) -> list:
 
     funcname = getattr(func, "__name__", repr(func))
     logger.info(
-        f"process concurrent execute [{funcname}] finished, count: {len(tasks)}, cost: {time.time()-starttime:.2f}s"
+        f"[Concurrent] multi-process concurrent execute [{funcname}] finished, count: {len(tasks)}, cost: {time.time()-starttime:.2f}s"
     )
 
     return results
@@ -490,7 +490,6 @@ def multi_thread_run(
     func: typing.Callable,
     tasks: list,
     num_threads: int = None,
-    padding: bool = True,
     show_progress: bool = False,
     description: str = "",
 ) -> list:
@@ -500,12 +499,14 @@ def multi_thread_run(
     if num_threads is None or num_threads <= 0:
         num_threads = min(len(tasks), (os.cpu_count() or 1) * 2)
 
-    results, starttime = [], time.time()
+    funcname = getattr(func, "__name__", repr(func))
+
+    results, starttime = [None] * len(tasks), time.time()
     with futures.ThreadPoolExecutor(max_workers=num_threads) as executor:
         if isinstance(tasks[0], (list, tuple)):
-            collections = [executor.submit(func, *param) for param in tasks]
+            collections = {executor.submit(func, *param): i for i, param in enumerate(tasks)}
         else:
-            collections = [executor.submit(func, param) for param in tasks]
+            collections = {executor.submit(func, param): i for i, param in enumerate(tasks)}
 
         items = futures.as_completed(collections)
         if show_progress:
@@ -516,16 +517,14 @@ def multi_thread_run(
 
         for future in items:
             try:
-                results.append(future.result())
+                result = future.result()
+                index = collections[future]
+                results[index] = result
             except Exception as e:
-                logger.error(f"function execution generated an exception: {e}")
+                logger.error(f"function {funcname} execution generated an exception: {e}")
 
-                if padding:
-                    results.append(None)
-
-    funcname = getattr(func, "__name__", repr(func))
     logger.info(
-        f"thread concurrent execute [{funcname}] finished, count: {len(tasks)}, cost: {time.time()-starttime:.2f}s"
+        f"[Concurrent] multi-threaded execute [{funcname}] finished, count: {len(tasks)}, cost: {time.time()-starttime:.2f}s"
     )
 
     return results
