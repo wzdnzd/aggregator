@@ -26,7 +26,6 @@ DATA_BASE = os.path.join(PATH, "data")
 
 
 def assign(
-    retry: int,
     bin_name: str,
     filename: str = "",
     overwrite: bool = False,
@@ -35,38 +34,51 @@ def assign(
     display: bool = True,
     num_threads: int = 0,
 ) -> list[TaskConfig]:
-    domains = []
+    domains, delimiter = {}, "@#@#"
     if filename and os.path.exists(filename) and os.path.isfile(filename):
         with open(filename, "r", encoding="UTF8") as f:
             for line in f.readlines():
                 line = line.replace("\n", "").strip()
                 if not line:
                     continue
-                domains.append(line)
+
+                words = line.rsplit(delimiter, maxsplit=1)
+                address = utils.trim(words[0])
+                coupon = utils.trim(words[1]) if len(words) > 1 else ""
+
+                domains[address] = coupon
 
     if not domains or overwrite:
-        urls = crawl.collect_airport(
+        candidates = crawl.collect_airport(
             channel="jichang_list",
             page_num=pages,
             num_thread=num_threads,
             rigid=rigid,
             display=display,
         )
-        domains.extend(urls)
-        overwrite = True
 
-    domains = list(set(domains))
-    tasks, retry = [], max(1, retry)
+        if candidates:
+            domains.update(candidates)
+            overwrite = True
+
     if not domains:
         logger.error("[CrawlError] cannot collect any airport for free use")
-        return tasks
+        return []
 
     if overwrite:
-        utils.write_file(filename=filename, lines=domains)
+        lines = []
+        for k, v in domains.items():
+            if not v:
+                lines.append(k)
+            else:
+                lines.append(f"{k}\t{delimiter}\t{v}")
 
-    for domain in domains:
+        utils.write_file(filename=filename, lines=lines)
+
+    tasks = list()
+    for domain, coupon in domains.items():
         name = crawl.naming_task(url=domain)
-        tasks.append(TaskConfig(name=name, domain=domain, bin_name=bin_name, rigid=rigid))
+        tasks.append(TaskConfig(name=name, domain=domain, coupon=coupon, bin_name=bin_name, rigid=rigid))
 
     return tasks
 
@@ -80,7 +92,6 @@ def aggregate(args: argparse.Namespace) -> None:
     display = not args.invisible
 
     tasks = assign(
-        retry=3,
         bin_name=subconverter_bin,
         filename=os.path.join(DATA_BASE, "domains.txt"),
         overwrite=args.overwrite,
@@ -174,11 +185,26 @@ def aggregate(args: argparse.Namespace) -> None:
         yaml.dump(data, f, allow_unicode=True)
         logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
 
+    life, vestigial = max(0, args.life), max(0, args.vestigial)
+    if life > 0 or vestigial > 0:
+        tasks = [[x, 2, vestigial, life, 0] for x in urls]
+        results = utils.multi_thread_run(
+            func=crawl.check_status,
+            tasks=tasks,
+            num_threads=args.num,
+            show_progress=display,
+        )
+
+        urls = [urls[i] for i in range(len(urls)) if results[i][0] and not results[i][1]]
+        discard = len(tasks) - len(urls)
+
+        logger.info(f"filter subscriptions finished, total: {len(tasks)}, found: {len(urls)}, discard: {discard}")
+
     utils.write_file(filename=os.path.join(args.output, "subscribes.txt"), lines=urls)
     domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
 
     # 更新 domains.txt 文件为实际可使用的网站列表
-    utils.write_file(filename=os.path.join(args.output, "valid-domains.txt"), lines=domains)
+    utils.write_file(filename=os.path.join(args.output, "valid-domains.txt"), lines=list(set(domains)))
     workflow.cleanup(workspace, [])
 
 
@@ -209,6 +235,15 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="don't show check progress bar",
+    )
+
+    parser.add_argument(
+        "-l",
+        "--life",
+        type=int,
+        required=False,
+        default=0,
+        help="remaining life time, unit: hours",
     )
 
     parser.add_argument(
@@ -272,6 +307,15 @@ if __name__ == "__main__":
         required=False,
         default="https://www.google.com/generate_204",
         help="test url",
+    )
+
+    parser.add_argument(
+        "-v",
+        "--vestigial",
+        type=int,
+        required=False,
+        default=0,
+        help="vestigial traffic allowed to use, unit: GB",
     )
 
     parser.add_argument(
