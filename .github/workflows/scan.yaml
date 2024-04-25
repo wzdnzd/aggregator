@@ -32,7 +32,7 @@ jobs:
     - name: Check if proxies.yaml is generated
       id: check_proxies
       run: |
-        if [ -f aggregate/data/proxies.yaml ]; then
+        if [ -f aggregate/proxies.yaml ]; then
           echo "proxies.yaml found"
         else
           echo "proxies.yaml not found"
@@ -49,6 +49,6 @@ jobs:
     - name: Commit and push changes
       if: success() && steps.check_proxies.outputs.proxies_exists == 'true'
       run: |
-        git add aggregate/data/proxies.yaml
+        git add aggregate/proxies.yaml
         git commit -m "Add generated proxies.yaml"
         git push
