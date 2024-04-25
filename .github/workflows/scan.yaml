@@ -27,14 +27,28 @@ jobs:
       run: |
         cd aggregate
         python -u subscribe/collect.py -s  
+        cd ..  # 返回到项目的根目录
+
+    - name: Check if proxies.yaml is generated
+      id: check_proxies
+      run: |
+        if [ -f aggregate/data/proxies.yaml ]; then
+          echo "proxies.yaml found"
+        else
+          echo "proxies.yaml not found"
+          echo "::set-output name=proxies_exists::false"
+          exit 1
+        fi
 
     - name: Configure Git
+      if: success() && steps.check_proxies.outputs.proxies_exists == 'true'
       run: |
         git config user.name "GitHub Actions Bot"
         git config user.email "actions@github.com"
 
     - name: Commit and push changes
+      if: success() && steps.check_proxies.outputs.proxies_exists == 'true'
       run: |
-        git add aggregate/proxies.yaml
-        git commit -m "Add generated output.yaml"
+        git add aggregate/data/proxies.yaml
+        git commit -m "Add generated proxies.yaml"
         git push
