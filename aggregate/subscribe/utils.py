@@ -271,9 +271,10 @@ def trim(text: str) -> str:
     return text.strip()
 
 
-def load_dotenv() -> None:
+def load_dotenv(enviroment: str = ".env") -> None:
     path = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-    filename = os.path.join(path, ".env")
+    enviroment = trim(enviroment) or ".env"
+    filename = os.path.join(path, enviroment)
 
     if not os.path.exists(filename) or os.path.isdir(filename):
         return

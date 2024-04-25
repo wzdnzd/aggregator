@@ -187,7 +187,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
     life, vestigial = max(0, args.life), max(0, args.vestigial)
     if life > 0 or vestigial > 0:
-        tasks = [[x, 2, vestigial, life, 0] for x in urls]
+        tasks = [[x, 2, vestigial, life, 0, True] for x in urls]
         results = utils.multi_thread_run(
             func=crawl.check_status,
             tasks=tasks,
