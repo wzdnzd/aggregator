@@ -1,42 +1,40 @@
-name: Get Subscription Weekly
+name: Generate and Commit File
 
 on:
   schedule:
-    - cron: '0 16 * * 6'  # 北京时间每周日凌晨执行
+    - cron: '0 */12 * * *'   # 每12个小时跑一次
   workflow_dispatch: # 允许手动触发
 
-permissions:
-  contents: write
-
 jobs:
-  execute-script:
+  build-and-commit:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-    - name: Set up Python 3.10
+    - name: Set up Python
       uses: actions/setup-python@v3
       with:
-        python-version: "3.10"
+        python-version: '3.10'
 
     - name: Install dependencies
       run: |
-        pip3 install pyYAML requests
+        pip3 install pyYAML requests tqdm
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    - name: Collect Subscribe
-      id: collect
+    - name: Collect proxies
       run: |
         cd aggregate
-        python -u subscribe/collect.py
-      
-    - name: Create/Update Gist
-      env:
-        GH_TOKEN: ${{ secrets.PAT}}
+        python -u subscribe/collect.py -s  
+
+    - name: Configure Git
       run: |
-        cd aggregate/data
-        gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
-        gh gist edit ${{ secrets.GIST_ID }} --add "subscribes.txt"
-        gh gist edit ${{ secrets.GIST_ID }} --add "domains.txt"
-        gh gist edit ${{ secrets.GIST_ID }} --add "valid-domains.txt"
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+
+    - name: Commit and push changes
+      run: |
+        git add aggregate/data
+        git commit -m "Add generated output.yaml"
+        git push
