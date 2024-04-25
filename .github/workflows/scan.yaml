@@ -1,54 +1,46 @@
-name: Generate and Commit File
+name: Get Subscription Weekly
 
 on:
   schedule:
-    - cron: '0 */12 * * *'   # 每12个小时跑一次
+    - cron: '0 16 * * 6'  # 北京时间每周日凌晨执行
   workflow_dispatch: # 允许手动触发
 
+permissions:
+  contents: write
+
 jobs:
-  build-and-commit:
+  execute-script:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-    - name: Set up Python
+    - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
-        python-version: '3.10'
+        python-version: "3.10"
 
     - name: Install dependencies
       run: |
-        pip3 install pyYAML requests tqdm
+        pip3 install pyYAML requests
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    
+    - name: Install tqdm
+      run: |
+        pip install tqdm
 
-    - name: Collect proxies
+    - name: Collect Subscribe
+      id: collect
       run: |
         cd aggregate
-        python -u subscribe/collect.py -s  
-        cd ..  # 返回到项目的根目录
-
-    - name: Check if proxies.yaml is generated
-      id: check_proxies
+        python -u subscribe/collect.py -s
+      
+    - name: Create/Update Gist
+      env:
+        GH_TOKEN: ${{ secrets.PAT}}
       run: |
-        if [ -f aggregate/proxies.yaml ]; then
-          echo "proxies.yaml found"
-        else
-          echo "proxies.yaml not found"
-          echo "::set-output name=proxies_exists::false"
-          exit 1
-        fi
-
-    - name: Configure Git
-      if: success() && steps.check_proxies.outputs.proxies_exists == 'true'
-      run: |
-        git config user.name "GitHub Actions Bot"
-        git config user.email "actions@github.com"
-
-    - name: Commit and push changes
-      if: success() && steps.check_proxies.outputs.proxies_exists == 'true'
-      run: |
-        git add aggregate/proxies.yaml
-        git commit -m "Add generated proxies.yaml"
-        git push
+        cd aggregate
+        gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
+        gh gist edit ${{ secrets.GIST_ID }} --add "subscribes.txt"
+        gh gist edit ${{ secrets.GIST_ID }} --add "domains.txt"
+        gh gist edit ${{ secrets.GIST_ID }} --add "valid-domains.txt"
