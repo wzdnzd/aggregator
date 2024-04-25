@@ -24,16 +24,12 @@ jobs:
       run: |
         pip3 install pyYAML requests
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    
-    - name: Install tqdm
-      run: |
-        pip install tqdm
 
     - name: Collect Subscribe
       id: collect
       run: |
         cd aggregate
-        python -u subscribe/collect.py -s
+        python -u subscribe/collect.py
       
     - name: Create/Update Gist
       env:
