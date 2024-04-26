@@ -20,6 +20,7 @@ def generate_conf(
     source: str,
     dest: str,
     target: str,
+    list_only: bool = True,
     ignore_exclude: bool = False,
 ) -> None:
     if not filepath or not name or not source or not dest or not target:
@@ -31,12 +32,14 @@ def generate_conf(
         path = f"path={dest.strip()}"
         url = f"url={source.strip()}"
         target = f"target={target.strip()}"
-        only_proxies = "list=true"
         remove_rules = "expand=false"
-        lines = [name, path, target, url, only_proxies, remove_rules]
+        lines = [name, path, target, url, remove_rules]
+
+        if list_only:
+            lines.append("list=true")
 
         if ignore_exclude:
-            lines.append(f"exclude=流量|过期|剩余|时间|Expire|Traffic")
+            lines.append("exclude=流量|过期|剩余|时间|Expire|Traffic")
 
         lines.append("\n")
         content = "\n".join(lines)

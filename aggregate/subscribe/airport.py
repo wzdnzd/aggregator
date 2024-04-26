@@ -67,8 +67,9 @@ class Category(Enum):
 def str_constructor(loader, node):
     return str(loader.construct_scalar(node))
 
-yaml.SafeLoader.add_constructor(u'str', str_constructor)
-yaml.FullLoader.add_constructor(u'str', str_constructor)
+
+yaml.SafeLoader.add_constructor("str", str_constructor)
+yaml.FullLoader.add_constructor("str", str_constructor)
 
 
 def lookup(name: str) -> Category:
@@ -690,6 +691,7 @@ class AirPort:
                 f"{artifact}.txt",
                 f"{artifact}.yaml",
                 "clash",
+                True,
                 ignore,
             )
             if not success:
