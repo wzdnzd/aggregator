@@ -32,7 +32,7 @@ def generate_conf(
         path = f"path={dest.strip()}"
         url = f"url={source.strip()}"
         target = f"target={target.strip()}"
-        remove_rules = "expand=false"
+        remove_rules = f"expand={str(not list_only).lower()}"
         lines = [name, path, target, url, remove_rules]
 
         if list_only:
