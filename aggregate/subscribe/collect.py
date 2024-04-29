@@ -7,6 +7,7 @@ import argparse
 import itertools
 import os
 import random
+import shutil
 import subprocess
 import sys
 import time
@@ -14,6 +15,7 @@ import time
 import clash
 import crawl
 import executable
+import subconverter
 import utils
 import workflow
 import yaml
@@ -120,7 +122,7 @@ def aggregate(args: argparse.Namespace) -> None:
     nodes, workspace = [], os.path.join(PATH, "clash")
 
     if args.skip:
-        nodes = [p for p in proxies if p and isinstance(p, dict)]
+        nodes = clash.filter_proxies(proxies).get("proxies", [])
     else:
         binpath = os.path.join(workspace, clash_bin)
         filename = "config.yaml"
@@ -181,9 +183,33 @@ def aggregate(args: argparse.Namespace) -> None:
 
     os.makedirs(args.output, exist_ok=True)
     proxies_file = os.path.join(args.output, args.filename)
-    with open(proxies_file, "w+", encoding="utf8") as f:
-        yaml.dump(data, f, allow_unicode=True)
-        logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
+
+    if args.all:
+        temp_file, dest_file, artifact, target = "proxies.yaml", "config.yaml", "convert", "clash"
+
+        filepath = os.path.join(PATH, "subconverter", temp_file)
+        if os.path.exists(filepath) and os.path.isfile(filepath):
+            os.remove(filepath)
+
+        with open(filepath, "w+", encoding="utf8") as f:
+            yaml.dump(data, f, allow_unicode=True)
+
+        if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+            os.remove(generate_conf)
+
+        success = subconverter.generate_conf(generate_conf, artifact, temp_file, dest_file, target, False, False)
+        if not success:
+            logger.error(f"cannot generate subconverter config file, exit")
+            sys.exit(0)
+
+        if subconverter.convert(binname=subconverter_bin, artifact=artifact):
+            shutil.move(os.path.join(PATH, "subconverter", dest_file), proxies_file)
+            os.remove(filepath)
+    else:
+        with open(proxies_file, "w+", encoding="utf8") as f:
+            yaml.dump(data, f, allow_unicode=True)
+
+    logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
 
     life, vestigial = max(0, args.life), max(0, args.vestigial)
     if life > 0 or vestigial > 0:
@@ -210,6 +236,15 @@ def aggregate(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "-a",
+        "--all",
+        dest="all",
+        action="store_true",
+        default=False,
+        help="generate full configuration for clash",
+    )
+
     parser.add_argument(
         "-d",
         "--delay",
