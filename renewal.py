@@ -48,27 +48,30 @@ def extract_domain(url) -> str:
     return url[start + 2 : end]
 
 
-def login(url, params, headers, retry) -> str:
+def login(url: str, params: dict, headers: dict, retry: int = 3) -> tuple[str, str]:
     try:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
 
         response = urllib.request.urlopen(request, timeout=10, context=CTX)
+        cookies, authorization = "", ""
         if response.getcode() == 200:
-            return response.getheader("Set-Cookie")
-        else:
-            print(response.read().decode("UTF8"))
-            return ""
+            cookies = response.getheader("Set-Cookie")
+            try:
+                data = json.loads(response.read().decode("UTF8")).get("data", {})
+                authorization = data.get("auth_data", "")
+            except:
+                pass
 
-    except Exception as e:
-        print(str(e))
+        return cookies, authorization
+
+    except:
         retry -= 1
 
         if retry > 0:
             return login(url, params, headers, retry)
 
-        print("[LoginError] URL: {}".format(extract_domain(url)))
-        return ""
+        return "", ""
 
 
 def order(url, params, headers, retry) -> str:
@@ -191,8 +194,11 @@ def config_load(filename) -> dict:
     if not os.path.exists(filename) or os.path.isdir(filename):
         return None
 
-    config = open(filename, "r").read()
-    return json.loads(config)
+    try:
+        config = open(filename, "r").read()
+        return json.loads(config)
+    except:
+        return None
 
 
 def flow(domain, params, headers, reset, retry) -> bool:
@@ -216,15 +222,16 @@ def flow(domain, params, headers, reset, retry) -> bool:
         "password": params.get("passwd", ""),
     }
 
-    text = login(login_url, user_info, headers, retry)
-    if not text:
-        return False
-
+    text, authorization = login(login_url, user_info, headers, retry)
     cookie = get_cookie(text)
-    if len(cookie) <= 0:
+
+    if not cookie and not authorization:
         return False
 
-    headers["cookie"] = cookie
+    if authorization:
+        headers["authorization"] = authorization
+    if cookie:
+        headers["cookie"] = cookie
 
     trade_no = fetch(fetch_url, headers, retry)
 
@@ -273,30 +280,51 @@ def wrapper(args, reset: bool, retry: int) -> bool:
     return flow(args["domain"], args["param"], HEADER, reset, retry)
 
 
-def main(reset: bool, retry: int) -> None:
-    config = config_load(os.path.join(PATH, "config.json"))
+def main(config: dict, reset: bool, retry: int) -> None:
+    if not config or not isinstance(config, dict):
+        print("config file is invalid")
+        return
+
     params = config.get("domains", [])
     for args in params:
         flag = args.get("renewal", True)
         if not flag:
             print("skip renewal, domain: {}".format(args.get("domain", "").strip()))
             continue
+
         wrapper(args, reset, retry)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-n", "--num", type=int, required=False, default=1, help="renewal times"
-    )
+
     parser.add_argument(
         "-c",
+        "--config",
+        type=str,
+        required=False,
+        default="config.json",
+        help="config file name",
+    )
+
+    parser.add_argument(
+        "-n",
+        "--num",
+        type=int,
+        required=False,
+        default=1,
+        help="renewal times",
+    )
+
+    parser.add_argument(
+        "-r",
         "--reset",
         dest="reset",
         action="store_true",
         default=False,
         help="reset traffic flow",
     )
+
     parser.add_argument(
         "-s",
         "--sleep",
@@ -306,25 +334,24 @@ if __name__ == "__main__":
         default=5,
         help="sleep time",
     )
-    parser.add_argument(
-        "-r",
-        "--retry",
-        type=int,
-        required=False,
-        choices=range(5),
-        default=3,
-        help="retry if fail",
-    )
 
     args = parser.parse_args()
+
+    config = config_load(os.path.join(PATH, os.path.abspath(args.config)))
+    if not config or not isinstance(config, dict):
+        print("config file is invalid")
+        sys.exit(1)
+
     if args.reset:
-        main(reset=True, retry=args.retry)
+        main(config=config, reset=True, retry=3)
         sys.exit(0)
 
     for i in range(args.num):
-        main(reset=False, retry=args.retry)
+        main(config=config, reset=False, retry=3)
+
         delay = randint(0, 60 * args.sleep)
-        print("第{}次续订完成，下次运行需等待{}秒".format(i + 1, delay))
-        print()
         if i != args.num - 1:
+            print(f"{i+1}th renewal complete, {delay} second wait for next run", end="\n\n")
             time.sleep(delay)
+
+    print(f"all {args.num} renewals are completed")
