@@ -381,8 +381,9 @@ def aggregate(args: argparse.Namespace) -> None:
     display = not args.invisible
 
     # parse config
+    server = utils.trim(args.server) or os.environ.get("SUBSCRIBE_CONF", "").strip()
     sites, push_configs, crawl_conf, update_conf, delay = load_configs(
-        url=args.server,
+        url=server,
         only_check=args.check,
         num_threads=args.num,
         display=display,
@@ -558,7 +559,7 @@ def aggregate(args: argparse.Namespace) -> None:
             filename = os.path.join(PATH, "data", f"{k}.txt")
 
             logger.error(f"failed to push config to remote server, group: {k}, save it to {filename}")
-            utils.write_file(filename=filename, content=content)
+            utils.write_file(filename=filename, lines=content)
 
         cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
@@ -575,8 +576,6 @@ def aggregate(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    utils.load_dotenv()
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -586,6 +585,15 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="only check proxies are alive",
+    )
+
+    parser.add_argument(
+        "-e",
+        "--envrionment",
+        type=str,
+        required=False,
+        default=".env",
+        help="environment file name",
     )
 
     parser.add_argument(
@@ -638,7 +646,7 @@ if __name__ == "__main__":
         "--server",
         type=str,
         required=False,
-        default=os.environ.get("SUBSCRIBE_CONF", "").strip(),
+        default="",
         help="remote config file",
     )
 
@@ -661,4 +669,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    utils.load_dotenv(args.envrionment)
+
     aggregate(args=args)
