@@ -57,6 +57,8 @@ def assign(
             num_thread=num_threads,
             rigid=rigid,
             display=display,
+            filepath=os.path.join(DATA_BASE, "materials.txt"),
+            delimiter=delimiter,
         )
 
         if candidates:
@@ -68,14 +70,7 @@ def assign(
         return []
 
     if overwrite:
-        lines = []
-        for k, v in domains.items():
-            if not v:
-                lines.append(k)
-            else:
-                lines.append(f"{k}\t{delimiter}\t{v}")
-
-        utils.write_file(filename=filename, lines=lines)
+        crawl.save_candidates(candidates=domains, filepath=filename, delimiter=delimiter)
 
     tasks = list()
     for domain, coupon in domains.items():
