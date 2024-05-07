@@ -39,4 +39,5 @@ jobs:
         GH_TOKEN: ${{ secrets.PAT }}
       run: |
         cd aggregate
+        git status
         gh gist edit ${{ secrets.GIST_ID_SELF_LINK }} --add "self_proxies.yaml"
