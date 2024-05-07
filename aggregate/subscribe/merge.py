@@ -122,7 +122,7 @@ if __name__ == "__main__":
         "--filename",
         type=str,
         required=False,
-        default="proxies.yaml",
+        default="self_proxies.yaml",
         help="file path to save merged proxies",
     )
 
