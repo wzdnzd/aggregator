@@ -23,7 +23,7 @@ def main(args: argparse.Namespace) -> None:
     url = utils.trim(text=args.url)
     if not url:
         logger.error("please provide the url for the subscriptions")
-        return
+        url = "https://sub.tgzdyz2.xyz/sub"
 
     filename = utils.trim(args.filename)
     if not filename:
