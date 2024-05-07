@@ -29,8 +29,9 @@ def main(args: argparse.Namespace) -> None:
     if not filename:
         logger.error(f"must specify the file path where the results will be saved")
         return
-
+    logger.warning(url)
     content = utils.http_get(url=url, timeout=30)
+    logger.warning(content)
     groups = re.findall(r"^https?:\/\/[^\s]+", content, flags=re.M)
     if not groups:
         logger.warning("cannot found any valid subscription")
