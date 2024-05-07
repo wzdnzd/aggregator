@@ -1,0 +1,42 @@
+name: Merge Proxies
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # subscription link
+  EXISTS_LINK: ${{ secrets.EXISTS_LINK }}
+
+jobs:
+  execute-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+
+    - name: Install Dependencies
+      run: |
+        pip3 install pyYAML tqdm
+
+    - name: Fetch Subscriptions
+      id: collect
+      run: |
+        cd aggregate
+        python -u subscribe/merge.py -f "proxies.yaml"
+      
+    - name: Create/Update Gist
+      env:
+        GH_TOKEN: ${{ secrets.PAT }}
+      run: |
+        cd aggregate
+        gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
