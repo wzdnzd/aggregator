@@ -1,4 +1,4 @@
-name: Get Subscription Weekly
+name: AUTO GIST VPN CRON
 
 on:
   schedule:
