@@ -32,11 +32,11 @@ jobs:
       id: collect
       run: |
         cd aggregate
-        python -u subscribe/merge.py -f "proxies.yaml"
+        python -u subscribe/merge.py -f "self_proxies.yaml"
       
     - name: Create/Update Gist
       env:
         GH_TOKEN: ${{ secrets.PAT }}
       run: |
         cd aggregate
-        gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
+        gh gist edit ${{ secrets.GIST_ID_SELF_LINK }} --add "self_proxies.yaml"
