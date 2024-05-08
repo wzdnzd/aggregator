@@ -24,6 +24,9 @@ jobs:
         git remote add upstream https://github.com/wzdnzd/aggregator.git
         git fetch upstream
         git checkout master
+        # 检查是否有更新
+        git fetch origin master
+        git fetch upstream master
         UPSTREAM_SHA=$(git rev-parse upstream/master)
         LOCAL_SHA=$(git rev-parse master)
         ORIGIN_SHA=$(git rev-parse origin/master)
