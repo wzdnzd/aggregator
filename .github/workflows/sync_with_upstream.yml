@@ -3,7 +3,7 @@ name: Sync Fork
 on:
   schedule:
     - cron: '0 0 * * *' # 每天运行一次
-    workflow_dispatch: # 允许手动触发
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   sync:
