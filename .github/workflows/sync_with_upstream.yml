@@ -21,18 +21,21 @@ jobs:
 
     - name: Sync with Upstream
       run: |
-        git remote add upstream https://github.com/wzdnzd/aggregator.git
+        # 检查upstream是否已经存在
+        if ! git remote get-url upstream; then
+          git remote add upstream https://github.com/wzdnzd/aggregator.git
+        fi
         git fetch upstream
-        git checkout master
+        git checkout main # 更新为实际的分支名称
         # 检查是否有更新
-        git fetch origin master
-        git fetch upstream master
-        UPSTREAM_SHA=$(git rev-parse upstream/master)
-        LOCAL_SHA=$(git rev-parse master)
-        ORIGIN_SHA=$(git rev-parse origin/master)
+        git fetch origin main # 更新为实际的分支名称
+        git fetch upstream main # 更新为实际的分支名称
+        UPSTREAM_SHA=$(git rev-parse upstream/main) # 更新为实际的分支名称
+        LOCAL_SHA=$(git rev-parse main) # 更新为实际的分支名称
+        ORIGIN_SHA=$(git rev-parse origin/main) # 更新为实际的分支名称
         # 只有当上游更新且本地分支与origin相同时，才进行合并
         if [ "$UPSTREAM_SHA" != "$LOCAL_SHA" ] && [ "$LOCAL_SHA" == "$ORIGIN_SHA" ]; then
-          git merge upstream/master
+          git merge upstream/main # 更新为实际的分支名称
           git push
         else
           echo "没有可同步的更新，跳过合并操作。"
