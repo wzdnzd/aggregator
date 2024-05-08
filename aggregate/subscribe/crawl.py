@@ -418,7 +418,7 @@ def crawl_telegram(users: dict, pages: int = 1, limits: int = 3) -> dict:
 
     params = [[k, v, pages, limits] for k, v in users.items()]
     results = utils.multi_thread_run(func=generate_telegram_task, tasks=params)
-
+    logger.info(f"[TelegramCrawl] finished crawl from Telegram, found {len(results)} results, results: {results}")
     tasks = list(itertools.chain.from_iterable(results))
     subscribes = multi_thread_crawl(func=crawl_telegram_page, params=tasks)
     cost = "{:.2f}s".format(time.time() - starttime)
