@@ -24,5 +24,13 @@ jobs:
         git remote add upstream https://github.com/wzdnzd/aggregator.git
         git fetch upstream
         git checkout master
-        git merge upstream/master
-        git push
+        UPSTREAM_SHA=$(git rev-parse upstream/master)
+        LOCAL_SHA=$(git rev-parse master)
+        ORIGIN_SHA=$(git rev-parse origin/master)
+        # 只有当上游更新且本地分支与origin相同时，才进行合并
+        if [ "$UPSTREAM_SHA" != "$LOCAL_SHA" ] && [ "$LOCAL_SHA" == "$ORIGIN_SHA" ]; then
+          git merge upstream/master
+          git push
+        else
+          echo "没有可同步的更新，跳过合并操作。"
+        fi
