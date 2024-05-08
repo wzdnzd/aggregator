@@ -388,7 +388,7 @@ def aggregate(args: argparse.Namespace) -> None:
         num_threads=args.num,
         display=display,
     )
-    logger.info(f"load_configs, server=[{server}]")
+
     push_configs = pushtool.filter_push(push_configs)
     retry = min(max(1, args.retry), 10)
 
