@@ -1355,7 +1355,7 @@ def get_telegram_pages(channel: str) -> int:
 
     url = f"https://t.me/s/{channel}"
     content = utils.http_get(url=url)
-    logger.info(f"get_telegram_pages, content: [{content}]")
+    logger.info(f"get_telegram_pages, channel: [{channel}]")
     before = 0
     try:
         regex = rf'<link\s+rel="canonical"\s+href="/s/{channel}\?before=(\d+)">'
