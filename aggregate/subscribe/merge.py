@@ -203,6 +203,7 @@ def load_configs(
                 parse_config(json.loads(content))
         else:
             localfile = os.path.abspath(url)
+            logger.info(f"os.path.abspath(url), content: [{localfile}]")
             if os.path.exists(localfile) and os.path.isfile(localfile):
                 config = json.loads(open(localfile, "r", encoding="utf8").read())
                 parse_config(config)
