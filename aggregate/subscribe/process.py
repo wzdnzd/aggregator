@@ -664,7 +664,7 @@ if __name__ == "__main__":
         "--url",
         type=str,
         required=False,
-        default="https://www.google.com/generate_204",
+        default="default.json",
         help="test url",
     )
 
