@@ -19,24 +19,40 @@ jobs:
         git config --global user.name 'Auto merge'
         git config --global user.email 'Auto merge'
 
-    - name: Sync with Upstream
+    - name: Add Upstream Remote
       run: |
-        # 检查upstream是否已经存在
-        if ! git remote get-url upstream; then
+        # 检查upstream是否已经存在，如果不存在，则添加
+        if ! git remote | grep -q upstream; then
           git remote add upstream https://github.com/wzdnzd/aggregator.git
+          echo "Upstream remote added."
+        else
+          echo "Upstream remote already exists."
         fi
+
+    - name: Fetch from Upstream
+      run: |
         git fetch upstream
-        git checkout main # 更新为实际的分支名称
-        # 检查是否有更新
-        git fetch origin main # 更新为实际的分支名称
-        git fetch upstream main # 更新为实际的分支名称
-        UPSTREAM_SHA=$(git rev-parse upstream/main) # 更新为实际的分支名称
-        LOCAL_SHA=$(git rev-parse main) # 更新为实际的分支名称
-        ORIGIN_SHA=$(git rev-parse origin/main) # 更新为实际的分支名称
-        # 只有当上游更新且本地分支与origin相同时，才进行合并
-        if [ "$UPSTREAM_SHA" != "$LOCAL_SHA" ] && [ "$LOCAL_SHA" == "$ORIGIN_SHA" ]; then
-          git merge upstream/main # 更新为实际的分支名称
-          git push
+
+    - name: Checking for Changes
+      id: check
+      run: |
+        git checkout main
+        git fetch upstream main
+        UPSTREAM_SHA=$(git rev-parse upstream/main)
+        LOCAL_SHA=$(git rev-parse main)
+        if [ "$UPSTREAM_SHA" = "$LOCAL_SHA" ]; then
+          echo "No changes to sync."
+          echo "::set-output name=changes::false"
+        else
+          echo "Changes detected."
+          echo "::set-output name=changes::true"
+        fi
+
+    - name: Merge Changes
+      if: steps.check.outputs.changes == 'true'
+      run: |
+        git merge upstream/main
+        git push origin main
         else
           echo "没有可同步的更新，跳过合并操作。"
         fi
