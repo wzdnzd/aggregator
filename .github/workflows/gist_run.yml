@@ -33,10 +33,13 @@ jobs:
       
     - name: Create/Update Gist
       env:
-        GH_TOKEN: ${{ secrets.PAT}}
+        GH_TOKEN: ${{ secrets.PAT }}
       run: |
         cd aggregate/data
-        TEMP_FILE=$(mktemp)
-        cat proxies.yaml > $TEMP_FILE
-        gh gist edit ${{ secrets.GIST_ID }} --filename "proxies.yaml" --content-file $TEMP_FILE --auth $GH_TOKEN
-        rm $TEMP_FILE
+        GIST_CONTENT=$(<proxies.yaml)
+        JSON_PAYLOAD=$(jq -n --arg content "$GIST_CONTENT" \
+          '{ "files": { "proxies.yaml": { "content": $content } } }')
+        curl -X PATCH \
+             -H "Authorization: token $GH_TOKEN" \
+             -d "$JSON_PAYLOAD" \
+             "https://api.github.com/gists/${{ secrets.GIST_ID }}"
