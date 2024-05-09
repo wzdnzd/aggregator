@@ -21,6 +21,7 @@ import urllib.parse
 import urllib.request
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import cache
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Semaphore
 
@@ -52,24 +53,16 @@ class ValidateResult(object):
     unknown: str = None
 
 
-def crawlable() -> tuple[int, bool]:
-    # 0: crawl and aggregate | 1: crawl only | 2: aggregate only
-    mode = os.environ.get("WORKFLOW_MODE", "0")
-    mode = 0 if not mode.isdigit() else min(max(int(mode), 0), 2)
-
-    reachable = os.environ.get("REACHABLE", "true") in ["true", "1"]
-    runnable = False if mode == 2 else reachable
-
-    return mode, runnable
-
-
-MODE, CONNECTABLE = crawlable()
-
-
-# whether to allow crawling a single proxy link
-SINGLE_PROXIES_ENV_NAME = "ALLOW_SINGLE_LINK"
-ALLOW_SINGLE_LINK = os.environ.get(SINGLE_PROXIES_ENV_NAME, "").lower() == "true"
 SINGLE_LINK_FLAG = "singlelink://"
+
+# environment key
+SINGLE_PROXIES_ENV_NAME = "ALLOW_SINGLE_LINK"
+
+
+@cache
+def allow_single_link() -> bool:
+    """whether to allow crawling a single proxy link"""
+    return os.environ.get(SINGLE_PROXIES_ENV_NAME, "").lower() == "true"
 
 
 def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
@@ -106,9 +99,11 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
 
 
 def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list[dict]:
+    mode, connectable = crawlable()
+
     if not conf or not conf.get("enable", True):
         # only crawl if mode == 1
-        if MODE == 1:
+        if mode == 1:
             logger.warning(f"exit process because mode=1 and crawling task is disabled")
             sys.exit(0)
 
@@ -124,21 +119,22 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
         pushtool = push.get_instance()
         should_persist = pushtool.validate(push_conf=subspushconf)
         # skip tasks if mode == 1 and not set persistence
-        if MODE == 1 and not should_persist:
+        if mode == 1 and not should_persist:
             logger.warning(
                 f"[CrawlWarn] skip crawling tasks because the mode is set to crawl only but no valid persistence configuration is set"
             )
             sys.exit(0)
 
         # allow if persistence configuration is valid
-        global ALLOW_SINGLE_LINK
         enable = conf.get("singlelink", False)
-        ALLOW_SINGLE_LINK = enable and pushtool.validate(linkspushconf)
-        os.environ[SINGLE_PROXIES_ENV_NAME] = str(ALLOW_SINGLE_LINK)
+        allow = enable and pushtool.validate(linkspushconf)
+
+        # save it to environment
+        os.environ[SINGLE_PROXIES_ENV_NAME] = str(allow).lower()
 
         records, threshold = {}, conf.get("threshold", 1)
 
-        if CONNECTABLE:
+        if connectable:
             # Google
             google_spider = conf.get("google", {})
             if google_spider:
@@ -188,7 +184,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
                 records.update(crawl_twitter(tasks=twitter_spider))
 
         # skip crawl if mode == 2
-        if MODE != 2:
+        if mode != 2:
             # Github
             github_spider = conf.get("github", {})
             if github_spider and github_spider.get("push_to", []):
@@ -263,7 +259,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
                 pass
 
         if not records:
-            if peristedtasks and should_persist and MODE != 2:
+            if peristedtasks and should_persist and mode != 2:
                 content = json.dumps(peristedtasks)
                 pushtool.push_to(content=content, push_conf=subspushconf, group="crawl")
 
@@ -285,7 +281,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
                 if k not in value:
                     value[k] = v
 
-            jobs.append([key, value, exclude, threshold])
+            jobs.append([key, value, mode, connectable, exclude, threshold])
 
             # generate single link's configuration
             if key.startswith(SINGLE_LINK_FLAG):
@@ -306,7 +302,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
         datasets.extend(availables)
         peristedtasks.update(potentials)
 
-        if ALLOW_SINGLE_LINK:
+        if allow_single_link():
             proxies = list(proxylinks)
             logger.info(f"[CrawlInfo] crawl finished, found {len(proxies)} proxy links")
 
@@ -334,7 +330,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
         logger.info(f"[CrawlInfo] crawl finished, found {len(datasets)} subscriptions")
 
-        if MODE != 2 and should_persist and peristedtasks:
+        if mode != 2 and should_persist and peristedtasks:
             survivors = {k: v for k, v in peristedtasks.items() if not v.pop("nocache", False)}
 
             total, rest = len(peristedtasks), len(survivors)
@@ -350,11 +346,22 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
         traceback.print_exc()
 
     # only crawl if mode == 1
-    if MODE == 1:
+    if mode == 1:
         logger.warning(f"skip aggregate and exit process because mode=1 represents only crawling subscriptions")
         sys.exit(0)
 
     return datasets
+
+
+def crawlable() -> tuple[int, bool]:
+    # 0: crawl and aggregate | 1: crawl only | 2: aggregate only
+    mode = os.environ.get("WORKFLOW_MODE", "0")
+    mode = 0 if not mode.isdigit() else min(max(int(mode), 0), 2)
+
+    reachable = os.environ.get("REACHABLE", "true") in ["true", "1"]
+    runnable = False if mode == 2 else reachable
+
+    return mode, runnable
 
 
 def generate_telegram_task(channel: str, config: dict, pages: int, limits: int) -> list[list]:
@@ -1101,7 +1108,7 @@ def extract_subscribes(
 
                 for url in urls:
                     if not utils.isurl(url):
-                        if ALLOW_SINGLE_LINK:
+                        if allow_single_link():
                             proxies.extend([x for x in url.split("|") if re.match(protocal_regex, x, flags=re.I)])
                         continue
 
@@ -1132,7 +1139,7 @@ def extract_subscribes(
             if len(collections) >= limits:
                 break
 
-        if ALLOW_SINGLE_LINK:
+        if allow_single_link():
             try:
                 groups = re.findall(protocal_regex, content, flags=re.I)
                 if groups:
@@ -1154,7 +1161,14 @@ def extract_subscribes(
         return {}
 
 
-def validate(url: str, params: dict, exclude: str = "", threshold: int = 1) -> ValidateResult:
+def validate(
+    url: str,
+    params: dict,
+    mode: int,
+    connectable: bool,
+    exclude: str = "",
+    threshold: int = 1,
+) -> ValidateResult:
     if (
         not params
         or not params.get("push_to", None)
@@ -1175,7 +1189,7 @@ def validate(url: str, params: dict, exclude: str = "", threshold: int = 1) -> V
     defeat = params.get("defeat", 0) + 1
     discovered = params.get("discovered", False)
 
-    reachable, expired = check_status(url=url, retry=2, remain=5, spare_time=12, tolerance=72)
+    reachable, expired = check_status(url=url, retry=2, remain=5, spare_time=12, tolerance=72, connectable=connectable)
     if reachable:
         item = {"name": naming_task(url), "sub": url, "debut": True}
         item.update(params)
@@ -1188,12 +1202,12 @@ def validate(url: str, params: dict, exclude: str = "", threshold: int = 1) -> V
     if not params.pop("saved", False):
         if reachable or (discovered and defeat <= threshold and not expired):
             # don't storage temporary link shared by someone
-            if not workflow.standard_sub(url=url) and MODE != 1:
+            if not workflow.standard_sub(url=url) and mode != 1:
                 return result
 
             remark(source=params, defeat=defeat, discovered=True)
             result.potential = {url: params}
-        elif not CONNECTABLE and not expired:
+        elif not connectable and not expired:
             result.unknown = url
 
     return result
@@ -1215,6 +1229,7 @@ def check_status(
     remain: float = 0,
     spare_time: float = 0,
     tolerance: float = 0,
+    connectable: bool = True,
 ) -> tuple[bool, bool]:
     """
     url: subscription link
@@ -1224,14 +1239,14 @@ def check_status(
     tolerance: waiting time after expiration
     """
     if not url or retry <= 0:
-        return False, CONNECTABLE
+        return False, connectable
 
     try:
         headers = {"User-Agent": "clash.meta"}
         request = urllib.request.Request(url=url, headers=headers)
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() != 200:
-            return False, CONNECTABLE
+            return False, connectable
 
         content = str(response.read(), encoding="utf8")
 
@@ -1273,6 +1288,7 @@ def check_status(
                 remain=remain,
                 spare_time=spare_time,
                 tolerance=tolerance,
+                connectable=connectable,
             )
 
         return False, expired
@@ -1283,6 +1299,7 @@ def check_status(
             remain=remain,
             spare_time=spare_time,
             tolerance=tolerance,
+            connectable=connectable,
         )
 
 
@@ -1367,146 +1384,209 @@ def extract_airport_site(url: str) -> list[str]:
         return []
 
 
-def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list[str]:
-    """crawl from telegram channel"""
-    if not channel or not fun or not isinstance(fun, typing.Callable):
-        return []
-
-    page_num = max(page_num, 1)
-    url = f"https://t.me/s/{channel}"
-    if page_num == 1:
-        return list(fun(url))
-    else:
-        count = get_telegram_pages(channel=channel)
-        if count == 0:
-            return []
-
-        pages = range(count, -1, -20)
-        page_num = min(page_num, len(pages))
-        logger.info(f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}")
-
-        urls = [f"{url}?before={x}" for x in pages[:page_num]]
-        results = utils.multi_thread_run(func=fun, tasks=urls)
-
-        return list(itertools.chain.from_iterable(results))
-
-
-def crawl_ccbh(url: str) -> dict:
-    def get_redirect_url(url: str, retry: int = 3) -> str:
-        if not url or retry <= 0:
-            return ""
-
-        headers = {
-            "User-Agent": utils.USER_AGENT,
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Accept-Language": "zh-CN,zh;q=0.9",
-        }
-
-        try:
-            request = urllib.request.Request(url=url, headers=headers, method="GET")
-            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
-
-            return response.geturl()
-        except:
-            time.sleep(random.randint(1, 3))
-            return get_redirect_url(url=url, retry=retry - 1)
-
-    url = utils.trim(url)
-    if not url:
-        return {}
-
-    content = utils.http_get(url=url)
-    try:
-        groups = re.split(r"【[^【]*】", content, flags=re.M)
-        if not groups:
-            logger.warning(f"[AirPortCollector] cannot found any domains from [{url}]")
-            return {}
-
-        candidates, result = {}, {}
-        for group in groups:
-            if not group:
-                continue
-
-            texts = group.split("<br/><br/>")
-            for text in texts:
-                address_regex = r'注册地址：<a href="(https?://[^\s]+)"'
-                words = re.findall(address_regex, text, flags=re.M)
-                address = words[0] if words else ""
-
-                if not address:
-                    continue
-
-                coupon_regex = r"(?:白嫖|优惠)码[:\s：]+([^\s\r\n）]+)"
-                words = re.findall(coupon_regex, text, flags=re.M)
-                coupon = words[0] if words else ""
-
-                candidates[address] = coupon
-
-        urls = list(candidates.keys())
-        latest = utils.multi_thread_run(func=get_redirect_url, tasks=urls)
-
-        for i, x in enumerate(urls):
-            domain = utils.extract_domain(url=latest[i], include_protocal=True)
-            if not domain:
-                continue
-
-            coupon = candidates.get(x, "")
-            result[domain] = coupon
-    except:
-        logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
-
-    return result
-
-
-def crawl_maomeng(url: str) -> dict:
-    content = utils.http_get(url=utils.trim(url))
-    if not content:
-        return {}
-
-    groups = re.split(r'<h3 id="[^\r\n]+"><a href="#[^\r\n]+"', content, flags=re.M)
-    if not groups:
-        logger.warning(f"[AirPortCollector] cannot found any domains from [{url}]")
-        return {}
-
-    result = {}
-    try:
-        for group in groups:
-            regex = r"<p>官网：<a[^\r\n]+href=\"(https?://[^\s]+)\">.*</a></p>"
-            words = re.findall(regex, group, flags=re.M)
-            address = words[0] if words else ""
-            if not address:
-                continue
-
-            coupon_regex = r"<p>(?:优惠|白嫖)码：<code>([^<]+)</code></p>"
-            words = re.findall(coupon_regex, group, flags=re.M)
-            coupon = words[0] if words else ""
-
-            domain = utils.extract_domain(url=address, include_protocal=True)
-            result[domain] = coupon
-    except:
-        logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
-
-    return result
-
-
 def collect_airport(
     channel: str,
     page_num: int,
     num_thread: int = 64,
     rigid: bool = True,
     display: bool = True,
+    filepath: str = "",
+    delimiter: str = "",
 ) -> dict:
+    def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list[str]:
+        """crawl from telegram channel"""
+        if not channel or not fun or not isinstance(fun, typing.Callable):
+            return []
+
+        page_num = max(page_num, 1)
+        url = f"https://t.me/s/{channel}"
+        if page_num == 1:
+            return list(fun(url))
+        else:
+            count = get_telegram_pages(channel=channel)
+            if count == 0:
+                return []
+
+            pages = range(count, -1, -20)
+            page_num = min(page_num, len(pages))
+            logger.info(f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}")
+
+            urls = [f"{url}?before={x}" for x in pages[:page_num]]
+            results = utils.multi_thread_run(func=fun, tasks=urls)
+
+            return list(itertools.chain.from_iterable(results))
+
+    def crawl_ccbh() -> dict:
+        def get_redirect_url(url: str, retry: int = 3) -> str:
+            if not url or retry <= 0:
+                return ""
+
+            headers = {
+                "User-Agent": utils.USER_AGENT,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+                "Accept-Encoding": "gzip, deflate, br, zstd",
+                "Accept-Language": "zh-CN,zh;q=0.9",
+            }
+
+            try:
+                request = urllib.request.Request(url=url, headers=headers, method="GET")
+                response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+
+                return response.geturl()
+            except:
+                time.sleep(random.randint(1, 3))
+                return get_redirect_url(url=url, retry=retry - 1)
+
+        url = "https://ccbaohe.com/jcjd.html"
+        content = utils.http_get(url=url)
+        try:
+            groups = re.split(r"【[^【]*】", content, flags=re.M)
+            if not groups:
+                logger.warning(f"[AirPortCollector] cannot found any domains from [{url}]")
+                return {}
+
+            candidates, result = {}, {}
+            for group in groups:
+                if not group:
+                    continue
+
+                texts = group.split("<br/><br/>")
+                for text in texts:
+                    address_regex = r'注册地址：<a href="(https?://[^\s]+)"'
+                    words = re.findall(address_regex, text, flags=re.M)
+                    address = words[0] if words else ""
+
+                    if not address:
+                        continue
+
+                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+([^\s\r\n）]+)"
+                    words = re.findall(coupon_regex, text, flags=re.M)
+                    coupon = words[0] if words else ""
+
+                    candidates[address] = coupon
+
+            urls = list(candidates.keys())
+            latest = utils.multi_thread_run(func=get_redirect_url, tasks=urls)
+
+            for i, x in enumerate(urls):
+                domain = utils.extract_domain(url=latest[i], include_protocal=True)
+                if not domain:
+                    continue
+
+                coupon = candidates.get(x, "")
+                result[domain] = coupon
+        except:
+            logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
+
+        return result
+
+    def crawl_maomeng() -> dict:
+        return run_crawl(
+            url="https://maomeng.xyz/2021/06/11/ji-chang-tui-jian-chang-qi-geng-xin",
+            separator=r'<h3 id="[^\r\n]+"><a href="#[^\r\n]+"',
+            address_regex=r"<p>官网：<a[^\r\n]+href=\"(https?://[^\s]+)\">.*</a></p>",
+            coupon_regex=r"<p>(?:优惠|白嫖)码：<code>([^<]+)</code></p>",
+        )
+
+    def crawl_askahh() -> dict:
+        return run_crawl(
+            url="https://www.askahh.com/archives/101",
+            separator=r"&lt;h2&gt;[^\r\n]+&lt;/h2&gt;",
+            address_regex=r"&lt;a class=&quot;no-external-link&quot; href=&quot;(https?://[^\s]+)&quot; target=&quot;_blank&quot;&gt;",
+            coupon_regex=r"可使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
+        )
+
+    def crawl_ygpy() -> dict:
+        def get_links(url: str, prefix: str) -> list[str]:
+            content = utils.http_get(url=url)
+
+            groups = re.findall(r'href="(/vpn/\d{4}/\d{2}.html)"', content, flags=re.I)
+            if not groups:
+                logger.warning(f"[AirPortCollector] cannot fetch article from url: {url}")
+                return []
+
+            prefix = utils.trim(prefix)
+            return list(set([urllib.parse.urljoin(prefix, x) for x in groups if x]))
+
+        base = "https://ygpy.net"
+        links = get_links(url=base, prefix=base)
+        if not links:
+            logger.warning(f"[AirPortCollector] cannot get article from url: {base}")
+            return {}
+
+        articles = get_links(url=links[0], prefix=base)
+        if not articles:
+            logger.warning(f"[AirPortCollector] cannot get articles from url: {links[0]}")
+            return {}
+
+        separator = r'<h2 id="\d+" tabindex="-1">'
+        address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer">前往注册</a>'
+        coupon_regex = r"使用优惠码(?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0元购买"
+
+        tasks = [[x, separator, address_regex, coupon_regex] for x in sorted(articles)]
+        items = utils.multi_thread_run(func=run_crawl, tasks=tasks)
+
+        result = dict()
+        for item in items:
+            if item and isinstance(item, dict):
+                result.update(item)
+
+        return result
+
+    def run_crawl(url: str, separator: str, address_regex: str, coupon_regex: str) -> dict:
+        url = utils.trim(url)
+        content = utils.http_get(url=url)
+        if not content:
+            return {}
+
+        result = dict()
+        try:
+            groups = re.split(utils.trim(separator), content, flags=re.M)
+            if not groups:
+                logger.warning(f"[AirPortCollector] cannot found any domains from [{url}]")
+                return {}
+
+            for group in groups:
+                words = re.findall(utils.trim(address_regex), group, flags=re.M)
+                address = words[0] if words else ""
+                if not address:
+                    continue
+
+                words = re.findall(utils.trim(coupon_regex), group, flags=re.M)
+                coupon = words[0] if words else ""
+
+                domain = utils.extract_domain(url=address, include_protocal=True)
+                result[domain] = coupon
+        except:
+            logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
+
+        return result
+
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
     candidates = {} if not domains else {x: "" for x in domains}
 
-    ccbh = crawl_ccbh(url="https://ccbaohe.com/jcjd.html")
+    materials = dict()
+    ccbh = crawl_ccbh()
     if ccbh:
-        candidates.update(ccbh)
+        materials.update(ccbh)
 
-    maomeng = crawl_maomeng(url="https://maomeng.xyz/2021/06/11/ji-chang-tui-jian-chang-qi-geng-xin")
+    maomeng = crawl_maomeng()
     if maomeng:
-        candidates.update(maomeng)
+        materials.update(maomeng)
+
+    askahh = crawl_askahh()
+    if askahh:
+        materials.update(askahh)
+
+    ygpy = crawl_ygpy()
+    if ygpy:
+        materials.update(ygpy)
+
+    # save to file cause they often contain coupons and require common emails to use
+    save_candidates(candidates=materials, filepath=filepath, delimiter=delimiter)
+
+    # merge
+    candidates.update(materials)
 
     domains = list(candidates.keys())
     logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start to check it now")
@@ -1520,6 +1600,26 @@ def collect_airport(
     )
 
     return {x: candidates.get(x, "") for x in availables}
+
+
+def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
+    if not candidates or not isinstance(candidates, dict):
+        return
+
+    filepath = utils.trim(filepath)
+    if not filepath:
+        return
+
+    delimiter = utils.trim(delimiter) or "@#@#"
+
+    lines = []
+    for k, v in candidates.items():
+        if not v or not isinstance(v, str):
+            lines.append(k)
+        else:
+            lines.append(f"{k}\t{delimiter}\t{v}")
+
+    utils.write_file(filename=filepath, lines=lines)
 
 
 def validate_domain(url: str, rigid: bool = True) -> bool:
