@@ -36,4 +36,7 @@ jobs:
         GH_TOKEN: ${{ secrets.PAT}}
       run: |
         cd aggregate/data
-        gh gist edit ${{ secrets.GIST_ID }} --filename "proxies.yaml" --content "$(cat proxies.yaml)" --auth $GH_TOKEN
+        TEMP_FILE=$(mktemp)
+        cat proxies.yaml > $TEMP_FILE
+        gh gist edit ${{ secrets.GIST_ID }} --filename "proxies.yaml" --content-file $TEMP_FILE --auth $GH_TOKEN
+        rm $TEMP_FILE
