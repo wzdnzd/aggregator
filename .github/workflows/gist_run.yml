@@ -35,11 +35,5 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.PAT }}
       run: |
-        cd aggregate/data
-        GIST_CONTENT=$(<proxies.yaml)
-        JSON_PAYLOAD=$(jq -n --arg content "$GIST_CONTENT" \
-          '{ "files": { "proxies.yaml": { "content": $content } } }')
-        curl -X PATCH \
-             -H "Authorization: token $GH_TOKEN" \
-             -d "$JSON_PAYLOAD" \
-             "https://api.github.com/gists/${{ secrets.GIST_ID }}"
+        cd aggregate
+        gh gist edit ${{ secrets.GIST_ID }} --add "/data/proxies.yaml"
