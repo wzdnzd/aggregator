@@ -61,7 +61,7 @@ def assign(
             delimiter=delimiter,
         )
             
-        candidates.extend(crawl.collect_airport(
+        candidates.update(crawl.collect_airport(
             channel="MFJD666",
             page_num=pages,
             num_thread=num_threads,
