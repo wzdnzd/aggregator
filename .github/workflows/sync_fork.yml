@@ -53,6 +53,9 @@ jobs:
       run: |
         git merge upstream/main
         git push origin main
-      else
+        
+    - name: No changes to sync
+      if: steps.check.outputs.changes != 'true'
+      run: |
         echo "没有可同步的更新，跳过合并操作。"
-      fi
+
