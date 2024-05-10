@@ -2,6 +2,7 @@ name: CHECKIN
 on:
   schedule:
     - cron: "45 02 * * *"
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   sync_with_upstream:
