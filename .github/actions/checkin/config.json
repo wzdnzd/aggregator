@@ -1,10 +1,10 @@
 {
     "domains": [
         {
-            "domain": "",
+            "domain": "https://ikuuu.pw",
             "param": {
-                "email": "",
-                "passwd": "",
+                "email": "iluoer@163.com",
+                "passwd": "ikuuupws",
                 "login": "/auth/login",
                 "checkin": "/user/checkin"
             }
