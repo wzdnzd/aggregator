@@ -53,6 +53,6 @@ jobs:
       run: |
         git merge upstream/main
         git push origin main
-        else
-          echo "没有可同步的更新，跳过合并操作。"
-        fi
+      else
+        echo "没有可同步的更新，跳过合并操作。"
+      fi
