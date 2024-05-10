@@ -51,19 +51,19 @@ def assign(
                 domains[address] = coupon
 
     if not domains or overwrite:
-        candidates = crawl.collect_airport(
-            channel="jichang_list",
-            page_num=pages,
-            num_thread=num_threads,
-            rigid=rigid,
-            display=display,
-            filepath=os.path.join(DATA_BASE, "materials.txt"),
-            delimiter=delimiter,
-        )
+        # candidates = crawl.collect_airport(
+        #     channel="jichang_list",
+        #     page_num=pages,
+        #     num_thread=num_threads,
+        #     rigid=rigid,
+        #     display=display,
+        #     filepath=os.path.join(DATA_BASE, "materials.txt"),
+        #     delimiter=delimiter,
+        # )
         
-        if candidates:
-            domains.update(candidates)
-            overwrite = True
+        # if candidates:
+        #     domains.update(candidates)
+        #     overwrite = True
             
         candidates = crawl.collect_airport(
             channel="MFJD666",
