@@ -60,8 +60,12 @@ def assign(
             filepath=os.path.join(DATA_BASE, "materials.txt"),
             delimiter=delimiter,
         )
+        
+        if candidates:
+            domains.update(candidates)
+            overwrite = True
             
-        candidates.update(crawl.collect_airport(
+        candidates = crawl.collect_airport(
             channel="MFJD666",
             page_num=pages,
             num_thread=num_threads,
@@ -69,8 +73,8 @@ def assign(
             display=display,
             filepath=os.path.join(DATA_BASE, "materials.txt"),
             delimiter=delimiter,
-        ))
-            
+        )
+
         if candidates:
             domains.update(candidates)
             overwrite = True
