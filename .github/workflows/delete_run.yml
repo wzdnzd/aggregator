@@ -2,6 +2,7 @@ name: DELETE OLD WORKFLOWS
 on:
   schedule:
     - cron: "0 0 * * SUN"
+  workflow_dispatch: # 允许手动触发
 
 jobs:
   del_runs:
