@@ -26,7 +26,7 @@ jobs:
     - name: Collect proxies
       run: |
         cd aggregate
-        python -u subscribe/merge.py
+        python -u subscribe/merge.py -s
 
     - name: Configure Git
       run: |
