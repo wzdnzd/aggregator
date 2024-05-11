@@ -14,7 +14,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-
+    - ref: master
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
