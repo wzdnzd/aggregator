@@ -27,7 +27,7 @@ jobs:
 
     - name: Fetch previous subscribes.txt from Gist
       env:
-        GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
+        GH_TOKEN: ${{ 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 }}
       run: |
         cd aggregate
         gh gist view ${{ secrets.GIST_ID }} --files subscribes.txt > old-subscribes.txt || true
@@ -50,7 +50,7 @@ jobs:
 
     - name: Create/Update Gist
       env:
-        GH_TOKEN: ${{ secrets.PRIVATE_TOKEN_AGGREGATOR }}
+        GH_TOKEN: ${{ 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 }}
       run: |
         cd aggregate
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
