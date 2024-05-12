@@ -1,300 +1,28 @@
 proxies:
-- name: SPECAIL|1.5X 日本谷歌WIFI
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17739
-  server: jpss.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: SPECAIL|1.5X 英国谷歌WIFI
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17728
-  server: gbs.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 乌克兰
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17749
-  server: ua1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 俄罗斯
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17615
-  server: ru1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 印度尼西亚
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17618
-  server: id1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 台湾1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17786
-  server: tw1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 台湾2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17787
-  server: tw2.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 土耳其
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17748
-  server: tr1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 德国
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17755
-  server: de1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 悉尼1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17753
-  server: au1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 悉尼2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17754
-  server: au2.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 新加坡1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17711
-  server: sg1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 新加坡2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17712
-  server: sg2.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 新加坡3
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17713
-  server: sg3.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 日本1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17721
-  server: jp1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 日本2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17722
-  server: jp2.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 日本3
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17723
-  server: jp3.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 法国
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17759
-  server: fr1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 瑞士
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17725
-  server: ch1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 美国1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17741
-  server: us1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 美国2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17742
-  server: us2.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 美国3
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17743
-  server: us3.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 英国
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17756
-  server: gb1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 荷兰
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17609
-  server: nl1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 西班牙
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17730
-  server: es1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 越南1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17751
-  server: vn1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 越南2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17752
-  server: vn2.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 迪拜
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17720
-  server: ae1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 韩国1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17731
-  server: kr1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 韩国2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17732
-  server: kr2.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 香港1
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17701
-  server: hk1.iqiyi-tv.site
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|1X 香港2
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17702
-  server: hk2.iqiyi-tv.site
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 专线VIP1|2X 朝鲜
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17740
-  server: kp1.pptv-tv.store
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
-- name: 主
-  password: 87a5fb3d-03dc-498e-a7b0-f3f29f3292b5
-  port: 17703
-  server: hk3.iqiyi-tv.site
-  skip-cert-verify: true
-  sni: data.52daishu.life
-  type: trojan
-  udp: true
 - cipher: chacha20-ietf-poly1305
   name: 新加坡 01
-  password: 2d7472a9-6f7d-4b1c-a5fc-5ee0ce3aeab4
+  password: d64975c8-e5b6-4741-abe2-99d2b7c6f5c6
   port: 64155
   server: zhuanfayyds.xn--pssq69d.xyz
   type: ss
   udp: true
 - cipher: chacha20-ietf-poly1305
   name: 日本 01
-  password: 2d7472a9-6f7d-4b1c-a5fc-5ee0ce3aeab4
+  password: d64975c8-e5b6-4741-abe2-99d2b7c6f5c6
   port: 64152
   server: zhuanfayyds.xn--pssq69d.xyz
   type: ss
   udp: true
 - cipher: chacha20-ietf-poly1305
   name: 日本 02
-  password: 2d7472a9-6f7d-4b1c-a5fc-5ee0ce3aeab4
+  password: d64975c8-e5b6-4741-abe2-99d2b7c6f5c6
   port: 64163
   server: zhuanfayyds.xn--pssq69d.xyz
   type: ss
   udp: true
 - cipher: chacha20-ietf-poly1305
   name: 日本 03
-  password: 2d7472a9-6f7d-4b1c-a5fc-5ee0ce3aeab4
+  password: d64975c8-e5b6-4741-abe2-99d2b7c6f5c6
   port: 64154
   server: zhuanfayyds.xn--pssq69d.xyz
   type: ss
@@ -309,21 +37,21 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: f6575b39-639a-4c6b-957f-050219d009eb
+  uuid: 21680f52-9ccb-4bba-a839-c7d60ff48ee3
   ws-opts:
     headers:
       Host: us.bethebest.eu.org
     path: /
 - cipher: chacha20-ietf-poly1305
   name: 香港 01
-  password: 2d7472a9-6f7d-4b1c-a5fc-5ee0ce3aeab4
+  password: d64975c8-e5b6-4741-abe2-99d2b7c6f5c6
   port: 64159
   server: zhuanfayyds.xn--pssq69d.xyz
   type: ss
   udp: true
 - cipher: chacha20-ietf-poly1305
   name: 香港 02
-  password: 2d7472a9-6f7d-4b1c-a5fc-5ee0ce3aeab4
+  password: d64975c8-e5b6-4741-abe2-99d2b7c6f5c6
   port: 64160
   server: zhuanfayyds.xn--pssq69d.xyz
   type: ss
@@ -338,7 +66,7 @@ proxies:
   tls: true
   type: vmess
   udp: true
-  uuid: 63f89d55-c363-4c64-99fd-b617f1abb24a
+  uuid: c5bb0678-9d51-4310-80e3-15afcecf8d4c
   ws-opts:
     headers:
       Host: v2ray.ryin.vip
@@ -353,7 +81,7 @@ proxies:
   tls: true
   type: vmess
   udp: true
-  uuid: 63f89d55-c363-4c64-99fd-b617f1abb24a
+  uuid: c5bb0678-9d51-4310-80e3-15afcecf8d4c
   ws-opts:
     headers:
       Host: v2ray.ryin.vip
@@ -368,7 +96,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: br-saopaulo-oracle-451c23.ip1.shop
@@ -383,7 +111,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: br-saopaulo-oracle-451c23.ip1.shop
@@ -398,7 +126,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: sg-singapore-oracle-e95395.ip1.shop
@@ -413,7 +141,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: sg-singapore-oracle-e95395.ip1.shop
@@ -428,7 +156,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: sg-singapore-oracle-4f34e8.ip1.shop
@@ -443,7 +171,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: sg-singapore-oracle-4f34e8.ip1.shop
@@ -458,7 +186,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: sg-singapore-oracle-4f34e8.ip1.shop
@@ -473,7 +201,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: sg-singapore-oracle-4f34e8.ip1.shop
@@ -488,7 +216,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: jp-tokyo-oracle-5a26da.ip1.shop
@@ -503,7 +231,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: jp-tokyo-oracle-5a26da.ip1.shop
@@ -518,7 +246,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: jp-tokyo-oracle-02b459.ip1.shop
@@ -533,7 +261,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: jp-tokyo-oracle-02b459.ip1.shop
@@ -548,7 +276,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
@@ -563,7 +291,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
@@ -578,7 +306,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: us-ashburn-oracle-ccb231.ip1.shop
@@ -593,7 +321,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: us-ashburn-oracle-ccb231.ip1.shop
@@ -608,7 +336,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
@@ -623,7 +351,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
@@ -638,7 +366,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: uk-london-oracle-4325c0.ip1.shop
@@ -653,7 +381,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: uk-london-oracle-4325c0.ip1.shop
@@ -668,7 +396,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: kr-seoul-oracle-4fccf5.ip1.shop
@@ -683,7 +411,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: kr-seoul-oracle-4fccf5.ip1.shop
@@ -698,7 +426,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: kr-seoul-oracle-ced361.ip1.shop
@@ -713,7 +441,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: kr-seoul-oracle-ced361.ip1.shop
@@ -728,7 +456,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
@@ -743,7 +471,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
@@ -758,7 +486,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     path: /namezdfbzdfbz
 - alterId: 0
@@ -771,7 +499,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     path: /namezdfbzdfbz
 - alterId: 0
@@ -784,7 +512,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     path: /namecghmghmghmfghmg
 - alterId: 0
@@ -797,7 +525,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     path: /namecghmghmghmfghmg
 - alterId: 0
@@ -810,7 +538,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 8ce279f5-c337-4b4c-984e-59481ad58e9d
+  uuid: b4c6168a-f1d6-469a-a2a2-255e8e25fad9
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
@@ -825,7 +553,7 @@ proxies:
   tls: false
   type: vmess
   udp: true
-  uuid: 1cccb7d5-f553-4609-a679-7e67c17de81a
+  uuid: 05b52f0f-63de-4b3c-8bec-19c5a1327aed
   ws-opts:
     headers:
       Host: 01-foxi-aidajiuguanji.gangbi.vip
