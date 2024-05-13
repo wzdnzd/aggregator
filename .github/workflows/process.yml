@@ -2,7 +2,7 @@ name: AUTO PROCESS CRON
 
 on:
   schedule:
-    - cron: '0 */6 * * *'   # 每6个小时跑一次
+    - cron: '0 */2 * * *'   # 每2个小时跑一次
   workflow_dispatch: # 允许手动触发
 
 jobs:
