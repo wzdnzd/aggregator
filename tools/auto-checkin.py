@@ -96,9 +96,7 @@ def login(url, params, headers, retry, proxy=False) -> dict:
                 verify=False,
             )
         else:
-            response = requests.post(
-                url, data=params, headers=headers, allow_redirects=True
-            )
+            response = requests.post(url, data=params, headers=headers, allow_redirects=True)
 
         if response.status_code == 200:
             return {str(key).lower(): value for key, value in response.headers.items()}
@@ -129,8 +127,7 @@ def checkin(url, headers, retry, proxy=False) -> None:
             try:
                 data = (
                     json.loads(brotli.decompress(response.content).decode("utf-8"))
-                    if key in response.headers
-                    and response.headers["Content-Encoding"] == "br"
+                    if key in response.headers and response.headers["Content-Encoding"] == "br"
                     else response.json()
                 )
 
@@ -200,9 +197,7 @@ def flow(domain, params, headers, proxy=False) -> bool:
 
     checkin(checkin_url, headers, RETRY_NUM, proxy)
 
-    headers[
-        "accept"
-    ] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"
+    headers["accept"] = "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8"
     headers["upgrade-insecure-requests"] = "1"
 
     logout(logout_url, headers)

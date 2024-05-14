@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import zipfile
-from math import e
 
 import pandas as pd
 import requests

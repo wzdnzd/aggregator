@@ -8,13 +8,12 @@ import os
 import re
 from dataclasses import dataclass
 
+import renewal
 import utils
 from airport import AirPort
 from logger import logger
 from origin import Origin
 from push import PushTo
-
-import renewal
 
 
 @dataclass
