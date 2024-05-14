@@ -108,6 +108,10 @@ def filter_proxies(proxies: list) -> dict:
             proxies.append(item)
             unique_names.add(name)
 
+    # shuffle
+    for _ in range(3):
+        random.shuffle(proxies)
+
     config["proxies"] += proxies
     config["proxy-groups"][0]["proxies"] += list(unique_names)
     config["proxy-groups"][1]["proxies"] += list(unique_names)
