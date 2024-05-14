@@ -16,11 +16,9 @@ import sys
 import time
 from copy import deepcopy
 
-import clash
 import crawl
 import executable
 import push
-import subconverter
 import utils
 import workflow
 import yaml
@@ -28,6 +26,9 @@ from airport import AirPort
 from logger import logger
 from origin import Origin
 from workflow import TaskConfig
+
+import clash
+import subconverter
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 

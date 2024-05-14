@@ -47,9 +47,7 @@ PATH = os.path.abspath(os.path.dirname(__file__))
 """
 
 
-def convert(
-    chars: bytes, filepath: str = "", persist: bool = False, includes: str = "all"
-) -> list:
+def convert(chars: bytes, filepath: str = "", persist: bool = False, includes: str = "all") -> list:
     if chars is None or b"" == chars:
         return []
 
@@ -284,11 +282,7 @@ def register(url: str, params: dict, retry: int) -> bool:
             if "ret" in kv and kv["ret"] == 1:
                 return True
 
-        print(
-            "[ScanerRegisterError] domain: {}, message: {}".format(
-                url, response.read().decode("unicode_escape")
-            )
-        )
+        print("[ScanerRegisterError] domain: {}, message: {}".format(url, response.read().decode("unicode_escape")))
         return False
     except Exception as e:
         print("[ScanerRegisterError] domain: {}, message: {}".format(url, str(e)))
@@ -330,9 +324,7 @@ def get_cookie(text) -> str:
     return cookie
 
 
-def fetch_nodes(
-    domain: str, email: str, passwd: str, headers: dict = None, retry: int = 3
-) -> bytes:
+def fetch_nodes(domain: str, email: str, passwd: str, headers: dict = None, retry: int = 3) -> bytes:
     headers = deepcopy(HEADER) if not headers else headers
     login_url = domain + "/auth/login"
     headers["origin"] = domain
@@ -447,9 +439,7 @@ def encoding_url(url: str) -> str:
         return url
 
     # 遍历进行 punycode 编码
-    punycodes = list(
-        map(lambda x: "xn--" + x.encode("punycode").decode("utf-8"), cn_chars)
-    )
+    punycodes = list(map(lambda x: "xn--" + x.encode("punycode").decode("utf-8"), cn_chars))
 
     # 对原 url 进行替换
     for c, pc in zip(cn_chars, punycodes):
@@ -576,9 +566,7 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
     if not channel or not fun or not isinstance(fun, typing.Callable):
         return []
 
-    print(
-        f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}"
-    )
+    print(f"[TelegramCrawl] starting crawl from telegram, channel: {channel}, pages: {page_num}")
 
     page_num = max(page_num, 1)
     url = f"https://t.me/s/{channel}"
@@ -604,9 +592,7 @@ def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list:
 
 
 def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
-    domains = crawl_channel(
-        channel=channel, page_num=page_num, fun=extract_airport_site
-    )
+    domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
 
     if not domains:
         return []
@@ -617,9 +603,7 @@ def collect_airport(channel: str, page_num: int, thread_num: int = 50) -> list:
         semaphore = multiprocessing.Semaphore(thread_num)
         for domain in list(set(domains)):
             semaphore.acquire()
-            p = multiprocessing.Process(
-                target=validate_domain, args=(domain, availables, semaphore)
-            )
+            p = multiprocessing.Process(target=validate_domain, args=(domain, availables, semaphore))
             p.start()
             processes.append(p)
         for p in processes:
@@ -654,9 +638,7 @@ if __name__ == "__main__":
         help="reload clash config if true",
     )
 
-    parser.add_argument(
-        "-s", "--skip", dest="skip", action="store_true", help="skip register"
-    )
+    parser.add_argument("-s", "--skip", dest="skip", action="store_true", help="skip register")
 
     parser.add_argument(
         "-b",
@@ -692,9 +674,7 @@ if __name__ == "__main__":
         help="username or email",
     )
 
-    parser.add_argument(
-        "-p", "--passwd", type=str, required=False, default="", help="password"
-    )
+    parser.add_argument("-p", "--passwd", type=str, required=False, default="", help="password")
 
     parser.add_argument(
         "-t",
@@ -745,19 +725,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.batch:
-        if (
-            not args.address
-            or args.address.startswith("http://")
-            or args.address.startswith("https://")
-        ):
+        if not args.address or args.address.startswith("http://") or args.address.startswith("https://"):
             raise ValueError("local file path cannot be url")
 
         if not (os.path.exists(args.address) and os.path.isfile(args.address)):
-            print(
-                "select batch mode, but file not found, path: {}, begin crawl from telegram".format(
-                    args.address
-                )
-            )
+            print("select batch mode, but file not found, path: {}, begin crawl from telegram".format(args.address))
             domains = collect_airport(channel="jichang_list", page_num=sys.maxsize)
             if not domains:
                 sys.exit(-1)
@@ -775,9 +747,7 @@ if __name__ == "__main__":
                     print("skip invalidate domain, url: {}".format(line))
                     continue
 
-                filepath = os.path.join(
-                    args.path, "{}.yaml".format(domain.split("/")[2])
-                )
+                filepath = os.path.join(args.path, "{}.yaml".format(domain.split("/")[2]))
                 tasks.append((domain, filepath, args))
 
         import multiprocessing
