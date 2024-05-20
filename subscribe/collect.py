@@ -65,6 +65,26 @@ def assign(
 
         return list(subscriptions)
 
+    subscribes_file = utils.trim(kwargs.get("subscribes_file", ""))
+    access_token = utils.trim(kwargs.get("access_token", ""))
+    gist_id = utils.trim(kwargs.get("gist_id", ""))
+    username = utils.trim(kwargs.get("username", ""))
+
+    # 加载已有订阅
+    subscriptions = load_exist(username, gist_id, access_token, subscribes_file)
+    logger.info(f"load exists subscription finished, count: {len(subscriptions)}")
+
+    tasks = (
+        [TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name) for x in subscriptions if x]
+        if subscriptions
+        else []
+    )
+
+    # 仅更新已有订阅
+    if tasks and kwargs.get("refresh", False):
+        logger.info("skip registering new accounts, will use existing subscriptions for refreshing")
+        return tasks
+
     domains, delimiter = {}, "@#@#"
     domains_file = utils.trim(domains_file)
     if not domains_file:
@@ -98,21 +118,6 @@ def assign(
         if candidates:
             domains.update(candidates)
             overwrite = True
-
-    subscribes_file = utils.trim(kwargs.get("subscribes_file", ""))
-    access_token = utils.trim(kwargs.get("access_token", ""))
-    gist_id = utils.trim(kwargs.get("gist_id", ""))
-    username = utils.trim(kwargs.get("username", ""))
-
-    # 加载已有订阅
-    subscriptions = load_exist(username, gist_id, access_token, subscribes_file)
-    logger.info(f"load exists subscription finished, count: {len(subscriptions)}")
-
-    tasks = (
-        [TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name) for x in subscriptions if x]
-        if subscriptions
-        else []
-    )
 
     if not domains:
         logger.error("cannot collect any new airport for free use")
@@ -153,6 +158,7 @@ def aggregate(args: argparse.Namespace) -> None:
         rigid=not args.relaxed,
         display=display,
         num_threads=args.num,
+        refresh=args.clean,
         username=username,
         gist_id=gist_id,
         access_token=access_token,
@@ -325,6 +331,15 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="generate full configuration for clash",
+    )
+
+    parser.add_argument(
+        "-c",
+        "--clean",
+        dest="clean",
+        action="store_true",
+        default=False,
+        help="refresh proxies only using existing subscriptions",
     )
 
     parser.add_argument(
