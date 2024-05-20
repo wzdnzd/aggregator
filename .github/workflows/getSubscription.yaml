@@ -2,7 +2,7 @@ name: Get Subscription Weekly
 
 on:
   schedule:
-    - cron: '0 16 * * 6'  # 北京时间每周日凌晨执行
+    - cron: '30 7 * * *' # 北京时间每周日凌晨执行
   workflow_dispatch: # 允许手动触发
 
 permissions:
@@ -22,20 +22,19 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip3 install pyYAML requests
+        pip3 install pyYAML requests tqdm
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
     - name: Collect Subscribe
       id: collect
       run: |
-        cd aggregate/data
-        python -u subscribe/collect.py
+        python -u subscribe/collect.py -a -s -f -r -o
       
     - name: Create/Update Gist
       env:
-        GH_TOKEN: ${{ secrets.PAT}}
+        GH_TOKEN: ${{ secrets.PAT }}
       run: |
-        cd aggregate
+        cd data
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
         gh gist edit ${{ secrets.GIST_ID }} --add "subscribes.txt"
         gh gist edit ${{ secrets.GIST_ID }} --add "domains.txt"
