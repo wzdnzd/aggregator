@@ -50,7 +50,7 @@ class PushTo(object):
 
         return self.push_to(content=content, push_conf=push_conf, group=group, retry=retry)
 
-    def push_to(self, content: str, push_conf: dict, group: str = "", retry: int = 5) -> bool:
+    def push_to(self, content: str, push_conf: dict, group: str = "", retry: int = 5, **kwargs) -> bool:
         if not self.validate(push_conf=push_conf):
             logger.error(f"[PushError] push config is invalidate, domain: {self.name}")
             return False
@@ -59,6 +59,13 @@ class PushTo(object):
             self._storage(content=content, filename=push_conf.get("local"))
 
         url, data, headers = self._generate_payload(content=content, push_conf=push_conf)
+        payload = kwargs.get("payload", None)
+        if payload and isinstance(payload, dict):
+            try:
+                data = json.dumps(payload).encode("UTF8")
+            except:
+                logger.error(f"[PushError] invalid payload, domain: {self.name}")
+                return False
 
         try:
             request = urllib.request.Request(url=url, data=data, headers=headers, method=self.method)
@@ -432,14 +439,14 @@ class PushToGist(PushTo):
         revision = utils.trim(push_conf.get("revision", ""))
         filename = utils.trim(push_conf.get("filename", ""))
 
-        if not username or not gistid or filename:
+        if not username or not gistid or not filename:
             return ""
 
         prefix = f"https://gist.githubusercontent.com/{username}/{gistid}"
         if revision:
-            return f"{prefix}/{revision}/{filename}"
+            return f"{prefix}/raw/{revision}/{filename}"
 
-        return f"{prefix}/{filename}"
+        return f"{prefix}/raw/{filename}"
 
 
 PUSHTYPE = Enum(
