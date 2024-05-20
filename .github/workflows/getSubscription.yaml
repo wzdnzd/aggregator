@@ -34,7 +34,7 @@ jobs:
       
     - name: Create/Update Gist
       env:
-        GH_TOKEN: ${{ secrets.PAT }}
+        GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
       run: |
         cd data
         gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
