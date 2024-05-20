@@ -28,7 +28,7 @@ jobs:
     - name: Collect Subscribe
       id: collect
       run: |
-        cd aggregate
+        cd aggregate/data
         python -u subscribe/collect.py
       
     - name: Create/Update Gist
