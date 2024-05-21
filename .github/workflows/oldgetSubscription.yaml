@@ -37,7 +37,7 @@ jobs:
         GH_TOKEN: ${{ secrets.PAT }}
       run: |
         cd data
-        gh gist edit ${{ secrets.GIST_ID }} --add "proxies.yaml"
-        gh gist edit ${{ secrets.GIST_ID }} --add "subscribes.txt"
-        gh gist edit ${{ secrets.GIST_ID }} --add "domains.txt"
-        gh gist edit ${{ secrets.GIST_ID }} --add "valid-domains.txt"
+        gh gist edit ${{ secrets.GIST_ID1 }} --add "proxies.yaml"
+        gh gist edit ${{ secrets.GIST_ID2 }} --add "subscribes.txt"
+        gh gist edit ${{ secrets.GIST_ID3 }} --add "domains.txt"
+        gh gist edit ${{ secrets.GIST_ID4 }} --add "valid-domains.txt"
