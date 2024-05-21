@@ -12,7 +12,7 @@ env:
   # github access token
   GITHUB_PAT: ${{ secrets.GITHUB_PAT }}
 
-  # github gist link to save results
+  # github username and gist id, separated by '/'
   GIST_LINK: ${{ secrets.GIST_LINK }}
 
 jobs:
