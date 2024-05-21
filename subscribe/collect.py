@@ -136,12 +136,12 @@ def assign(
 def aggregate(args: argparse.Namespace) -> None:
     def parse_gist_link(link: str) -> tuple[str, str]:
         # extract gist username and id
-        words = utils.trim(link).split("/")
-        if len(words) < 5:
+        words = utils.trim(link).split("/", maxsplit=1)
+        if len(words) != 2:
             logger.error(f"cannot extract username and gist id due to invalid github gist link")
             return "", ""
 
-        return words[3], words[4]
+        return utils.trim(words[0]), utils.trim(words[1])
 
     clash_bin, subconverter_bin = executable.which_bin()
     display = not args.invisible
@@ -366,7 +366,7 @@ if __name__ == "__main__":
         type=str,
         required=False,
         default=os.environ.get("GIST_LINK", ""),
-        help="github gist link for saving results",
+        help="github username and gist id, separated by '/'",
     )
 
     parser.add_argument(
