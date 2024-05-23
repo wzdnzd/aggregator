@@ -383,7 +383,7 @@ if __name__ == "__main__":
         "--key",
         type=str,
         required=False,
-        default=os.environ.get("GITHUB_PAT", ""),
+        default=os.environ.get("GIST_PAT", ""),
         help="github personal access token for editing gist",
     )
 
