@@ -1,7 +1,9 @@
-name: checkin
+name: Checkin
 on:
-  schedule:
-    - cron: "45 02 * * *"
+  # disabled by default, uncomment and modify as needed
+  # schedule:
+  #   - cron: "45 02 * * *"
+  workflow_dispatch:
 
 jobs:
   sync_with_upstream:
@@ -9,17 +11,17 @@ jobs:
     name: auto checkin for traffic
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           ref: master
 
-      - name: checkin
-        uses: actions/setup-python@v2
+      - name: Checkin
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
           architecture: "x64"
       - run: python ./.github/actions/checkin/universal.py
 
-      - name: timestamp
+      - name: Timestamp
         run: date
