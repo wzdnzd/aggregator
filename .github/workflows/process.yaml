@@ -1,9 +1,8 @@
 name: Process
 on:
-  # disabled by default, uncomment and modify as needed
-  # schedule:
-  #   - cron: "05 03 * * *"
-  #   - cron: "05 11 * * *"
+  schedule:
+    - cron: "05 03 * * *"
+    - cron: "05 11 * * *"
   workflow_dispatch:
 
 env:

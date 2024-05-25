@@ -1,8 +1,8 @@
 name: Collect
 on:
-  # executed once a week on Sundays at 00:00, disabled by default, uncomment and modify as needed
-  # schedule:
-  #   - cron: "0 0 * * 1"
+  # executed once a week on Sundays at 00:00
+  schedule:
+    - cron: "0 0 * * 1"
   workflow_dispatch:
 
 env:
@@ -34,6 +34,24 @@ jobs:
 
       - name: Install
         run: pip3 install -r requirements.txt
+
+      - name: Check
+        run: |
+          if [ -z "$GIST_PAT" ]; then
+              echo "Error: environment 'GIST_PAT' cannot be empty"
+              exit 1
+          fi
+
+          if [ -z "$GIST_LINK" ]; then
+              echo "Error: environment 'GIST_LINK' cannot be empty"
+              exit 1
+          fi
+
+          LINK_PARTS=$(echo "$GIST_LINK" | awk -F'/' 'NF==2 && $1!="" && $2!=""')
+          if [ -z "$LINK_PARTS" ]; then
+              echo "Error: environment 'GIST_LINK' is not valid, should be 'username/gist_id' format"
+              exit 1
+          fi
 
       - name: Collect
         run: python -u subscribe/collect.py --all --overwrite --skip

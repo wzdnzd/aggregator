@@ -312,7 +312,7 @@ def aggregate(args: argparse.Namespace) -> None:
             push_client = push.PushToGist(token=access_token)
 
             # 上传
-            success = push_client.push_to(content="", push_conf=push_conf, payload={"files": files})
+            success = push_client.push_to(content="", push_conf=push_conf, payload={"files": files}, group="collect")
             if success:
                 logger.info(f"upload proxies and subscriptions to gist successed")
             else:
