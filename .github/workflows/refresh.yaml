@@ -1,0 +1,42 @@
+name: Refresh
+on:
+  # performed every two hours, disabled by default, uncomment and modify as needed
+  # schedule:
+  #   - cron: "0 */2 * * *"
+  workflow_dispatch:
+
+env:
+  # time zone
+  TZ: Asia/Shanghai
+
+  # github access token
+  GIST_PAT: ${{ secrets.GIST_PAT }}
+
+  # github username and gist id, separated by '/'
+  GIST_LINK: ${{ secrets.GIST_LINK }}
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Prepare
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: "x64"
+          cache: "pip"
+
+      - name: Install
+        run: pip3 install -r requirements.txt
+
+      - name: Refresh
+        run: python -u subscribe/collect.py --all --clean --overwrite --skip
+
+      - name: Timestamp
+        run: date

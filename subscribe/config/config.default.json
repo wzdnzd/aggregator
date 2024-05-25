@@ -1,0 +1,167 @@
+{
+    "domains": [
+        {
+            "name": "",
+            "sub": [],
+            "domain": "",
+            "enable": true,
+            "rename": "",
+            "include": "",
+            "exclude": "",
+            "push_to": [],
+            "ignorede": true,
+            "liveness": true,
+            "tag": "",
+            "rate": 2.5,
+            "count": 2,
+            "coupon": "",
+            "insecure": false,
+            "renew": {
+                "account": [
+                    {
+                        "email": "",
+                        "passwd": "",
+                        "ticket": {
+                            "enable": true,
+                            "autoreset": false,
+                            "subject": "",
+                            "message": "",
+                            "level": 1
+                        }
+                    }
+                ],
+                "plan_id": 3,
+                "package": "",
+                "method": 1,
+                "coupon_code": "",
+                "chatgpt": {
+                    "enable": true,
+                    "regex": "",
+                    "operate": "IN"
+                }
+            }
+        }
+    ],
+    "crawl": {
+        "enable": true,
+        "exclude": "",
+        "threshold": 5,
+        "singlelink": true,
+        "persist": {
+            "subs": "crawledsubs",
+            "proxies": "crawledproxies"
+        },
+        "config": {
+            "rename": "",
+            "include": "",
+            "exclude": "",
+            "xxxxxxx": ""
+        },
+        "telegram": {
+            "enable": true,
+            "pages": 5,
+            "exclude": "",
+            "users": {
+                "channel": {
+                    "include": "",
+                    "exclude": "",
+                    "config": {
+                        "rename": "",
+                        "xxxxxx": ""
+                    },
+                    "push_to": []
+                }
+            }
+        },
+        "google": {
+            "enable": false,
+            "exclude": "",
+            "notinurl": [],
+            "push_to": []
+        },
+        "github": {
+            "enable": true,
+            "pages": 2,
+            "push_to": [],
+            "exclude": "",
+            "spams": []
+        },
+        "twitter": {
+            "enable": true,
+            "users": {
+                "username": {
+                    "enable": true,
+                    "num": 30,
+                    "include": "",
+                    "exclude": "",
+                    "config": {
+                        "rename": "",
+                        "xxxxxx": ""
+                    },
+                    "push_to": []
+                }
+            }
+        },
+        "repositories": [
+            {
+                "enable": false,
+                "username": "",
+                "repo_name": "",
+                "commits": 3,
+                "exclude": "",
+                "push_to": []
+            }
+        ],
+        "pages": [
+            {
+                "enable": true,
+                "url": "",
+                "include": "",
+                "exclude": "",
+                "config": {
+                    "rename": ""
+                },
+                "push_to": []
+            }
+        ],
+        "scripts": [
+            {
+                "enable": false,
+                "script": "file#function",
+                "params": {
+                    "persist": {
+                        "fileid": ""
+                    },
+                    "any": "xxx",
+                    "config": {
+                        "enable": true,
+                        "liveness": true,
+                        "exclude": "",
+                        "rename": "",
+                        "push_to": []
+                    }
+                }
+            }
+        ]
+    },
+    "push": {
+        "xxx": {
+            "username": "",
+            "folderid": "",
+            "fileid": "",
+            "target": "v2ray|mixed|clash|...",
+            "local": ""
+        },
+        "crawledsubs": {
+            "username": "",
+            "folderid": "",
+            "fileid": "",
+            "local": ""
+        },
+        "crawledproxies": {
+            "username": "",
+            "folderid": "",
+            "fileid": ""
+        }
+    }
+}

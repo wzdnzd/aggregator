@@ -1,0 +1,29 @@
+{
+    "proxyServer": {
+        "http": "http:/127.0.0.1:1080",
+        "https": "http://127.0.0.1:1080"
+    },
+    "waitTime": 0,
+    "retry": 5,
+    "domains": [
+        {
+            "domain": "url",
+            "proxy": true,
+            "param": {
+                "email": "email",
+                "passwd": "password",
+                "couponCode": "",
+                "renewalPeriod": "month_price",
+                "planId": "1"
+            }
+        },
+        {
+            "domain": "url",
+            "proxy": true,
+            "param": {
+                "email": "email",
+                "passwd": "password"
+            }
+        }
+    ]
+}
