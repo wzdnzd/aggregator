@@ -1,8 +1,8 @@
 name: Get Subscription Daily
 
 on:
-  schedule:
-    - cron: '0 8 * * *'  # 北京时间每天早上执行
+#  schedule:
+#    - cron: '0 8 * * *'  # 北京时间每天早上执行
   workflow_dispatch: # 允许手动触发
 
 permissions:
