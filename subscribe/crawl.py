@@ -1521,7 +1521,7 @@ def collect_airport(
 
         separator = r'<h2 id="\d+" tabindex="-1">'
         address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer">前往注册</a>'
-        coupon_regex = r"使用优惠码(?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0元购买"
+        coupon_regex = r"使用优惠码(?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0(?:\s+)?元购买"
 
         tasks = [[x, separator, address_regex, coupon_regex] for x in sorted(articles)]
         items = utils.multi_thread_run(func=run_crawl, tasks=tasks)
