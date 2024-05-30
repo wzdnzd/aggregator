@@ -63,7 +63,16 @@ def assign(
             if items:
                 subscriptions.update(items)
 
-        return list(subscriptions)
+        # 过滤已过期订阅并返回
+        links = list(subscriptions)
+        results = utils.multi_thread_run(
+            func=crawl.check_status,
+            tasks=links,
+            num_threads=num_threads,
+            show_progress=display,
+        )
+
+        return [links[i] for i in range(len(links)) if results[i][0] and not results[i][1]]
 
     subscribes_file = utils.trim(kwargs.get("subscribes_file", ""))
     access_token = utils.trim(kwargs.get("access_token", ""))
@@ -135,7 +144,7 @@ def assign(
 
 def aggregate(args: argparse.Namespace) -> None:
     def parse_gist_link(link: str) -> tuple[str, str]:
-        # extract gist username and id
+        # 提取 gist 用户名及 id
         words = utils.trim(link).split("/", maxsplit=1)
         if len(words) != 2:
             logger.error(f"cannot extract username and gist id due to invalid github gist link")
@@ -168,6 +177,9 @@ def aggregate(args: argparse.Namespace) -> None:
     if not tasks:
         logger.error("cannot found any valid config, exit")
         sys.exit(0)
+
+    # 已有订阅已经做过过期检查，无需再测
+    old_subscriptions = set([t.sub for t in tasks if t.sub])
 
     logger.info(f"start generate subscribes information, tasks: {len(tasks)}")
     generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
@@ -278,7 +290,10 @@ def aggregate(args: argparse.Namespace) -> None:
 
     life, vestigial = max(0, args.life), max(0, args.vestigial)
     if life > 0 or vestigial > 0:
-        tasks = [[x, 2, vestigial, life, 0, True] for x in urls]
+        # 过滤出新的订阅并检查剩余流量和过期时间是否满足要求
+        new_subscriptions = [x for x in urls if x not in old_subscriptions]
+
+        tasks = [[x, 2, vestigial, life, 0, True] for x in new_subscriptions]
         results = utils.multi_thread_run(
             func=crawl.check_status,
             tasks=tasks,
@@ -286,10 +301,16 @@ def aggregate(args: argparse.Namespace) -> None:
             show_progress=display,
         )
 
-        urls = [urls[i] for i in range(len(urls)) if results[i][0] and not results[i][1]]
+        total = len(urls)
+
+        # 筛选出为符合要求的订阅
+        urls = [new_subscriptions[i] for i in range(len(new_subscriptions)) if results[i][0] and not results[i][1]]
         discard = len(tasks) - len(urls)
 
-        logger.info(f"filter subscriptions finished, total: {len(tasks)}, found: {len(urls)}, discard: {discard}")
+        # 合并新老订阅
+        urls.extend(list(old_subscriptions))
+
+        logger.info(f"filter subscriptions finished, total: {total}, found: {len(urls)}, discard: {discard}")
 
     utils.write_file(filename=os.path.join(DATA_BASE, subscribes_file), lines=urls)
     domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
