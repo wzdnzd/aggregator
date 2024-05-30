@@ -330,7 +330,7 @@ if __name__ == "__main__":
         dest="all",
         action="store_true",
         default=False,
-        help="generate full configuration for clash",
+        help="生成Clash的完整配置",
     )
 
     parser.add_argument(
@@ -339,7 +339,7 @@ if __name__ == "__main__":
         dest="clean",
         action="store_true",
         default=False,
-        help="refresh proxies only using existing subscriptions",
+        help="仅使用现有订阅刷新代理",
     )
 
     parser.add_argument(
@@ -348,7 +348,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=5000,
-        help="proxies max delay allowed",
+        help="代理允许的最大延迟",
     )
 
     parser.add_argument(
@@ -357,7 +357,7 @@ if __name__ == "__main__":
         type=str,
         required=False,
         default="proxies.yaml",
-        help="proxies filename",
+        help="代理文件名",
     )
 
     parser.add_argument(
@@ -366,7 +366,7 @@ if __name__ == "__main__":
         type=str,
         required=False,
         default=os.environ.get("GIST_LINK", ""),
-        help="github username and gist id, separated by '/'",
+        help="github 用户名和 gist id，用 '/' 分隔",
     )
 
     parser.add_argument(
@@ -375,7 +375,7 @@ if __name__ == "__main__":
         dest="invisible",
         action="store_true",
         default=False,
-        help="don't show check progress bar",
+        help="不显示检查进度条",
     )
 
     parser.add_argument(
@@ -384,7 +384,7 @@ if __name__ == "__main__":
         type=str,
         required=False,
         default=os.environ.get("GIST_PAT", ""),
-        help="github personal access token for editing gist",
+        help="用于编辑要点的 github 个人访问令牌",
     )
 
     parser.add_argument(
@@ -393,7 +393,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=0,
-        help="remaining life time, unit: hours",
+        help="剩余寿命，单位：小时",
     )
 
     parser.add_argument(
@@ -402,7 +402,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=64,
-        help="threads num for check proxy",
+        help="用于检查代理的线程数",
     )
 
     parser.add_argument(
@@ -411,7 +411,7 @@ if __name__ == "__main__":
         dest="overwrite",
         action="store_true",
         default=False,
-        help="overwrite domains",
+        help="覆盖域",
     )
 
     parser.add_argument(
@@ -420,7 +420,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=sys.maxsize,
-        help="crawl page num",
+        help="抓取页码",
     )
 
     parser.add_argument(
@@ -429,7 +429,7 @@ if __name__ == "__main__":
         dest="relaxed",
         action="store_true",
         default=False,
-        help="try registering with a gmail alias when you encounter a whitelisted mailbox",
+        help="当您遇到白名单邮箱时，尝试使用 gmail 别名注册",
     )
 
     parser.add_argument(
@@ -438,7 +438,7 @@ if __name__ == "__main__":
         dest="skip",
         action="store_true",
         default=False,
-        help="skip usability checks",
+        help="跳过可用性检查",
     )
 
     parser.add_argument(
@@ -447,7 +447,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=5000,
-        help="timeout",
+        help="超时时间",
     )
 
     parser.add_argument(
@@ -456,7 +456,7 @@ if __name__ == "__main__":
         type=str,
         required=False,
         default="https://www.google.com/generate_204",
-        help="test url",
+        help="测试网址",
     )
 
     parser.add_argument(
@@ -465,7 +465,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=0,
-        help="vestigial traffic allowed to use, unit: GB",
+        help="允许使用的剩余流量，单位：GB",
     )
 
     aggregate(args=parser.parse_args())
