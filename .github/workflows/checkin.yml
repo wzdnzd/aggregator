@@ -1,8 +1,7 @@
 name: Checkin
 on:
-  # disabled by default, uncomment and modify as needed
-  # schedule:
-  #   - cron: "45 02 * * *"
+  schedule:
+    - cron: "45 02 * * *"
   workflow_dispatch:
 
 jobs:
