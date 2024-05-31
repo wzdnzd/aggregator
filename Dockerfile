@@ -25,4 +25,4 @@ RUN rm -rf subconverter/subconverter-darwin \
 RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r requirements.txt
 
 # start and run
-CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
+CMD ["python", "-u", "subscribe/collect.py", "--all", "--both", "--overwrite", "--skip"]
