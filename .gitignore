@@ -134,5 +134,3 @@ config.yaml
 generate.ini
 subscribe/config/config.json
 config.local.json
-Dockerfile
-.dockerignore

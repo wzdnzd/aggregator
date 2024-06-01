@@ -63,7 +63,18 @@ def assign(
             if items:
                 subscriptions.update(items)
 
-        return list(subscriptions)
+        logger.info("start checking whether existing subscriptions have expired")
+
+        # 过滤已过期订阅并返回
+        links = list(subscriptions)
+        results = utils.multi_thread_run(
+            func=crawl.check_status,
+            tasks=links,
+            num_threads=num_threads,
+            show_progress=display,
+        )
+
+        return [links[i] for i in range(len(links)) if results[i][0] and not results[i][1]]
 
     subscribes_file = utils.trim(kwargs.get("subscribes_file", ""))
     access_token = utils.trim(kwargs.get("access_token", ""))
@@ -135,7 +146,7 @@ def assign(
 
 def aggregate(args: argparse.Namespace) -> None:
     def parse_gist_link(link: str) -> tuple[str, str]:
-        # extract gist username and id
+        # 提取 gist 用户名及 id
         words = utils.trim(link).split("/", maxsplit=1)
         if len(words) != 2:
             logger.error(f"cannot extract username and gist id due to invalid github gist link")
@@ -155,10 +166,10 @@ def aggregate(args: argparse.Namespace) -> None:
         domains_file="domains.txt",
         overwrite=args.overwrite,
         pages=args.pages,
-        rigid=not args.relaxed,
+        rigid=not args.easygoing,
         display=display,
         num_threads=args.num,
-        refresh=args.clean,
+        refresh=args.refresh,
         username=username,
         gist_id=gist_id,
         access_token=access_token,
@@ -168,6 +179,9 @@ def aggregate(args: argparse.Namespace) -> None:
     if not tasks:
         logger.error("cannot found any valid config, exit")
         sys.exit(0)
+
+    # 已有订阅已经做过过期检查，无需再测
+    old_subscriptions = set([t.sub for t in tasks if t.sub])
 
     logger.info(f"start generate subscribes information, tasks: {len(tasks)}")
     generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
@@ -246,39 +260,55 @@ def aggregate(args: argparse.Namespace) -> None:
     # 如果文件夹不存在则创建
     os.makedirs(DATA_BASE, exist_ok=True)
 
-    default_filename = "proxies.yaml"
-    proxies_file = os.path.join(DATA_BASE, args.filename or default_filename)
+    # 保存为 mixed 格式
+    to_mixed = args.both or args.mixed
 
-    if args.all:
-        dest_file, artifact, target = "config.yaml", "convert", "clash"
+    # 保存为 clash 格式
+    to_clash = args.both or not args.mixed
 
-        filepath = os.path.join(PATH, "subconverter", default_filename)
-        if os.path.exists(filepath) and os.path.isfile(filepath):
-            os.remove(filepath)
+    source, clash_file, mixed_file = "proxies.yaml", "clash.yaml", "v2ray.txt"
+    supplier = os.path.join(PATH, "subconverter", source)
+    if os.path.exists(supplier) and os.path.isfile(supplier):
+        os.remove(supplier)
 
-        with open(filepath, "w+", encoding="utf8") as f:
-            yaml.dump(data, f, allow_unicode=True)
+    with open(supplier, "w+", encoding="utf8") as f:
+        yaml.dump(data, f, allow_unicode=True)
 
-        if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-            os.remove(generate_conf)
+    if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+        os.remove(generate_conf)
 
-        success = subconverter.generate_conf(generate_conf, artifact, default_filename, dest_file, target, False, False)
+    targets, records = [], {}
+    if to_clash:
+        targets.append(("convert_clash", clash_file, "clash", not args.all, args.vitiate))
+    if to_mixed:
+        targets.append(("convert_mixed", mixed_file, "mixed", False, args.vitiate))
+
+    for t in targets:
+        success = subconverter.generate_conf(generate_conf, t[0], source, t[1], t[2], t[3], t[4])
         if not success:
-            logger.error(f"cannot generate subconverter config file, exit")
-            sys.exit(0)
+            logger.error(f"cannot generate subconverter config file for target: {t[2]}")
+            continue
 
-        if subconverter.convert(binname=subconverter_bin, artifact=artifact):
-            shutil.move(os.path.join(PATH, "subconverter", dest_file), proxies_file)
-            os.remove(filepath)
+        if subconverter.convert(binname=subconverter_bin, artifact=t[0]):
+            filepath = os.path.join(DATA_BASE, t[1])
+            shutil.move(os.path.join(PATH, "subconverter", t[1]), filepath)
+
+            records[t[1]] = filepath
+
+    if len(records) > 0:
+        os.remove(supplier)
     else:
-        with open(proxies_file, "w+", encoding="utf8") as f:
-            yaml.dump(data, f, allow_unicode=True)
+        logger.error(f"all targets convert failed, you can view the temporary file: {supplier}")
+        sys.exit(1)
 
-    logger.info(f"found {len(nodes)} proxies, save it to {proxies_file}")
+    logger.info(f"found {len(nodes)} proxies, save it to {list(records.values())}")
 
-    life, vestigial = max(0, args.life), max(0, args.vestigial)
-    if life > 0 or vestigial > 0:
-        tasks = [[x, 2, vestigial, life, 0, True] for x in urls]
+    life, traffic = max(0, args.life), max(0, args.flow)
+    if life > 0 or traffic > 0:
+        # 过滤出新的订阅并检查剩余流量和过期时间是否满足要求
+        new_subscriptions = [x for x in urls if x not in old_subscriptions]
+
+        tasks = [[x, 2, traffic, life, 0, True] for x in new_subscriptions]
         results = utils.multi_thread_run(
             func=crawl.check_status,
             tasks=tasks,
@@ -286,10 +316,16 @@ def aggregate(args: argparse.Namespace) -> None:
             show_progress=display,
         )
 
-        urls = [urls[i] for i in range(len(urls)) if results[i][0] and not results[i][1]]
+        total = len(urls)
+
+        # 筛选出为符合要求的订阅
+        urls = [new_subscriptions[i] for i in range(len(new_subscriptions)) if results[i][0] and not results[i][1]]
         discard = len(tasks) - len(urls)
 
-        logger.info(f"filter subscriptions finished, total: {len(tasks)}, found: {len(urls)}, discard: {discard}")
+        # 合并新老订阅
+        urls.extend(list(old_subscriptions))
+
+        logger.info(f"filter subscriptions finished, total: {total}, found: {len(urls)}, discard: {discard}")
 
     utils.write_file(filename=os.path.join(DATA_BASE, subscribes_file), lines=urls)
     domains = [utils.extract_domain(url=x, include_protocal=True) for x in urls]
@@ -299,11 +335,12 @@ def aggregate(args: argparse.Namespace) -> None:
 
     # 如有必要，上传至 Gist
     if gist_id and access_token:
-        files, push_conf = {}, {"gistid": gist_id, "filename": default_filename}
+        files, push_conf = {}, {"gistid": gist_id, "filename": list(records.keys())[0]}
 
-        if os.path.exists(proxies_file) and os.path.isfile(proxies_file):
-            with open(proxies_file, "r", encoding="utf8") as f:
-                files[default_filename] = {"content": f.read(), "filename": default_filename}
+        for k, v in records.items():
+            if os.path.exists(v) and os.path.isfile(v):
+                with open(v, "r", encoding="utf8") as f:
+                    files[k] = {"content": f.read(), "filename": k}
 
         if urls:
             files[subscribes_file] = {"content": "\n".join(urls), "filename": subscribes_file}
@@ -312,7 +349,7 @@ def aggregate(args: argparse.Namespace) -> None:
             push_client = push.PushToGist(token=access_token)
 
             # 上传
-            success = push_client.push_to(content="", push_conf=push_conf, payload={"files": files})
+            success = push_client.push_to(content="", push_conf=push_conf, payload={"files": files}, group="collect")
             if success:
                 logger.info(f"upload proxies and subscriptions to gist successed")
             else:
@@ -334,12 +371,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-c",
-        "--clean",
-        dest="clean",
+        "-b",
+        "--both",
+        dest="both",
         action="store_true",
         default=False,
-        help="refresh proxies only using existing subscriptions",
+        help="save results in both clash and mixed formats, only clash is saved by default",
     )
 
     parser.add_argument(
@@ -352,12 +389,21 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-e",
+        "--easygoing",
+        dest="easygoing",
+        action="store_true",
+        default=False,
+        help="try registering with a gmail alias when you encounter a whitelisted mailbox",
+    )
+
+    parser.add_argument(
         "-f",
-        "--filename",
-        type=str,
+        "--flow",
+        type=int,
         required=False,
-        default="proxies.yaml",
-        help="proxies filename",
+        default=0,
+        help="remaining traffic available for use, unit: GB",
     )
 
     parser.add_argument(
@@ -397,6 +443,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-m",
+        "--mixed",
+        dest="mixed",
+        action="store_true",
+        default=False,
+        help="convert and save as mixed format",
+    )
+
+    parser.add_argument(
         "-n",
         "--num",
         type=int,
@@ -425,11 +480,11 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-r",
-        "--relaxed",
-        dest="relaxed",
+        "--refresh",
+        dest="refresh",
         action="store_true",
         default=False,
-        help="try registering with a gmail alias when you encounter a whitelisted mailbox",
+        help="refresh and remove expired proxies with existing subscriptions",
     )
 
     parser.add_argument(
@@ -461,11 +516,11 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-v",
-        "--vestigial",
+        "--vitiate",
         type=int,
         required=False,
         default=0,
-        help="vestigial traffic allowed to use, unit: GB",
+        help="ignoring default proxies filter rules",
     )
 
     aggregate(args=parser.parse_args())
