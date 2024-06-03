@@ -1417,26 +1417,6 @@ def collect_airport(
             return list(itertools.chain.from_iterable(results))
 
     def crawl_ccbh() -> dict:
-        def get_redirect_url(url: str, retry: int = 3) -> str:
-            if not url or retry <= 0:
-                return ""
-
-            headers = {
-                "User-Agent": utils.USER_AGENT,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-                "Accept-Encoding": "gzip, deflate, br, zstd",
-                "Accept-Language": "zh-CN,zh;q=0.9",
-            }
-
-            try:
-                request = urllib.request.Request(url=url, headers=headers, method="GET")
-                response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
-
-                return response.geturl()
-            except:
-                time.sleep(random.randint(1, 3))
-                return get_redirect_url(url=url, retry=retry - 1)
-
         url = "https://ccbaohe.com/jcjd.html"
         content = utils.http_get(url=url)
         try:
@@ -1466,7 +1446,7 @@ def collect_airport(
                     candidates[address] = coupon
 
             urls = list(candidates.keys())
-            latest = utils.multi_thread_run(func=get_redirect_url, tasks=urls)
+            latest = utils.multi_thread_run(func=get_redirect_url, tasks=urls, num_threads=num_thread)
 
             for i, x in enumerate(urls):
                 domain = utils.extract_domain(url=latest[i], include_protocal=True)
@@ -1533,6 +1513,45 @@ def collect_airport(
 
         return result
 
+    def crawl_jctj(convert: bool = False) -> dict:
+        url = "https://raw.githubusercontent.com/hwanz/SSR-V2ray-Trojan-vpn/main/README.md"
+        content = utils.http_get(url=url)
+        groups = re.findall(r"\[.*\]\((https?:\/\/[^\s\r\n]+)\)[^\r\n]+\d+G.*", content, flags=re.I)
+        if not groups:
+            return {}
+
+        try:
+            tasks = [utils.trim(x).lower() for x in groups if x]
+            if convert:
+                links = utils.multi_thread_run(func=get_redirect_url, tasks=tasks, num_threads=num_thread)
+            else:
+                links = tasks
+
+            return {utils.extract_domain(url=x, include_protocal=True): "" for x in links if x}
+        except:
+            logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
+            return {}
+
+    def get_redirect_url(url: str, retry: int = 3) -> str:
+        if not url or retry <= 0:
+            return ""
+
+        headers = {
+            "User-Agent": utils.USER_AGENT,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+        }
+
+        try:
+            request = urllib.request.Request(url=url, headers=headers, method="GET")
+            response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
+
+            return response.geturl()
+        except:
+            time.sleep(random.randint(1, 3))
+            return get_redirect_url(url=url, retry=retry - 1)
+
     def run_crawl(url: str, separator: str, address_regex: str, coupon_regex: str) -> dict:
         url = utils.trim(url)
         content = utils.http_get(url=url)
@@ -1566,6 +1585,10 @@ def collect_airport(
     candidates = {} if not domains else {x: "" for x in domains}
 
     materials = dict()
+    jctj = crawl_jctj(convert=False)
+    if jctj:
+        materials.update(jctj)
+
     ccbh = crawl_ccbh()
     if ccbh:
         materials.update(ccbh)

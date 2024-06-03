@@ -54,7 +54,7 @@ jobs:
           fi
 
       - name: Refresh
-        run: python -u subscribe/collect.py --all --clean --overwrite --skip
+        run: python -u subscribe/collect.py --all --both --refresh --overwrite --skip
 
       - name: Timestamp
         run: date
