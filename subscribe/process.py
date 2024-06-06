@@ -469,7 +469,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
                 params = [
                     [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, delay, False]
-                    for p in proxies
+                    for p in checks
                     if isinstance(p, dict)
                 ]
 
@@ -487,7 +487,7 @@ def aggregate(args: argparse.Namespace) -> None:
                 except:
                     logger.error(f"terminate clash process error, group: {k}")
 
-                availables = [proxies[i] for i in range(len(proxies)) if masks[i]]
+                availables = [checks[i] for i in range(len(checks)) if masks[i]]
                 nochecks.extend(availables)
 
         for item in nochecks:

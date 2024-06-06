@@ -203,15 +203,13 @@ SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2"])
 
 
 def is_hex(word: str) -> bool:
-    digits, flag = set("0123456789abcdef"), False
+    digits = set("0123456789abcdef")
     word = word.lower().strip()
     for c in word:
         if not (c in digits):
             return False
 
-        flag = flag and ("a" <= c <= "f")
-
-    return flag
+    return True
 
 
 def check_ports(port: str, ranges: str, protocol: str) -> bool:
