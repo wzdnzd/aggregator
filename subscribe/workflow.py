@@ -81,6 +81,9 @@ class TaskConfig:
     # 对于具有邮箱域名白名单且需要验证码的情况，是否使用 Gmail 别名邮箱尝试，为 True 时表示不使用
     rigid: bool = True
 
+    # 是否丢弃可能需要人机验证的站点
+    chuck: bool = False
+
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf:
@@ -106,7 +109,7 @@ def execute(task_conf: TaskConfig) -> list:
             obj.registed = True
             obj.sub = sub_url
 
-    cookie, authorization = obj.get_subscribe(retry=task_conf.retry, rigid=task_conf.rigid)
+    cookie, authorization = obj.get_subscribe(retry=task_conf.retry, rigid=task_conf.rigid, chuck=task_conf.chuck)
     proxies = obj.parse(
         cookie=cookie,
         auth=authorization,
