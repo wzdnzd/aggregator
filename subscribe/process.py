@@ -494,6 +494,9 @@ def aggregate(args: argparse.Namespace) -> None:
                 availables = [checks[i] for i in range(len(checks)) if masks[i]]
                 nochecks.extend(availables)
 
+                dead = len(checks) - len(availables)
+                logger.info(f"proxies check finished, total: {len(checks)}, alive: {len(availables)}, dead: {dead}")
+
         for item in nochecks:
             item.pop("sub", "")
 
@@ -567,7 +570,7 @@ def aggregate(args: argparse.Namespace) -> None:
             utils.write_file(filename=filename, lines=content)
 
         cost = "{:.2f}s".format(time.time() - starttime)
-        logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
+        logger.info(f"group [{k}] process finished, count: {len(nochecks)}, cost: {cost}")
 
     config = {
         "domains": sites,
