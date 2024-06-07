@@ -19,6 +19,7 @@ import push
 import utils
 import workflow
 import yaml
+from airport import AirPort
 from logger import logger
 from workflow import TaskConfig
 
@@ -80,13 +81,21 @@ def assign(
     access_token = utils.trim(kwargs.get("access_token", ""))
     gist_id = utils.trim(kwargs.get("gist_id", ""))
     username = utils.trim(kwargs.get("username", ""))
+    chuck = kwargs.get("chuck", False)
 
     # 加载已有订阅
     subscriptions = load_exist(username, gist_id, access_token, subscribes_file)
     logger.info(f"load exists subscription finished, count: {len(subscriptions)}")
 
+    # 是否允许特殊协议
+    special_protocols = AirPort.enable_special_protocols()
+
     tasks = (
-        [TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name) for x in subscriptions if x]
+        [
+            TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name, special_protocols=special_protocols)
+            for x in subscriptions
+            if x
+        ]
         if subscriptions
         else []
     )
@@ -124,6 +133,7 @@ def assign(
             display=display,
             filepath=os.path.join(DATA_BASE, "coupons.txt"),
             delimiter=delimiter,
+            chuck=chuck,
         )
 
         if candidates:
@@ -139,7 +149,17 @@ def assign(
 
     for domain, coupon in domains.items():
         name = crawl.naming_task(url=domain)
-        tasks.append(TaskConfig(name=name, domain=domain, coupon=coupon, bin_name=bin_name, rigid=rigid))
+        tasks.append(
+            TaskConfig(
+                name=name,
+                domain=domain,
+                coupon=coupon,
+                bin_name=bin_name,
+                rigid=rigid,
+                chuck=chuck,
+                special_protocols=special_protocols,
+            )
+        )
 
     return tasks
 
@@ -170,6 +190,7 @@ def aggregate(args: argparse.Namespace) -> None:
         display=display,
         num_threads=args.num,
         refresh=args.refresh,
+        chuck=args.chuck,
         username=username,
         gist_id=gist_id,
         access_token=access_token,
@@ -380,6 +401,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-c",
+        "--chuck",
+        dest="chuck",
+        action="store_true",
+        default=False,
+        help="discard candidate sites that may require human-authentication",
+    )
+
+    parser.add_argument(
         "-d",
         "--delay",
         type=int,
@@ -475,7 +505,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=sys.maxsize,
-        help="crawl page num",
+        help="max page number when crawling telegram",
     )
 
     parser.add_argument(

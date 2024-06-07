@@ -1392,6 +1392,7 @@ def collect_airport(
     display: bool = True,
     filepath: str = "",
     delimiter: str = "",
+    chuck: bool = False,
 ) -> dict:
     def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list[str]:
         """crawl from telegram channel"""
@@ -1581,6 +1582,13 @@ def collect_airport(
 
         return result
 
+    def extract_real_url(domain: str) -> str:
+        url = urllib.parse.urljoin(domain, "env.js")
+        content = utils.http_get(url=url, retry=2, timeout=6)
+
+        groups = re.findall(r"window.routerBase(?:\s+)?=(?:\s+)?['\"](https?://.*)['\"]", content, flags=re.I)
+        return groups[0].rstrip("/") if groups and groups[0] else domain
+
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
     candidates = {} if not domains else {x: "" for x in domains}
 
@@ -1610,19 +1618,23 @@ def collect_airport(
 
     # merge
     candidates.update(materials)
-
     domains = list(candidates.keys())
-    logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start to check it now")
 
-    tasks = [[domain, rigid] for domain in domains]
+    # extract real routing base url
+    logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start extracting real routing addresses")
+    sites = utils.multi_thread_run(func=extract_real_url, tasks=domains, num_threads=num_thread, show_progress=display)
+
+    tasks = [[site, rigid, chuck] for site in sites]
+    records = {sites[i]: candidates.get(domains[i], "") for i in range(len(sites))}
+
+    # check website availability
+    logger.info(f"[AirPortCollector] extract real base url finished, start to check it now")
     result = utils.multi_thread_run(func=validate_domain, tasks=tasks, num_threads=num_thread, show_progress=display)
 
-    availables = [domains[i] for i in range(len(domains)) if result[i]]
-    logger.info(
-        f"[AirPortCollector] finished collect airport from telegram channel: {channel}, availables: {len(availables)}"
-    )
+    availables = [sites[i] for i in range(len(sites)) if result[i]]
+    logger.info(f"[AirPortCollector] finished collect airport, availables: {len(availables)}")
 
-    return {x: candidates.get(x, "") for x in availables}
+    return {x: records.get(x, "") for x in availables}
 
 
 def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
@@ -1645,13 +1657,13 @@ def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
     utils.write_file(filename=filepath, lines=lines)
 
 
-def validate_domain(url: str, rigid: bool = True) -> bool:
+def validate_domain(url: str, rigid: bool = True, chuck: bool = False) -> bool:
     try:
         if not url:
             return False
 
         rr = airport.AirPort.get_register_require(domain=url)
-        if rr.invite or rr.recaptcha or (rigid and rr.whitelist and rr.verify):
+        if rr.invite or (chuck and rr.recaptcha) or (rigid and rr.whitelist and rr.verify):
             return False
 
         return True

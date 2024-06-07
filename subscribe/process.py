@@ -279,6 +279,9 @@ def assign(
         # 是否添加国旗 emoji
         emoji = site.get("emoji", False)
 
+        # 需要人机验证时是否直接放弃
+        chuck = site.get("chuck", False)
+
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -325,6 +328,7 @@ def assign(
                 allow_insecure=allow_insecure,
                 ignorede=ignoreder,
                 rigid=rigid,
+                chuck=chuck,
                 special_protocols=special_protocols,
                 emoji_patterns=emoji_patterns if emoji else None,
             )

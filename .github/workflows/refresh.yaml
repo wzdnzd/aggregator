@@ -15,6 +15,9 @@ env:
   # github username and gist id, separated by '/'
   GIST_LINK: ${{ secrets.GIST_LINK }}
 
+  # include spwcial protocols, such as vless hysteria2 and hysteria
+  ENABLE_SPECIAL_PROTOCOLS: ${{ vars.ENABLE_SPECIAL_PROTOCOLS }}
+
 jobs:
   process:
     runs-on: ubuntu-latest
@@ -54,7 +57,7 @@ jobs:
           fi
 
       - name: Refresh
-        run: python -u subscribe/collect.py --all --both --refresh --overwrite --skip
+        run: python -u subscribe/collect.py --all --both --refresh --overwrite --pages 25 --skip
 
       - name: Timestamp
         run: date
