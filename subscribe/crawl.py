@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import base64
+import gzip
 import importlib
 import itertools
 import json
@@ -11,12 +12,15 @@ import multiprocessing
 import os
 import random
 import re
+import socket
+import ssl
 import string
 import sys
 import time
 import traceback
 import typing
 import urllib
+import urllib.error
 import urllib.parse
 import urllib.request
 from copy import deepcopy
@@ -1582,12 +1586,34 @@ def collect_airport(
 
         return result
 
-    def extract_real_url(domain: str) -> str:
+    def extract_real_url(domain: str, retry: int = 2) -> str:
+        count, retry = 0, max(retry, 1)
         url = urllib.parse.urljoin(domain, "env.js")
-        content = utils.http_get(url=url, retry=2, timeout=6)
 
-        groups = re.findall(r"window.routerBase(?:\s+)?=(?:\s+)?['\"](https?://.*)['\"]", content, flags=re.I)
-        return groups[0].rstrip("/") if groups and groups[0] else domain
+        while count < retry:
+            count += 1
+
+            try:
+                request = urllib.request.Request(url=url, headers=utils.DEFAULT_HTTP_HEADERS, method="GET")
+                response = urllib.request.urlopen(request, timeout=6, context=utils.CTX)
+
+                content = response.read()
+                try:
+                    content = str(content, encoding="utf8")
+                except:
+                    content = gzip.decompress(content).decode("utf8")
+
+                groups = re.findall(r"window.routerBase(?:\s+)?=(?:\s+)?['\"](https?://.*)['\"]", content, flags=re.I)
+                return groups[0].rstrip("/") if groups and groups[0] else domain
+            except urllib.error.HTTPError:
+                return domain
+            except urllib.error.URLError as e:
+                if isinstance(e.reason, (socket.gaierror, ssl.SSLError, socket.timeout)):
+                    return ""
+            except Exception as e:
+                pass
+
+        return domain
 
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
     candidates = {} if not domains else {x: "" for x in domains}
@@ -1624,14 +1650,14 @@ def collect_airport(
     logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start extracting real routing addresses")
     sites = utils.multi_thread_run(func=extract_real_url, tasks=domains, num_threads=num_thread, show_progress=display)
 
-    tasks = [[site, rigid, chuck] for site in sites]
-    records = {sites[i]: candidates.get(domains[i], "") for i in range(len(sites))}
+    tasks = [[site, rigid, chuck] for site in sites if site]
+    records = {sites[i]: candidates.get(domains[i], "") for i in range(len(sites)) if sites[i]}
 
     # check website availability
     logger.info(f"[AirPortCollector] extract real base url finished, start to check it now")
     result = utils.multi_thread_run(func=validate_domain, tasks=tasks, num_threads=num_thread, show_progress=display)
 
-    availables = [sites[i] for i in range(len(sites)) if result[i]]
+    availables = [tasks[i][0] for i in range(len(tasks)) if result[i]]
     logger.info(f"[AirPortCollector] finished collect airport, availables: {len(availables)}")
 
     return {x: records.get(x, "") for x in availables}
