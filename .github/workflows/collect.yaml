@@ -5,6 +5,10 @@ on:
     - cron: "0 0 * * 1"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ GITHUB_REPOSITORY }}
+  cancel-in-progress: true
+
 env:
   # time zone
   TZ: Asia/Shanghai
