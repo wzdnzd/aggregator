@@ -5,6 +5,10 @@ on:
     - cron: "0 */2 * * *"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.repository }}
+  cancel-in-progress: true
+
 env:
   # time zone
   TZ: Asia/Shanghai
@@ -14,6 +18,9 @@ env:
 
   # github username and gist id, separated by '/'
   GIST_LINK: ${{ secrets.GIST_LINK }}
+
+  # include spwcial protocols, such as vless hysteria2 and hysteria
+  ENABLE_SPECIAL_PROTOCOLS: ${{ vars.ENABLE_SPECIAL_PROTOCOLS }}
 
 jobs:
   process:
