@@ -19,7 +19,7 @@ env:
   # github username and gist id, separated by '/'
   GIST_LINK: ${{ secrets.GIST_LINK }}
 
-  # include spwcial protocols, such as vless hysteria2 and hysteria
+  # include special protocols, such as vless hysteria2 and hysteria
   ENABLE_SPECIAL_PROTOCOLS: ${{ vars.ENABLE_SPECIAL_PROTOCOLS }}
 
 jobs:
