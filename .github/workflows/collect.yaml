@@ -19,6 +19,10 @@ env:
   # github username and gist id, separated by '/'
   GIST_LINK: ${{ secrets.GIST_LINK }}
 
+  # the url to the list of airports that you maintain yourself
+  # each line include domain, coupon and invitation code, the domain must be included, and the latter two items are optional
+  CUSTOMIZE_LINK: ${{ secrets.CUSTOMIZE_LINK }}
+
   # include special protocols, such as vless hysteria2 and hysteria
   ENABLE_SPECIAL_PROTOCOLS: ${{ vars.ENABLE_SPECIAL_PROTOCOLS }}
 

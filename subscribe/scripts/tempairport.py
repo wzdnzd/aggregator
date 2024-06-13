@@ -16,7 +16,9 @@ from urlvalidator import isurl
 from . import commons, scaner
 
 
-def register(domain: str, subtype: int = 1, coupon: str = "", rigid: bool = True, chuck: bool = False) -> AirPort:
+def register(
+    domain: str, subtype: int = 1, coupon: str = "", rigid: bool = True, chuck: bool = False, invite_code: str = ""
+) -> AirPort:
     url = utils.extract_domain(url=domain, include_protocal=True)
     if not isurl(url=url):
         logger.error(f"[TempSubError] cannot register because domain=[{domain}] is invalidate")
@@ -35,7 +37,7 @@ def register(domain: str, subtype: int = 1, coupon: str = "", rigid: bool = True
         airport.password = passwd
         airport.sub = suburl
     else:
-        airport.get_subscribe(retry=3, rigid=rigid, chuck=chuck)
+        airport.get_subscribe(retry=3, rigid=rigid, chuck=chuck, invite_code=invite_code)
 
     return airport
 
@@ -148,10 +150,13 @@ def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
                     if not utils.isblank(v.get("sub", "")):
                         exists[k] = v
                     else:
+                        coupon = v.get("coupon", "")
                         rigid = v.get("rigid", True)
                         chuck = v.get("chuck", False)
+                        invite_code = v.get("invite_code", "")
 
-                        unregisters.append([k, v.get("type", 1), v.get("coupon", ""), rigid, chuck])
+                        unregisters.append([k, v.get("type", 1), coupon, rigid, chuck, invite_code])
+
                     unknowns.pop(k, None)
 
         domains, subscribes = [], []
