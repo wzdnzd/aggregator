@@ -1675,10 +1675,20 @@ def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
 
     lines = []
     for k, v in candidates.items():
-        if not v or not isinstance(v, str):
-            lines.append(k)
-        else:
-            lines.append(f"{k}\t{delimiter}\t{v}")
+        text = k
+        if v and isinstance(v, str):
+            text += f"\t{delimiter}\t{v}"
+        elif v and isinstance(v, dict):
+            coupon = utils.trim(v.get("coupon", ""))
+            invite_code = utils.trim(v.get("invite_code", ""))
+
+            if coupon or invite_code:
+                text += f"\t{delimiter}\t{coupon}"
+
+                if invite_code:
+                    text += f"\t{delimiter}\t{invite_code}"
+
+        lines.append(text)
 
     utils.write_file(filename=filepath, lines=lines)
 
