@@ -442,12 +442,18 @@ def verify(item: dict, meta: bool = True) -> bool:
                         return False
                     if "public-key" not in reality_opts or type(reality_opts["public-key"]) != str:
                         return False
-                    if "short-id" in reality_opts and (
-                        type(reality_opts["short-id"]) != str
-                        or len(reality_opts["short-id"]) != 8
-                        or not is_hex(reality_opts["short-id"])
-                    ):
-                        return False
+                    if "short-id" in reality_opts:
+                        short_id = reality_opts["short-id"]
+                        if type(short_id) != str:
+                            if utils.is_number(short_id):
+                                short_id = str(short_id)
+                            else:
+                                return False
+
+                        if len(short_id) != 8 or not is_hex(short_id):
+                            return False
+
+                        reality_opts["short-id"] = short_id
             elif item["type"] == "tuic":
                 # see: https://wiki.metacubex.one/config/proxies/tuic
 
