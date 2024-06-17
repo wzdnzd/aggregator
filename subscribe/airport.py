@@ -25,7 +25,7 @@ import yaml
 from logger import logger
 
 import subconverter
-from clash import is_meta, verify
+from clash import is_mihomo, verify
 
 EMAILS_DOMAINS = [
     "gmail.com",
@@ -726,4 +726,4 @@ class AirPort:
 
     @staticmethod
     def enable_special_protocols() -> bool:
-        return os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true").lower() in ["true", "1"] and is_meta()
+        return os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true").lower() in ["true", "1"] and is_mihomo()
