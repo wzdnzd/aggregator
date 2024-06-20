@@ -3,6 +3,7 @@
 # @Author  : wzdnzd
 # @Time    : 2022-07-15
 
+import base64
 import itertools
 import json
 import os
@@ -179,7 +180,14 @@ SS_SUPPORTED_CIPHERS = [
     "xchacha20-ietf-poly1305",
 ]
 
-MIHOMO_SS_SUPPORTED_CIPHERS = ["2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305"]
+# reference: https://github.com/MetaCubeX/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L73-L86
+MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN = {
+    "2022-blake3-aes-128-gcm": 16,
+    "2022-blake3-aes-256-gcm": 32,
+    "2022-blake3-chacha20-poly1305": 32,
+}
+
+MIHOMO_SS_SUPPORTED_CIPHERS = list(MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.keys())
 
 SSR_SUPPORTED_OBFS = [
     "plain",
@@ -283,9 +291,22 @@ def verify(item: dict, mihomo: bool = True) -> bool:
         authentication = "password"
 
         if item["type"] == "ss":
-            ciphers = SS_SUPPORTED_CIPHERS if not mihomo else SS_SUPPORTED_CIPHERS + MIHOMO_SS_SUPPORTED_CIPHERS
+            ciphers = set(SS_SUPPORTED_CIPHERS if not mihomo else SS_SUPPORTED_CIPHERS + MIHOMO_SS_SUPPORTED_CIPHERS)
             if item["cipher"] not in ciphers:
                 return False
+
+            if item["cipher"] in MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN:
+                # will throw bad key length error
+                # see: https://github.com/MetaCubeX/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L59-L108
+                password = str(item.get(authentication, ""))
+                words = password.split(":")
+                for word in words:
+                    try:
+                        text = base64.b64decode(word)
+                        if len(text) != MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.get(item["cipher"]):
+                            return False
+                    except:
+                        return False
 
             plugin = item.get("plugin", "")
 
@@ -327,7 +348,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                 return False
 
             # mihomo: https://wiki.metacubex.one/config/proxies/vmess/#cipher
-            ciphers = VMESS_SUPPORTED_CIPHERS + ["zero"] if mihomo else VMESS_SUPPORTED_CIPHERS
+            ciphers = set(VMESS_SUPPORTED_CIPHERS + ["zero"] if mihomo else VMESS_SUPPORTED_CIPHERS)
             if item["cipher"] not in ciphers:
                 return False
             if "alterId" not in item or not utils.is_number(item["alterId"]):
