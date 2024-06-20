@@ -10,9 +10,11 @@ import time
 from copy import deepcopy
 
 import crawl
+import push
 import utils
 from logger import logger
 from origin import Origin
+from urlvalidator import isurl
 
 # github rest api prefix
 GITHUB_API = "https://api.github.com"
@@ -21,10 +23,10 @@ GITHUB_API = "https://api.github.com"
 GITHUB_CONTENT_API = "https://raw.githubusercontent.com"
 
 # proxies file path
-PROXIES_FILE = "aggregate/data/proxies.yaml"
+PROXY_FILES = ["aggregate/data/proxies.yaml", "data/proxies.yaml", "data/clash.yaml"]
 
 # subscribes file path
-SUBSCRIBES_FILE = "aggregate/data/subscribes.txt"
+SUBSCRIBE_FILES = ["aggregate/data/subscribes.txt", "data/subscribes.txt"]
 
 # default branch
 DEFAULT_BRANCH = "main"
@@ -70,8 +72,8 @@ def query_forks(username: str, repository: str, page: int, peer: int = 100, sort
 
     fullname = f"{username}/{repository}"
     source = (
-        f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{PROXIES_FILE}",
-        f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{SUBSCRIBES_FILE}",
+        [f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{p}" for p in PROXY_FILES],
+        [f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{s}" for s in SUBSCRIBE_FILES],
     )
     subscriptions, starttime = {fullname: source}, time.time()
 
@@ -91,10 +93,10 @@ def query_forks(username: str, repository: str, page: int, peer: int = 100, sort
             fullname = fork.get("full_name", "")
             branch = fork.get("default_branch", DEFAULT_BRANCH)
 
-            link = f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{PROXIES_FILE}"
-            sub = f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{SUBSCRIBES_FILE}"
+            links = [f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{p}" for p in PROXY_FILES]
+            subs = [f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{s}" for s in SUBSCRIBE_FILES]
 
-            subscriptions[fullname] = (link, sub)
+            subscriptions[fullname] = (links, subs)
     except:
         logger.error(f"[GithubFork] cannot fetch forks for page: {page}, message: {content}")
 
@@ -105,12 +107,21 @@ def query_forks(username: str, repository: str, page: int, peer: int = 100, sort
 
 
 def collect_subs(params: dict) -> list[dict]:
-    if not params or type(params) != dict:
-        return []
+    def update_conf(config: dict, sub: str, name: str = "") -> dict:
+        name = crawl.naming_task(url=url) if not name else name
 
-    config = params.get("config", {})
-    if not config or not isinstance(config, dict) or not config.get("push_to"):
-        logger.error(f"[GithubFork] cannot fetch subscribes bcause not found arguments 'push_to'")
+        item = deepcopy(config)
+        item.update({"name": name, "sub": sub, "saved": True})
+
+        return item
+
+    def github_warp(ghproxy: str, url: str) -> str:
+        if not ghproxy or not url.startswith(GITHUB_CONTENT_API):
+            return url
+
+        return f"{ghproxy}/{url}"
+
+    if not params or type(params) != dict:
         return []
 
     username = utils.trim(params.get("username", "wzdnzd"))
@@ -120,6 +131,37 @@ def collect_subs(params: dict) -> list[dict]:
         logger.error(f"[GithubFork] cannot list forks from github due to username or repository is empty")
         return []
 
+    # used to store subscriptions
+    persist = params.get("persist", {})
+
+    pushtool = push.get_instance()
+    if not pushtool.validate(persist):
+        logger.error(f"[GithubFork] cannot fetch subscriptions due to invalid persist config")
+        return []
+
+    # only keep subscriptions, usually used when there are too many nodes to save to the remote service
+    only_sublink = params.get("only_sublink", False)
+
+    # github proxy server
+    ghproxy = utils.trim(params.get("ghproxy", "")).removesuffix("/").lower()
+    if not isurl(ghproxy):
+        ghproxy = ""
+
+    config = params.get("config", {})
+    if not isinstance(config, dict) or (not only_sublink and not config.get("push_to")):
+        logger.error(f"[GithubFork] cannot fetch subscriptions bcause not found arguments 'push_to'")
+        return []
+
+    materials, tasks = {}, []
+
+    # load old subscriptions
+    content = utils.http_get(url=pushtool.raw_url(persist), timeout=30)
+    urls = re.findall(r"^https?:\/\/[^\s]+", content, flags=re.M)
+    for url in urls:
+        url = github_warp(ghproxy=ghproxy, url=url)
+        materials[url] = update_conf(config=config, sub=url)
+
+    # query fork list
     count, peer = query_forks_count(username=username, repository=repository, retry=3), 100
     total = int(math.ceil(count / peer))
 
@@ -129,11 +171,10 @@ def collect_subs(params: dict) -> list[dict]:
     if sort not in ["newest", "oldest", "stargazers", "watchers"]:
         sort = "newest"
 
-    # concurrent
-    tasks = [[username, repository, x, peer, sort] for x in range(1, total + 1)]
-    results = utils.multi_thread_run(func=query_forks, tasks=tasks)
+    # concurrent fetch
+    pages = [[username, repository, x, peer, sort] for x in range(1, total + 1)]
+    results = utils.multi_thread_run(func=query_forks, tasks=pages)
 
-    nocache = params.get("nocache", False)
     include = utils.trim(params.get("include", ""))
     exclude = utils.trim(params.get("exclude", ""))
 
@@ -145,7 +186,6 @@ def collect_subs(params: dict) -> list[dict]:
         logger.warning(f"[GithubFork] invalid remain or life, set to 0")
         remain, life = 0, 0
 
-    items, tasks = [], []
     for result in results:
         if not result or type(result) != dict:
             continue
@@ -155,25 +195,17 @@ def collect_subs(params: dict) -> list[dict]:
                 continue
 
             name = re.sub(r"/|_", "-", name, flags=re.I).lower()
-            push_to = list(set(config.get("push_to")))
+            push_to = list(set(config.get("push_to", [])))
 
-            proxy, sub = links[0], links[1]
-            if proxy:
-                item = deepcopy(config)
-                item.update({"name": name, "sub": proxy, "push_to": push_to, "saved": True})
-
-                items.append(item)
-            if sub:
-                tasks.append([sub, push_to, include, exclude, config, None, Origin.PAGE, nocache])
-
-    # filter available proxies links
-    checks = [[x["sub"], 2, remain, life] for x in items]
-    masks = utils.multi_thread_run(func=crawl.is_available, tasks=checks)
-    items = [items[i] for i in range(len(items)) if masks[i]]
+            proxies, subs = links[0], links[1]
+            for proxy in proxies:
+                proxy = github_warp(ghproxy=ghproxy, url=proxy)
+                materials[proxy] = update_conf(config=config, sub=proxy, name=name)
+            for sub in subs:
+                tasks.append([sub, push_to, include, exclude, config, None, Origin.PAGE])
 
     # crawl all subscriptions from subscriptions.txt
     results = utils.multi_thread_run(func=crawl.crawl_single_page, tasks=tasks)
-    links, candidates = [], []
     for result in results:
         if not result or not isinstance(result, dict):
             continue
@@ -182,24 +214,21 @@ def collect_subs(params: dict) -> list[dict]:
             if not k or not v or not isinstance(v, dict):
                 continue
 
-            v["sub"] = k
-            links.append(k)
-            candidates.append(v)
+            v.update({"sub": k, "saved": True})
+            materials[k] = v
 
-    if not nocache and (remain > 0 or life > 0):
-        tasks = [[x, 2, remain, life] for x in links]
-        masks = utils.multi_thread_run(func=crawl.is_available, tasks=tasks)
+    # check availability
+    candidates = list(materials.keys())
+    tasks = [[x, 2, remain, life] for x in candidates]
+    masks = utils.multi_thread_run(func=crawl.is_available, tasks=tasks)
 
-        latest = list()
-        for i in range(len(candidates)):
-            candidate = candidates[i]
-            candidate["checked"] = masks[i]
-            if not masks[i]:
-                candidate["nocache"] = True
+    # filter available subscriptions
+    effective_subs = [candidates[i] for i in range(len(masks)) if masks[i]]
+    logger.info(f"[GithubFork] collect task finished, found {len(effective_subs)} subscriptions")
 
-            latest.append(candidate)
-    else:
-        latest = candidates
+    # save result
+    if effective_subs:
+        content = "\n".join(effective_subs)
+        pushtool.push_to(content=content, push_conf=persist, group="gitfork")
 
-    items.extend(latest)
-    return items
+    return [] if only_sublink else [materials.get(k) for k in effective_subs]
