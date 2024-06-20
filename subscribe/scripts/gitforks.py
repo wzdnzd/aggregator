@@ -21,10 +21,10 @@ GITHUB_API = "https://api.github.com"
 GITHUB_CONTENT_API = "https://raw.githubusercontent.com"
 
 # proxies file path
-PROXIES_FILE = "aggregate/data/proxies.yaml"
+PROXY_FILES = ["aggregate/data/proxies.yaml", "data/proxies.yaml", "data/clash.yaml"]
 
 # subscribes file path
-SUBSCRIBES_FILE = "aggregate/data/subscribes.txt"
+SUBSCRIBE_FILES = ["aggregate/data/subscribes.txt", "data/subscribes.txt"]
 
 # default branch
 DEFAULT_BRANCH = "main"
@@ -70,8 +70,8 @@ def query_forks(username: str, repository: str, page: int, peer: int = 100, sort
 
     fullname = f"{username}/{repository}"
     source = (
-        f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{PROXIES_FILE}",
-        f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{SUBSCRIBES_FILE}",
+        [f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{p}" for p in PROXY_FILES],
+        [f"{GITHUB_CONTENT_API}/{fullname}/{DEFAULT_BRANCH}/{s}" for s in SUBSCRIBE_FILES],
     )
     subscriptions, starttime = {fullname: source}, time.time()
 
@@ -91,10 +91,10 @@ def query_forks(username: str, repository: str, page: int, peer: int = 100, sort
             fullname = fork.get("full_name", "")
             branch = fork.get("default_branch", DEFAULT_BRANCH)
 
-            link = f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{PROXIES_FILE}"
-            sub = f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{SUBSCRIBES_FILE}"
+            links = [f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{p}" for p in PROXY_FILES]
+            subs = [f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{s}" for s in SUBSCRIBE_FILES]
 
-            subscriptions[fullname] = (link, sub)
+            subscriptions[fullname] = (links, subs)
     except:
         logger.error(f"[GithubFork] cannot fetch forks for page: {page}, message: {content}")
 
@@ -157,13 +157,13 @@ def collect_subs(params: dict) -> list[dict]:
             name = re.sub(r"/|_", "-", name, flags=re.I).lower()
             push_to = list(set(config.get("push_to")))
 
-            proxy, sub = links[0], links[1]
-            if proxy:
+            proxies, subs = links[0], links[1]
+            for proxy in proxies:
                 item = deepcopy(config)
                 item.update({"name": name, "sub": proxy, "push_to": push_to, "saved": True})
 
                 items.append(item)
-            if sub:
+            for sub in subs:
                 tasks.append([sub, push_to, include, exclude, config, None, Origin.PAGE, nocache])
 
     # filter available proxies links
