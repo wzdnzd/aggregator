@@ -12,7 +12,7 @@ import time
 import traceback
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from http.client import IncompleteRead
+from xml.etree import ElementTree
 
 import push
 import utils
@@ -40,7 +40,7 @@ SPECIAL_PROTOCOLS = AirPort.enable_special_protocols()
 
 
 def current_time(utc: bool = True) -> datetime:
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if not utc:
         tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
         now = now.replace(tzinfo=tz.utc).astimezone(tz)
@@ -51,16 +51,11 @@ def current_time(utc: bool = True) -> datetime:
 def get_dates(last: datetime) -> list[str]:
     last, dates = last if last else current_time(utc=True), []
 
-    # change timezone to Asia/Shanghai
-    # tz = timezone(timedelta(hours=8), name="Asia/Shanghai")
-    # start = (last.replace(tzinfo=tz.utc).astimezone(tz).replace(hour=0, minute=0, second=0))
-    # end = current_time(utc=False).replace(hour=23, minute=59, second=59)
-
-    start = last.replace(hour=0, minute=0, second=0)
+    start = last.replace(hour=0, minute=0, second=0).replace(tzinfo=timezone.utc)
     end = current_time(utc=True).replace(hour=23, minute=59, second=59)
 
     while start <= end:
-        dates.append(start.strftime("%Y-%m-%d"))
+        dates.append(start.strftime("%Y%m%d"))
         start += timedelta(days=1)
 
     return dates
@@ -109,7 +104,7 @@ def last_history(url: str, interval: int = 12) -> datetime:
         except Exception:
             logger.error(f"[V2RaySE] invalid date format: {modified}")
 
-    return last
+    return last.replace(tzinfo=timezone.utc)
 
 
 def fetchone(
@@ -176,7 +171,6 @@ def fetch(params: dict) -> list:
         logger.error(f"[V2RaySE] invalid persist config, please check it and try again")
         return []
 
-    filetype = int(params.get("source", 0))
     nopublic = params.get("nopublic", True)
     exclude = params.get("exclude", "")
     ignore = params.get("ignore", "")
@@ -199,114 +193,74 @@ def fetch(params: dict) -> list:
 
     begin = current_time(utc=True).strftime(DATE_FORMAT)
     if manual:
-        last = time.strptime("1970-01-01 00:00:00", DATE_FORMAT)
+        last = datetime(time.strptime("1970-01-01 00:00:00", DATE_FORMAT)[:6]).replace(tzinfo=timezone.utc)
         logger.info(f"[V2RaySE] begin crawl data, dates: {dates}")
     else:
         logger.info(f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]")
 
-    url, tasks = f"{domain}/minio/webrpc", []
-    proxies, subscriptions = [], set()
+    starttime = time.time()
+    url, files = f"{domain}/share", []
+    regex = f"^{dates[0]}/" if len(dates) == 1 else f"^({'|'.join(dates)})/"
 
-    for date in sorted(list(set(dates)), reverse=True):
-        date = utils.trim(date)
-        if not date:
-            logger.error(f"[V2RaySE] skip crawl because date: {date} is invalid")
-            continue
+    try:
+        content = utils.http_get(url=url)
+        if content and content.startswith("<?xml"):
+            content = content.split("?>", maxsplit=1)[1].removeprefix("\n")
 
-        payload = {
-            "id": 1,
-            "jsonrpc": "2.0",
-            "params": {"bucketName": "proxies", "prefix": f"data/{date}/"},
-            "method": "web.ListObjects",
-        }
-        headers = {
-            "Accept": "*/*",
-            "Content-Type": "application/json",
-            "Origin": domain,
-            "Referer": f"{domain}/minio/proxies/data/",
-            "User-Agent": utils.USER_AGENT,
-        }
+        document = ElementTree.fromstring(content)
+        namespace = {"ns": "http://s3.amazonaws.com/doc/2006-03-01/"}
 
-        starttime = time.time()
-        response = utils.http_post(url=url, headers=headers, params=payload, allow_redirects=False)
-        status = -1 if not response else response.getcode()
-        if status != 200:
-            logger.error(f"[V2RaySE] query shared files failed, date: {date}, status code: {status}")
-            continue
+        for item in document.iterfind(path="ns:Contents", namespaces=namespace):
+            name = item.findtext(path="ns:Key", default="", namespaces=namespace)
 
-        content, files = "", []
-        try:
-            try:
-                content = response.read().decode("UTF8")
-            except IncompleteRead:
-                pass
-
-            objects = json.loads(content).get("result", {}).get("objects", [])
-            if objects is None:
-                logger.error(f"[V2RaySE] folder {date} not exists")
+            # filter by created date
+            if not re.match(regex, name, flags=re.I):
                 continue
 
-            for item in objects:
-                # filter by content type
-                if (
-                    not item
-                    or (filetype == 1 and "text/yaml" not in item.get("contentType", ""))
-                    or (filetype == 2 and "text/json" not in item.get("contentType", ""))
-                ):
-                    continue
-
+            try:
                 # filter by size and last modified time
-                if "size" in item and item.get("size", 0) > maxsize:
+                size = int(item.findtext(path="ns:Size", default="0", namespaces=namespace))
+                if size > maxsize:
                     continue
 
-                if "lastModified" in item:
-                    try:
-                        modified = datetime.fromisoformat(item.get("lastModified", "")[:-1])
-                        if modified < last:
-                            continue
-                    except:
-                        pass
+                # filter by last modified time
+                updated_at = item.findtext(path="ns:LastModified", default="", namespaces=namespace)
+                if updated_at:
+                    modified = datetime.fromisoformat(updated_at[:-1]).replace(tzinfo=timezone.utc)
+                    if modified < last:
+                        continue
+            except:
+                logger.error(f"[V2RaySE] parse details of the file {name} error")
 
-                name = item.get("name", "")
-                files.append(
-                    [
-                        f"{domain}/proxies/{name}",
-                        nopublic,
-                        exclude,
-                        ignore,
-                        repeat,
-                        noproxies,
-                    ]
-                )
-        except:
-            logger.error(f"[V2RaySE] parse webrpc response error, date: {date}, message: {content}")
+            files.append([f"{url}/{name}", nopublic, exclude, ignore, repeat, noproxies])
+    except:
+        logger.error(f"[V2RaySE] cannot crawl due to list files failed")
 
-        if not files:
-            logger.error(f"[V2RaySE] cannot found any valid shared file, date: {date}")
-            continue
+    if not files:
+        logger.error(f"[V2RaySE] cannot found any valid shared file, dates: {dates}")
+        return []
 
-        count = min(max(1, params.get("count", sys.maxsize)), len(files))
-        files = files[:count]
-        results = utils.multi_process_run(func=fetchone, tasks=files)
+    tasks, proxies, subscriptions = [], [], set()
+    count = min(max(1, params.get("count", sys.maxsize)), len(files))
+    files = files[:count]
+    results = utils.multi_process_run(func=fetchone, tasks=files)
 
-        nodes, subs, count = [], [], 0
-        for result in results:
-            nodes.extend([p for p in result[0] if p and p.get("name", "") and p.get("type", "") in support])
-            subs.extend([x for x in result[1] if x])
+    nodes, subs, count = [], [], 0
+    for result in results:
+        nodes.extend([p for p in result[0] if p and p.get("name", "") and p.get("type", "") in support])
+        subs.extend([x for x in result[1] if x])
 
-        proxies.extend(nodes)
-        if len(subs) > 0:
-            urls = set(subs)
-            count = len(urls)
-            subscriptions = subscriptions.union(urls)
+    proxies.extend(nodes)
+    if len(subs) > 0:
+        urls = set(subs)
+        count = len(urls)
+        subscriptions = subscriptions.union(urls)
 
         cost = "{:.2f}s".format(time.time() - starttime)
-        logger.info(
-            f"[V2RaySE] finished crawl for date: {date}, found {len(nodes)} proxies and {count} subscriptions, cost: {cost}"
-        )
-
+        cost = "{:.2f}s".format(time.time() - starttime)
+    cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
-        f"[V2RaySE] finished all crawl tasks, found {len(proxies)} proxies and {len(subscriptions)} subscriptions: {list(subscriptions)}"
+        f"[V2RaySE] finished crawl tasks, cost: {cost}, found {len(proxies)} proxies and {len(subscriptions)} subscriptions: {list(subscriptions)}"
     )
 
     for sub in subscriptions:
