@@ -10,6 +10,7 @@ import os
 import platform
 import random
 import re
+import socket
 import ssl
 import string
 import subprocess
@@ -18,6 +19,7 @@ import time
 import traceback
 import typing
 import urllib
+import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
@@ -115,6 +117,20 @@ def http_get(
             return ""
 
         return content
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, (socket.timeout, ssl.SSLError)):
+            time.sleep(interval)
+            return http_get(
+                url=url,
+                headers=headers,
+                params=params,
+                retry=retry - 1,
+                proxy=proxy,
+                interval=interval,
+                timeout=timeout,
+            )
+        else:
+            return ""
     except Exception as e:
         if trace:
             logger.error(f"request failed, url: {hide(url)}, message: \n{traceback.format_exc()}")

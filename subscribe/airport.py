@@ -25,7 +25,7 @@ import yaml
 from logger import logger
 
 import subconverter
-from clash import is_meta, verify
+from clash import is_mihomo, verify
 
 EMAILS_DOMAINS = [
     "gmail.com",
@@ -163,7 +163,7 @@ class AirPort:
         self.include = include
         self.liveness = liveness
         self.coupon = "" if utils.isblank(coupon) else coupon
-        self.headers = {"User-Agent": utils.USER_AGENT, "Referer": self.ref}
+        self.headers = {"User-Agent": utils.USER_AGENT, "Referer": self.ref + "/", "Origin": self.ref}
         self.username = ""
         self.password = ""
         self.available = True
@@ -224,7 +224,9 @@ class AirPort:
         except:
             return self.sen_email_verify(email=email, retry=retry - 1)
 
-    def register(self, email: str, password: str, email_code: str = None, retry: int = 3) -> tuple[str, str]:
+    def register(
+        self, email: str, password: str, email_code: str = None, invite_code: str = None, retry: int = 3
+    ) -> tuple[str, str]:
         if retry <= 0:
             logger.info(f"achieved max retry when register, domain: {self.ref}")
             return "", ""
@@ -235,8 +237,8 @@ class AirPort:
         params = {
             "email": email,
             "password": password,
-            "invite_code": None,
-            "email_code": email_code,
+            "invite_code": utils.trim(invite_code),
+            "email_code": utils.trim(email_code),
         }
 
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
@@ -282,7 +284,7 @@ class AirPort:
 
             return cookies, authorization
         except:
-            return self.register(email, password, email_code, retry - 1)
+            return self.register(email, password, email_code, invite_code, retry - 1)
 
     def order_plan(
         self,
@@ -355,14 +357,21 @@ class AirPort:
         except:
             return []
 
-    def get_subscribe(self, retry: int, rr: RegisterRequire = None, rigid: bool = True) -> tuple[str, str]:
+    def get_subscribe(
+        self, retry: int, rr: RegisterRequire = None, rigid: bool = True, chuck: bool = False, invite_code: str = None
+    ) -> tuple[str, str]:
         if self.registed:
             return "", ""
 
+        invite_code = utils.trim(invite_code)
         rr = rr if rr is not None else self.get_register_require(domain=self.ref, default=False)
 
         # 需要邀请码或者强制验证
-        if rr.invite or rr.recaptcha or (rr.whitelist and rr.verify and (rigid or "gmail.com" not in rr.whitelist)):
+        if (
+            (rr.invite and not invite_code)
+            or (chuck and rr.recaptcha)
+            or (rr.whitelist and rr.verify and (rigid or "gmail.com" not in rr.whitelist))
+        ):
             self.available = False
             return "", ""
 
@@ -376,7 +385,7 @@ class AirPort:
                 return "", ""
 
             email = f"{email}@{email_domain}"
-            return self.register(email=email, password=password, retry=retry)
+            return self.register(email=email, password=password, invite_code=invite_code, retry=retry)
         else:
             onlygmail = True if rr.whitelist and rr.verify else False
 
@@ -417,6 +426,7 @@ class AirPort:
                     email=account.address,
                     password=account.password,
                     email_code=mask,
+                    invite_code=invite_code,
                     retry=retry,
                 )
             except:
@@ -453,43 +463,10 @@ class AirPort:
         else:
             headers = deepcopy(self.headers)
             headers["Accept-Encoding"] = "gzip"
+            headers["User-Agent"] = "V2RayN; Clash.Meta; Mihomo"
 
             trace = os.environ.get("TRACE_ENABLE", "false").lower() in ["true", "1"]
             text = utils.http_get(url=self.sub, headers=headers, retry=retry, timeout=30, trace=trace).strip()
-
-            # count = 1
-            # while count <= retry:
-            #     try:
-            #         request = urllib.request.Request(url=self.sub, headers=self.headers)
-            #         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
-            #         text = str(response.read(), encoding="utf8")
-
-            #         # 读取附件内容
-            #         disposition = response.getheader("content-disposition", "")
-            #         text = ""
-            #         if disposition:
-            #             logger.error(str(response.read(), encoding="utf8"))
-            #             regex = "(filename)=(\S+)"
-            #             content = re.findall(regex, disposition)
-            #             if content:
-            #                 attachment = os.path.join(
-            #                     os.path.abspath(os.path.dirname(__file__)),
-            #                     content[0][1],
-            #                 )
-            #                 if os.path.exists(attachment) or os.path.isfile(attachment):
-            #                     text = str(
-            #                         open(attachment, "r", encoding="utf8").read(),
-            #                         encoding="utf8",
-            #                     )
-            #                     os.remove(attachment)
-            #         else:
-            #             text = str(response.read(), encoding="utf8")
-
-            #         break
-            #     except:
-            #         text = ""
-
-            #     count += 1
 
         if "" == text or (
             text.startswith("{") and text.endswith("}") and not re.search(r'"outbounds":', text, flags=re.I)
@@ -749,4 +726,4 @@ class AirPort:
 
     @staticmethod
     def enable_special_protocols() -> bool:
-        return os.environ.get("CLASH_META", "true").lower() in ["true", "1"] and is_meta()
+        return os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true").lower() in ["true", "1"] and is_mihomo()

@@ -19,7 +19,9 @@ import push
 import utils
 import workflow
 import yaml
+from airport import AirPort
 from logger import logger
+from urlvalidator import isurl
 from workflow import TaskConfig
 
 import clash
@@ -76,17 +78,45 @@ def assign(
 
         return [links[i] for i in range(len(links)) if results[i][0] and not results[i][1]]
 
+    def parse_domains(content: str) -> dict:
+        if not content or not isinstance(content, str):
+            logger.warning("cannot found any domain due to content is empty or not string")
+            return {}
+
+        records = {}
+        for line in content.split("\n"):
+            line = utils.trim(line)
+            if not line or line.startswith("#"):
+                continue
+
+            words = line.rsplit(delimiter, maxsplit=2)
+            address = utils.trim(words[0])
+            coupon = utils.trim(words[1]) if len(words) > 1 else ""
+            invite_code = utils.trim(words[2]) if len(words) > 2 else ""
+
+            records[address] = {"coupon": coupon, "invite_code": invite_code}
+
+        return records
+
     subscribes_file = utils.trim(kwargs.get("subscribes_file", ""))
     access_token = utils.trim(kwargs.get("access_token", ""))
     gist_id = utils.trim(kwargs.get("gist_id", ""))
     username = utils.trim(kwargs.get("username", ""))
+    chuck = kwargs.get("chuck", False)
 
     # 加载已有订阅
     subscriptions = load_exist(username, gist_id, access_token, subscribes_file)
     logger.info(f"load exists subscription finished, count: {len(subscriptions)}")
 
+    # 是否允许特殊协议
+    special_protocols = AirPort.enable_special_protocols()
+
     tasks = (
-        [TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name) for x in subscriptions if x]
+        [
+            TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name, special_protocols=special_protocols)
+            for x in subscriptions
+            if x
+        ]
         if subscriptions
         else []
     )
@@ -101,20 +131,13 @@ def assign(
     if not domains_file:
         domains_file = "domains.txt"
 
+    # 加载已有站点列表
     fullpath = os.path.join(DATA_BASE, domains_file)
     if os.path.exists(fullpath) and os.path.isfile(fullpath):
         with open(fullpath, "r", encoding="UTF8") as f:
-            for line in f.readlines():
-                line = line.replace("\n", "").strip()
-                if not line:
-                    continue
+            domains.update(parse_domains(content=str(f.read())))
 
-                words = line.rsplit(delimiter, maxsplit=1)
-                address = utils.trim(words[0])
-                coupon = utils.trim(words[1]) if len(words) > 1 else ""
-
-                domains[address] = coupon
-
+    # 爬取新站点列表
     if not domains or overwrite:
         candidates = crawl.collect_airport(
             channel="jichang_list",
@@ -124,11 +147,28 @@ def assign(
             display=display,
             filepath=os.path.join(DATA_BASE, "coupons.txt"),
             delimiter=delimiter,
+            chuck=chuck,
         )
 
         if candidates:
-            domains.update(candidates)
+            for k, v in candidates.items():
+                item = domains.get(k, {})
+                item["coupon"] = v
+
+                domains[k] = item
+
             overwrite = True
+
+    # 加载自定义机场列表
+    customize_link = utils.trim(kwargs.get("customize_link", ""))
+    if customize_link:
+        if isurl(customize_link):
+            domains.update(parse_domains(content=utils.http_get(url=customize_link)))
+        else:
+            local_file = os.path.join(DATA_BASE, customize_link)
+            if local_file != fullpath and os.path.exists(local_file) and os.path.isfile(local_file):
+                with open(local_file, "r", encoding="UTF8") as f:
+                    domains.update(parse_domains(content=str(f.read())))
 
     if not domains:
         logger.error("cannot collect any new airport for free use")
@@ -137,9 +177,20 @@ def assign(
     if overwrite:
         crawl.save_candidates(candidates=domains, filepath=fullpath, delimiter=delimiter)
 
-    for domain, coupon in domains.items():
+    for domain, param in domains.items():
         name = crawl.naming_task(url=domain)
-        tasks.append(TaskConfig(name=name, domain=domain, coupon=coupon, bin_name=bin_name, rigid=rigid))
+        tasks.append(
+            TaskConfig(
+                name=name,
+                domain=domain,
+                coupon=param.get("coupon", ""),
+                invite_code=param.get("invite_code", ""),
+                bin_name=bin_name,
+                rigid=rigid,
+                chuck=chuck,
+                special_protocols=special_protocols,
+            )
+        )
 
     return tasks
 
@@ -170,10 +221,12 @@ def aggregate(args: argparse.Namespace) -> None:
         display=display,
         num_threads=args.num,
         refresh=args.refresh,
+        chuck=args.chuck,
         username=username,
         gist_id=gist_id,
         access_token=access_token,
         subscribes_file=subscribes_file,
+        customize_link=args.yourself,
     )
 
     if not tasks:
@@ -380,6 +433,15 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "-c",
+        "--chuck",
+        dest="chuck",
+        action="store_true",
+        default=False,
+        help="discard candidate sites that may require human-authentication",
+    )
+
+    parser.add_argument(
         "-d",
         "--delay",
         type=int,
@@ -475,7 +537,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=sys.maxsize,
-        help="crawl page num",
+        help="max page number when crawling telegram",
     )
 
     parser.add_argument(
@@ -521,6 +583,15 @@ if __name__ == "__main__":
         required=False,
         default=0,
         help="ignoring default proxies filter rules",
+    )
+
+    parser.add_argument(
+        "-y",
+        "--yourself",
+        type=str,
+        required=False,
+        default=os.environ.get("CUSTOMIZE_LINK", ""),
+        help="the url to the list of airports that you maintain yourself",
     )
 
     aggregate(args=parser.parse_args())

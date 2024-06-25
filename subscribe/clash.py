@@ -3,6 +3,7 @@
 # @Author  : wzdnzd
 # @Time    : 2022-07-15
 
+import base64
 import itertools
 import json
 import os
@@ -178,6 +179,16 @@ SS_SUPPORTED_CIPHERS = [
     "chacha20-ietf-poly1305",
     "xchacha20-ietf-poly1305",
 ]
+
+# reference: https://github.com/MetaCubeX/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L73-L86
+MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN = {
+    "2022-blake3-aes-128-gcm": 16,
+    "2022-blake3-aes-256-gcm": 32,
+    "2022-blake3-chacha20-poly1305": 32,
+}
+
+MIHOMO_SS_SUPPORTED_CIPHERS = list(MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.keys())
+
 SSR_SUPPORTED_OBFS = [
     "plain",
     "http_simple",
@@ -186,6 +197,7 @@ SSR_SUPPORTED_OBFS = [
     "tls1.2_ticket_auth",
     "tls1.2_ticket_fastauth",
 ]
+
 SSR_SUPPORTED_PROTOCOL = [
     "origin",
     "auth_sha1_v4",
@@ -194,6 +206,7 @@ SSR_SUPPORTED_PROTOCOL = [
     "auth_chain_a",
     "auth_chain_b",
 ]
+
 VMESS_SUPPORTED_CIPHERS = ["auto", "aes-128-gcm", "chacha20-poly1305", "none"]
 
 SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2"])
@@ -241,7 +254,7 @@ def check_ports(port: str, ranges: str, protocol: str) -> bool:
     return True
 
 
-def verify(item: dict, meta: bool = True) -> bool:
+def verify(item: dict, mihomo: bool = True) -> bool:
     if not item or type(item) != dict or "type" not in item:
         return False
 
@@ -278,15 +291,36 @@ def verify(item: dict, meta: bool = True) -> bool:
         authentication = "password"
 
         if item["type"] == "ss":
-            if item["cipher"] not in SS_SUPPORTED_CIPHERS:
+            ciphers = set(SS_SUPPORTED_CIPHERS if not mihomo else SS_SUPPORTED_CIPHERS + MIHOMO_SS_SUPPORTED_CIPHERS)
+            if item["cipher"] not in ciphers:
                 return False
-            # https://github.com/Dreamacro/clash/blob/master/adapter/outbound/shadowsocks.go#L109
+
+            if item["cipher"] in MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN:
+                # will throw bad key length error
+                # see: https://github.com/MetaCubeX/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L59-L108
+                password = str(item.get(authentication, ""))
+                words = password.split(":")
+                for word in words:
+                    try:
+                        text = base64.b64decode(word)
+                        if len(text) != MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.get(item["cipher"]):
+                            return False
+                    except:
+                        return False
+
             plugin = item.get("plugin", "")
-            if plugin not in ["", "obfs", "v2ray-plugin"]:
+
+            # clash: https://clash.wiki/configuration/outbound.html#shadowsocks
+            # mihomo: https://wiki.metacubex.one/config/proxies/ss/#plugin
+            all_plugins, meta_plugins = ["", "obfs", "v2ray-plugin"], ["shadow-tls", "restls"]
+            if mihomo:
+                all_plugins.extend(meta_plugins)
+
+            if plugin not in all_plugins:
                 return False
             if plugin:
                 option = item.get("plugin-opts", {}).get("mode", "")
-                if (
+                if plugin not in meta_plugins and (
                     not option
                     or (plugin == "v2ray-plugin" and option != "websocket")
                     or (plugin == "obfs" and option not in ["tls", "http"])
@@ -302,17 +336,24 @@ def verify(item: dict, meta: bool = True) -> bool:
         elif item["type"] == "vmess":
             authentication = "uuid"
 
-            network = item.get("network", "ws")
-            if network not in ["ws", "h2", "http", "grpc", "httpupgrade"]:
+            # clash: https://clash.wiki/configuration/outbound.html#vmess
+            # mihomo: https://wiki.metacubex.one/config/proxies/vmess/#network
+            network, network_opts = item.get("network", "ws"), ["ws", "h2", "http", "grpc"]
+            if mihomo:
+                network_opts.append("httpupgrade")
+
+            if network not in network_opts:
                 return False
             if item.get("network", "ws") in ["h2", "grpc"] and not item.get("tls", False):
                 return False
-            if item["cipher"] not in VMESS_SUPPORTED_CIPHERS:
+
+            # mihomo: https://wiki.metacubex.one/config/proxies/vmess/#cipher
+            ciphers = set(VMESS_SUPPORTED_CIPHERS + ["zero"] if mihomo else VMESS_SUPPORTED_CIPHERS)
+            if item["cipher"] not in ciphers:
                 return False
             if "alterId" not in item or not utils.is_number(item["alterId"]):
                 return False
 
-            # https://dreamacro.github.io/clash/zh_CN/configuration/configuration-reference.html
             if "h2-opts" in item:
                 if network != "h2":
                     return False
@@ -355,7 +396,7 @@ def verify(item: dict, meta: bool = True) -> bool:
             elif "grpc-opts" in item:
                 if network != "grpc":
                     return False
-                if not meta:
+                if not mihomo:
                     return False
 
                 grpc_opts = item.get("grpc-opts", {})
@@ -388,7 +429,7 @@ def verify(item: dict, meta: bool = True) -> bool:
                     return False
                 if "grpc-service-name" not in grpc_opts or type(grpc_opts["grpc-service-name"]) != str:
                     return False
-            if "flow" in item and (not meta or item["flow"] not in ["xtls-rprx-origin", "xtls-rprx-direct"]):
+            if "flow" in item and (not mihomo or item["flow"] not in ["xtls-rprx-origin", "xtls-rprx-direct"]):
                 return False
         elif item["type"] == "snell":
             authentication = "psk"
@@ -404,11 +445,15 @@ def verify(item: dict, meta: bool = True) -> bool:
                         return False
         elif item["type"] == "http" or item["type"] == "socks5":
             authentication = "userpass"
-        elif meta and item["type"] in SPECIAL_PROTOCOLS:
+        elif mihomo and item["type"] in SPECIAL_PROTOCOLS:
             if item["type"] == "vless":
                 authentication = "uuid"
-                network = utils.trim(item.get("network", "ws"))
-                if network not in ["ws", "tcp", "grpc"]:
+                network = utils.trim(item.get("network", "tcp"))
+
+                # mihomo: https://wiki.metacubex.one/config/proxies/vless/#network
+                network_opts = ["ws", "tcp", "grpc", "http", "h2"] if mihomo else ["ws", "tcp", "grpc"]
+
+                if network not in network_opts:
                     return False
                 if "flow" in item:
                     flow = utils.trim(item.get("flow", ""))
@@ -442,15 +487,20 @@ def verify(item: dict, meta: bool = True) -> bool:
                         return False
                     if "public-key" not in reality_opts or type(reality_opts["public-key"]) != str:
                         return False
-                    if "short-id" in reality_opts and (
-                        type(reality_opts["short-id"]) != str
-                        or len(reality_opts["short-id"]) != 8
-                        or not is_hex(reality_opts["short-id"])
-                    ):
-                        return False
-            elif item["type"] == "tuic":
-                # see: https://wiki.metacubex.one/config/proxies/tuic
+                    if "short-id" in reality_opts:
+                        short_id = reality_opts["short-id"]
+                        if type(short_id) != str:
+                            if utils.is_number(short_id):
+                                short_id = str(short_id)
+                            else:
+                                return False
 
+                        if len(short_id) != 8 or not is_hex(short_id):
+                            return False
+
+                        reality_opts["short-id"] = short_id
+            elif item["type"] == "tuic":
+                # mihomo: https://wiki.metacubex.one/config/proxies/tuic
                 token = wrap(item.get("token", ""))
                 uuid = wrap(item.get("uuid", ""))
                 password = wrap(item.get("password", ""))
@@ -516,7 +566,7 @@ def verify(item: dict, meta: bool = True) -> bool:
                     if property in item and type(item[property]) != str:
                         return False
                 if item["type"] == "hysteria2":
-                    # see: https://wiki.metacubex.one/config/proxies/hysteria2
+                    # mihomo: https://wiki.metacubex.one/config/proxies/hysteria2
                     authentication = "password"
                     if "obfs" in item:
                         obfs = utils.trim(item.get("obfs", ""))
@@ -525,7 +575,7 @@ def verify(item: dict, meta: bool = True) -> bool:
                     if "obfs-password" in item and type(item["obfs-password"]) != str:
                         return False
                 else:
-                    # see: https://wiki.metacubex.one/config/proxies/hysteria
+                    # mihomo: https://wiki.metacubex.one/config/proxies/hysteria
                     authentication = "auth-str" if "auth-str" in item else "auth_str"
 
                     for property in ["auth-str", "auth_str", "obfs"]:
@@ -631,7 +681,7 @@ def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, st
         return False
 
 
-def is_meta() -> bool:
+def is_mihomo() -> bool:
     base = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
     clash_bin, _ = executable.which_bin()
     binpath = os.path.join(base, "clash", clash_bin)
