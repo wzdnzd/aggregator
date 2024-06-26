@@ -4,6 +4,7 @@
 # @Time    : 2023-06-30
 
 import base64
+import itertools
 import json
 import os
 import re
@@ -107,6 +108,56 @@ def last_history(url: str, interval: int = 12) -> datetime:
     return last.replace(tzinfo=timezone.utc)
 
 
+def list_files(base: str, date: str, maxsize: int, last: datetime) -> list[str]:
+    marker, truncated = "", True
+    base, date = utils.trim(base), utils.trim(date)
+    prefix, files = f"{base}?prefix={date}/", []
+
+    while truncated:
+        url = prefix if not marker else f"{prefix}&marker={marker}"
+        try:
+            content = utils.http_get(url=url)
+            if content and content.startswith("<?xml"):
+                content = content.split("?>", maxsplit=1)[1].removeprefix("\n")
+
+            document = ElementTree.fromstring(content)
+            namespace = {"ns": "http://s3.amazonaws.com/doc/2006-03-01/"}
+
+            #  IsTruncated being true means the number of keys exceeds 1000, and pagination is required
+            is_truncated = document.find(path="ns:IsTruncated", namespaces=namespace)
+            truncated = utils.trim(is_truncated.text).lower() in ("true", "1") if is_truncated else False
+
+            # NextMarker indicates the start key for the next page
+            next_marker = document.find(path="ns:NextMarker", namespaces=namespace)
+            marker = next_marker.text if next_marker else ""
+
+            for item in document.iterfind(path="ns:Contents", namespaces=namespace):
+                name = item.findtext(path="ns:Key", default="", namespaces=namespace)
+                if not name:
+                    continue
+
+                try:
+                    # filter by file size
+                    size = int(item.findtext(path="ns:Size", default="0", namespaces=namespace))
+                    if size > maxsize:
+                        continue
+
+                    # filter by last modified time
+                    updated_at = item.findtext(path="ns:LastModified", default="", namespaces=namespace)
+                    if updated_at:
+                        modified = datetime.fromisoformat(updated_at[:-1]).replace(tzinfo=timezone.utc)
+                        if modified < last:
+                            continue
+                except:
+                    logger.error(f"[V2RaySE] parse details of the file {name} error")
+
+                files.append(f"{base}/{name}")
+        except:
+            logger.error(f"[V2RaySE] list files error, date: {date}, marker: {marker}")
+
+    return files
+
+
 def fetchone(
     url: str,
     nopublic: bool = True,
@@ -198,66 +249,26 @@ def fetch(params: dict) -> list:
     else:
         logger.info(f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]")
 
-    starttime = time.time()
-    url, files = f"{domain}/share", []
-    regex = f"^{dates[0]}/" if len(dates) == 1 else f"^({'|'.join(dates)})/"
+    base, starttime = f"{domain}/share", time.time()
+    partitions = [[base, date, maxsize, last] for date in dates]
 
-    try:
-        content = utils.http_get(url=url)
-        if content and content.startswith("<?xml"):
-            content = content.split("?>", maxsplit=1)[1].removeprefix("\n")
+    links = utils.multi_thread_run(func=list_files, tasks=partitions)
+    files = list(set(itertools.chain.from_iterable(links)))
+    array = [[x, nopublic, exclude, ignore, repeat, noproxies] for x in files if x]
 
-        document = ElementTree.fromstring(content)
-        namespace = {"ns": "http://s3.amazonaws.com/doc/2006-03-01/"}
-
-        for item in document.iterfind(path="ns:Contents", namespaces=namespace):
-            name = item.findtext(path="ns:Key", default="", namespaces=namespace)
-
-            # filter by created date
-            if not re.match(regex, name, flags=re.I):
-                continue
-
-            try:
-                # filter by size and last modified time
-                size = int(item.findtext(path="ns:Size", default="0", namespaces=namespace))
-                if size > maxsize:
-                    continue
-
-                # filter by last modified time
-                updated_at = item.findtext(path="ns:LastModified", default="", namespaces=namespace)
-                if updated_at:
-                    modified = datetime.fromisoformat(updated_at[:-1]).replace(tzinfo=timezone.utc)
-                    if modified < last:
-                        continue
-            except:
-                logger.error(f"[V2RaySE] parse details of the file {name} error")
-
-            files.append([f"{url}/{name}", nopublic, exclude, ignore, repeat, noproxies])
-    except:
-        logger.error(f"[V2RaySE] cannot crawl due to list files failed")
-
-    if not files:
+    if not array:
         logger.error(f"[V2RaySE] cannot found any valid shared file, dates: {dates}")
         return []
 
+    logger.info(f"[V2RaySE] start to fetch shared files, count: {len(array)}")
+
     tasks, proxies, subscriptions = [], [], set()
-    count = min(max(1, params.get("count", sys.maxsize)), len(files))
-    files = files[:count]
-    results = utils.multi_process_run(func=fetchone, tasks=files)
+    results = utils.multi_process_run(func=fetchone, tasks=array)
 
-    nodes, subs, count = [], [], 0
     for result in results:
-        nodes.extend([p for p in result[0] if p and p.get("name", "") and p.get("type", "") in support])
-        subs.extend([x for x in result[1] if x])
+        proxies.extend([p for p in result[0] if p and p.get("name", "") and p.get("type", "") in support])
+        subscriptions.update([x for x in result[1] if x])
 
-    proxies.extend(nodes)
-    if len(subs) > 0:
-        urls = set(subs)
-        count = len(urls)
-        subscriptions = subscriptions.union(urls)
-
-        cost = "{:.2f}s".format(time.time() - starttime)
-        cost = "{:.2f}s".format(time.time() - starttime)
     cost = "{:.2f}s".format(time.time() - starttime)
     logger.info(
         f"[V2RaySE] finished crawl tasks, cost: {cost}, found {len(proxies)} proxies and {len(subscriptions)} subscriptions: {list(subscriptions)}"
