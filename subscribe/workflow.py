@@ -84,6 +84,9 @@ class TaskConfig:
     # 是否丢弃可能需要人机验证的站点
     chuck: bool = False
 
+    # 邀请码
+    invite_code: str = ""
+
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf:
@@ -109,7 +112,13 @@ def execute(task_conf: TaskConfig) -> list:
             obj.registed = True
             obj.sub = sub_url
 
-    cookie, authorization = obj.get_subscribe(retry=task_conf.retry, rigid=task_conf.rigid, chuck=task_conf.chuck)
+    cookie, authorization = obj.get_subscribe(
+        retry=task_conf.retry,
+        rigid=task_conf.rigid,
+        chuck=task_conf.chuck,
+        invite_code=task_conf.invite_code,
+    )
+
     proxies = obj.parse(
         cookie=cookie,
         auth=authorization,

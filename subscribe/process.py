@@ -250,6 +250,8 @@ def assign(
 
         name = site.get("name", "").strip().lower()
         domain = site.get("domain", "").strip().lower()
+
+        # 订阅地址，支持单个或多个
         subscribe = site.get("sub", "")
         if isinstance(subscribe, str):
             subscribe = [subscribe.strip()]
@@ -257,22 +259,51 @@ def assign(
         if len(subscribe) >= 2:
             subscribe = list(set(subscribe))
 
+        # 自定义标签，追加到名称前
         tag = site.get("tag", "").strip().upper()
+
+        # 节点倍率超过该值将会被丢弃
         rate = float(site.get("rate", 3.0))
+
+        # 需要注册账号的个数
         num = min(max(1, int(site.get("count", 1))), 10)
 
         # 如果订阅链接不为空，num为订阅链接数
         num = len(subscribe) if subscribe else num
+
+        # 组名列表
         push_names = site.get("push_to", [])
+
+        # 失败次数，超过该值将不再尝试注册
         errors = max(site.get("errors", 0), 0) + 1
+
+        # 来源类别
         source = site.get("origin", "")
+
+        # 重命名规则，正常正则表达式
         rename = site.get("rename", "")
+
+        # 排除匹配到的节点，支持正则表达式
         exclude = site.get("exclude", "").strip()
+
+        # 仅保留匹配到的节点，支持正则表达式
         include = site.get("include", "").strip()
+
+        # 是否检查 ChatGPT 的连通性
         chatgpt = site.get("chatgpt", {})
+
+        # 是否对节点测活
         liveness = site.get("liveness", True)
-        coupon = site.get("coupon", "").strip()
+
+        # 跳过证书验证
         allow_insecure = site.get("insecure", False)
+
+        # 优惠码
+        coupon = utils.trim(site.get("coupon", ""))
+
+        # 邀请码
+        invite_code = utils.trim(site.get("invite_code", ""))
+
         # 覆盖subconverter默认exclude规则
         ignoreder = site.get("ignorede", False)
 
@@ -285,8 +316,10 @@ def assign(
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
+
         if source != Origin.TEMPORARY.name:
             site["errors"] = errors
+
         site["name"] = name.rsplit(crawl.SEPARATOR, maxsplit=1)[0]
         arrays.append(site)
 
@@ -331,6 +364,7 @@ def assign(
                 chuck=chuck,
                 special_protocols=special_protocols,
                 emoji_patterns=emoji_patterns if emoji else None,
+                invite_code=invite_code,
             )
             found = workflow.exists(tasks=tasks, task=task)
             if found:

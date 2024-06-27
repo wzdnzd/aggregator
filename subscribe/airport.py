@@ -25,7 +25,7 @@ import yaml
 from logger import logger
 
 import subconverter
-from clash import is_meta, verify
+from clash import is_mihomo, verify
 
 EMAILS_DOMAINS = [
     "gmail.com",
@@ -224,7 +224,9 @@ class AirPort:
         except:
             return self.sen_email_verify(email=email, retry=retry - 1)
 
-    def register(self, email: str, password: str, email_code: str = None, retry: int = 3) -> tuple[str, str]:
+    def register(
+        self, email: str, password: str, email_code: str = None, invite_code: str = None, retry: int = 3
+    ) -> tuple[str, str]:
         if retry <= 0:
             logger.info(f"achieved max retry when register, domain: {self.ref}")
             return "", ""
@@ -235,7 +237,7 @@ class AirPort:
         params = {
             "email": email,
             "password": password,
-            "invite_code": "",
+            "invite_code": utils.trim(invite_code),
             "email_code": utils.trim(email_code),
         }
 
@@ -282,7 +284,7 @@ class AirPort:
 
             return cookies, authorization
         except:
-            return self.register(email, password, email_code, retry - 1)
+            return self.register(email, password, email_code, invite_code, retry - 1)
 
     def order_plan(
         self,
@@ -356,16 +358,17 @@ class AirPort:
             return []
 
     def get_subscribe(
-        self, retry: int, rr: RegisterRequire = None, rigid: bool = True, chuck: bool = False
+        self, retry: int, rr: RegisterRequire = None, rigid: bool = True, chuck: bool = False, invite_code: str = None
     ) -> tuple[str, str]:
         if self.registed:
             return "", ""
 
+        invite_code = utils.trim(invite_code)
         rr = rr if rr is not None else self.get_register_require(domain=self.ref, default=False)
 
         # 需要邀请码或者强制验证
         if (
-            rr.invite
+            (rr.invite and not invite_code)
             or (chuck and rr.recaptcha)
             or (rr.whitelist and rr.verify and (rigid or "gmail.com" not in rr.whitelist))
         ):
@@ -382,7 +385,7 @@ class AirPort:
                 return "", ""
 
             email = f"{email}@{email_domain}"
-            return self.register(email=email, password=password, retry=retry)
+            return self.register(email=email, password=password, invite_code=invite_code, retry=retry)
         else:
             onlygmail = True if rr.whitelist and rr.verify else False
 
@@ -423,6 +426,7 @@ class AirPort:
                     email=account.address,
                     password=account.password,
                     email_code=mask,
+                    invite_code=invite_code,
                     retry=retry,
                 )
             except:
@@ -722,4 +726,4 @@ class AirPort:
 
     @staticmethod
     def enable_special_protocols() -> bool:
-        return os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true").lower() in ["true", "1"] and is_meta()
+        return os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true").lower() in ["true", "1"] and is_mihomo()
