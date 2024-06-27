@@ -10,6 +10,9 @@ ENV GIST_PAT=""
 # github gist info, format: username/gist_id
 ENV GIST_LINK=""
 
+# customize airport listing url address
+ENV CUSTOMIZE_LINK=""
+
 WORKDIR /aggregator
 
 # copy files, only linux related files are needed
