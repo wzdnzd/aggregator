@@ -585,11 +585,12 @@ class AirPort:
 
                     name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
 
+                name = re.sub(r"\s+(\d+)[\s_\-\|]+([A-Za-z])\b", r"-\1\2", name)
                 if indexers:
                     emoji = utils.get_emoji(text=name, patterns=indexers, default="🇺🇸")
                     name = f"{emoji} {name}" if emoji else name
 
-                item["name"] = name.upper()
+                item["name"] = re.sub(r"(-\d+[A-Za-z])+$", "", name).upper()
 
                 if "" != tag.strip():
                     item["name"] = tag.strip().upper() + "-" + item["name"]
