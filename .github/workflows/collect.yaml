@@ -2,7 +2,7 @@ name: Collect
 on:
   # executed once a week on Sundays at 00:00
   schedule:
-    - cron: "0 4 * * 1,3,5"
+    - cron: "30 4 * * 1,3,5"
   workflow_dispatch:
 
 concurrency:
