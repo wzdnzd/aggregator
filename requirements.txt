@@ -1,2 +1,3 @@
 PyYAML
 tqdm
+geoip2
