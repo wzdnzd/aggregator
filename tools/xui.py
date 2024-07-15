@@ -330,7 +330,11 @@ def generate_subscription_links(data: dict, address: str, reader: database.Reade
             try:
                 ip = socket.gethostbyname(address)
                 response = reader.country(ip)
-                remark = response.country.names.get("zh-CN", remark)
+                country = response.country.names.get("zh-CN", "")
+                if country == "中国":
+                    continue
+
+                remark = country if country else remark
             except Exception:
                 pass
 

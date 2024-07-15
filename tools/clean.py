@@ -61,6 +61,13 @@ def main(args: argparse.Namespace) -> None:
 
                 name = re.sub(r"(\d+|(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
                 item["name"] = name
+
+                if args.secret:
+                    if "tls" in item:
+                        item["tls"] = True
+                    if "skip-cert-verify" in item:
+                        item["skip-cert-verify"] = False
+
                 caches[name].append(item)
 
     proxies = list()
@@ -110,6 +117,15 @@ if __name__ == "__main__":
         required=False,
         default=2,
         help="Number of digits to fill",
+    )
+
+    parser.add_argument(
+        "-s",
+        "--secret",
+        dest="secret",
+        action="store_true",
+        default=False,
+        help="Enforce TLS and reject skipping certificate validation",
     )
 
     main(parser.parse_args())
