@@ -433,8 +433,12 @@ def url_complete(url: str, secret: bool = False) -> str:
     return url
 
 
-def load_emoji_pattern(filepath: str) -> dict:
+def load_emoji_pattern(filepath: str = "") -> dict:
     filepath = trim(filepath)
+    if not filepath:
+        workspace = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+        filepath = os.path.join(workspace, "subconverter", "snippets", "emoji.txt")
+
     if not os.path.exists(filepath) or not os.path.isfile(filepath):
         logger.warning(f"cannot parse emoji config due to file {filepath} not exists")
         return {}

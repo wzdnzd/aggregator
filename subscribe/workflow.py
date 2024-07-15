@@ -288,7 +288,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
     if invalidsubs:
         crawledsub = config.get("crawl", {}).get("persist", {}).get("subs", "")
         threshold = max(config.get("threshold", 1), 1)
-        pushconf = config.get("push", {}).get(crawledsub, {})
+        pushconf = config.get("groups", {}).get(crawledsub, {})
         if push.validate(push_conf=pushconf):
             url = push.raw_url(push_conf=pushconf)
             content = utils.http_get(url=url)
