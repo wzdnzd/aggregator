@@ -18,6 +18,7 @@ from copy import deepcopy
 
 import crawl
 import executable
+import location
 import push
 import utils
 import workflow
@@ -41,7 +42,7 @@ def load_configs(
 ) -> tuple[list, dict, dict, dict, int]:
     def parse_config(config: dict) -> None:
         sites.extend(config.get("domains", []))
-        push_conf.update(config.get("push", {}))
+        group_conf.update(config.get("groups", {}))
         update_conf.update(config.get("update", {}))
         crawl_conf.update(config.get("crawl", {}))
 
@@ -55,7 +56,7 @@ def load_configs(
         params["exclude"] = crawl_conf.get("exclude", "")
 
         # persistence configuration
-        persist = {k: push_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
+        persist = {k: group_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
         params["persist"] = persist
 
         params["config"] = crawl_conf.get("config", {})
@@ -189,7 +190,7 @@ def load_configs(
         params["scripts"] = scripts
 
     sites, delay = [], sys.maxsize
-    params, push_conf, crawl_conf, update_conf = {}, {}, {}, {}
+    params, group_conf, crawl_conf, update_conf = {}, {}, {}, {}
 
     try:
         if re.match(
@@ -221,7 +222,7 @@ def load_configs(
         logger.error("occur error when load task config")
         sys.exit(0)
 
-    return sites, push_conf, crawl_conf, update_conf, delay
+    return sites, group_conf, crawl_conf, update_conf, delay
 
 
 def assign(
@@ -421,14 +422,14 @@ def aggregate(args: argparse.Namespace) -> None:
 
     # parse config
     server = utils.trim(args.server) or os.environ.get("SUBSCRIBE_CONF", "").strip()
-    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
+    sites, group_configs, crawl_conf, update_conf, delay = load_configs(
         url=server,
         only_check=args.check,
         num_threads=args.num,
         display=display,
     )
 
-    push_configs = pushtool.filter_push(push_configs)
+    group_configs = pushtool.filter_push(group_configs)
     retry = min(max(1, args.retry), 10)
 
     # generate tasks
@@ -438,7 +439,7 @@ def aggregate(args: argparse.Namespace) -> None:
         bin_name=subconverter_bin,
         remain=not args.overwrite,
         pushtool=pushtool,
-        push_conf=push_configs,
+        push_conf=group_configs,
         only_check=args.check,
         rigid=not args.flexible,
     )
@@ -538,10 +539,27 @@ def aggregate(args: argparse.Namespace) -> None:
             logger.error(f"cannot fetch any proxy, group=[{k}], cost: {time.time()-starttime:.2f}s")
             continue
 
-        data = {"proxies": nochecks}
-        push_conf = push_configs.get(k, {})
+        push_conf = group_configs.get(k, {})
         target = utils.trim(push_conf.get("target", "")) or "clash"
         mixed = target in ["v2ray", "mixed"]
+
+        regularize = push_conf.get("regularize", {})
+        if regularize and isinstance(regularize, dict) and regularize.get("enable", False):
+            locate = regularize.get("locate", False)
+            try:
+                bits = max(1, int(regularize.get("bits", 2)))
+            except:
+                bits = 2
+
+            nochecks = location.regularize(
+                proxies=nochecks,
+                num_threads=args.num,
+                show_progress=display,
+                locate=locate,
+                digits=bits,
+            )
+
+        data = {"proxies": nochecks}
 
         # compress if data is too large
         compress = False if mixed else len(nochecks) >= 300
@@ -609,7 +627,7 @@ def aggregate(args: argparse.Namespace) -> None:
     config = {
         "domains": sites,
         "crawl": crawl_conf,
-        "push": push_configs,
+        "groups": group_configs,
         "update": update_conf,
     }
 

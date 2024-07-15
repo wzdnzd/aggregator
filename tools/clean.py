@@ -5,6 +5,7 @@
 
 
 import argparse
+import math
 import os
 import re
 from collections import defaultdict
@@ -58,14 +59,16 @@ def main(args: argparse.Namespace) -> None:
             if key not in records:
                 records.add(key)
 
-                name = re.sub(r"\d+", "", item.get("name", "")).strip()
+                name = re.sub(r"(\d+|(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
                 item["name"] = name
                 caches[name].append(item)
 
     proxies = list()
     for name, nodes in caches.items():
+        n = max(args.num, math.floor(math.log10(len(nodes))) + 1)
+
         for index, node in enumerate(nodes):
-            node["name"] = f"{name} {str(index+1).zfill(2)}"
+            node["name"] = f"{name} {str(index+1).zfill(n)}"
             proxies.append(node)
 
     if not proxies:
@@ -98,6 +101,15 @@ if __name__ == "__main__":
         default="config.yaml",
         required=False,
         help="Clash configuration filename",
+    )
+
+    parser.add_argument(
+        "-n",
+        "--num",
+        type=int,
+        required=False,
+        default=2,
+        help="Number of digits to fill",
     )
 
     main(parser.parse_args())
