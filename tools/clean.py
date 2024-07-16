@@ -63,7 +63,7 @@ def main(args: argparse.Namespace) -> None:
                 name = re.sub(r"(\d+|(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
                 item["name"] = name
 
-                if args.secret:
+                if args.secure:
                     if "tls" in item:
                         item["tls"] = True
                     if "skip-cert-verify" in item:
@@ -122,8 +122,8 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-s",
-        "--secret",
-        dest="secret",
+        "--secure",
+        dest="secure",
         action="store_true",
         default=False,
         help="Enforce TLS and reject skipping certificate validation",
