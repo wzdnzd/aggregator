@@ -693,7 +693,7 @@ class AirPort:
                     reader.seek(0, 0)
                     yaml.add_multi_constructor(
                         "str",
-                        lambda loader, suffix, node: None,
+                        lambda loader, suffix, node: str(node.value),
                         Loader=yaml.SafeLoader,
                     )
                     config = yaml.load(reader, Loader=yaml.SafeLoader)
@@ -715,7 +715,7 @@ class AirPort:
                 text = clean_text(document=text)
                 nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
             except yaml.constructor.ConstructorError:
-                yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
+                yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
                 nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
             except Exception as e:
                 if throw:
