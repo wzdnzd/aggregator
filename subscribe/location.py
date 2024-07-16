@@ -161,7 +161,7 @@ def regularize(
 
     records = defaultdict(list)
     for proxy in proxies:
-        name = re.sub(r"(\d+|(-\d+)?[A-Z])$", "", proxy.get("name", "")).strip()
+        name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", proxy.get("name", "")).strip()
         proxy["name"] = name
         records[name].append(proxy)
 
