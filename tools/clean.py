@@ -60,7 +60,7 @@ def main(args: argparse.Namespace) -> None:
             if key not in records:
                 records.add(key)
 
-                name = re.sub(r"(\d+|(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
+                name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
                 item["name"] = name
 
                 if args.secure:
