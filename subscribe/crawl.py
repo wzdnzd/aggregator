@@ -1268,7 +1268,7 @@ def check_status(
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
         except ConstructorError:
-            yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
+            yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
         except:
             proxies = []

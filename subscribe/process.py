@@ -542,6 +542,7 @@ def aggregate(args: argparse.Namespace) -> None:
         push_conf = group_configs.get(k, {})
         target = utils.trim(push_conf.get("target", "")) or "clash"
         mixed = target in ["v2ray", "mixed"]
+        emoji = push_conf.get("emoji", True)
 
         regularize = push_conf.get("regularize", {})
         if regularize and isinstance(regularize, dict) and regularize.get("enable", False):
@@ -579,7 +580,7 @@ def aggregate(args: argparse.Namespace) -> None:
             if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
                 os.remove(generate_conf)
 
-            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target)
+            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target, emoji)
             if not success:
                 logger.error(f"cannot generate subconverter config file, group=[{k}]")
                 continue

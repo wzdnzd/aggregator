@@ -292,7 +292,7 @@ def process(
         try:
             nodes = yaml.load(f, Loader=yaml.SafeLoader).get("proxies", [])
         except yaml.constructor.ConstructorError:
-            yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
+            yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             nodes = yaml.load(f, Loader=yaml.FullLoader).get("proxies", [])
 
     proxies = [x for x in nodes if x.get("name", "") not in names]
