@@ -440,13 +440,11 @@ class AirPort:
         rate: float,
         bin_name: str,
         tag: str,
-        allow_insecure: bool = False,
+        disable_insecure: bool = False,
         udp: bool = True,
         ignore_exclude: bool = False,
         chatgpt: dict = None,
         special_protocols: bool = False,
-        emoji_patterns: dict = None,
-        remained: bool = False,
     ) -> list:
         if "" == self.sub:
             logger.error(f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}")
@@ -553,11 +551,6 @@ class AirPort:
                         f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tchatgpt: {pattern}\tdomain: {self.ref}"
                     )
 
-                # 是否添加 emoji
-                indexers = emoji_patterns
-                if remained and not re.search(r"^[\U0001F1E6-\U0001F1FF]{2}", name):
-                    indexers = None
-
                 name = re.sub(
                     r"\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
                     " ",
@@ -586,10 +579,6 @@ class AirPort:
                     name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
 
                 name = re.sub(r"\s+(\d+)[\s_\-\|]+([A-Za-z])\b", r"-\1\2", name)
-                if indexers:
-                    emoji = utils.get_emoji(text=name, patterns=indexers, default="🇺🇸")
-                    name = f"{emoji} {name}" if emoji else name
-
                 item["name"] = re.sub(r"(-\d+[A-Za-z])+$", "", name).upper()
 
                 if "" != tag.strip():
@@ -599,8 +588,11 @@ class AirPort:
                 item["sub"] = self.sub
                 item["liveness"] = self.liveness
 
-                if allow_insecure:
-                    item["skip-cert-verify"] = allow_insecure
+                if disable_insecure:
+                    if "skip-cert-verify" in item:
+                        item["skip-cert-verify"] = False
+                    if "tls" in item:
+                        item["tls"] = True
 
                 if udp and "udp" not in item:
                     item["udp"] = True

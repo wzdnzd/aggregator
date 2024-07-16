@@ -241,10 +241,6 @@ def assign(
     # 是否允许特殊协议
     special_protocols = AirPort.enable_special_protocols()
 
-    # 解析 emoji 配置
-    emoji_conf = os.path.join(PATH, "subconverter", "snippets", "emoji.txt")
-    emoji_patterns = utils.load_emoji_pattern(filepath=emoji_conf)
-
     for site in sites:
         if not site:
             continue
@@ -296,8 +292,8 @@ def assign(
         # 是否对节点测活
         liveness = site.get("liveness", True)
 
-        # 跳过证书验证
-        allow_insecure = site.get("insecure", False)
+        # 拒绝跳过证书验证
+        disable_insecure = site.get("secure", False)
 
         # 优惠码
         coupon = utils.trim(site.get("coupon", ""))
@@ -307,9 +303,6 @@ def assign(
 
         # 覆盖subconverter默认exclude规则
         ignoreder = site.get("ignorede", False)
-
-        # 是否添加国旗 emoji
-        emoji = site.get("emoji", False)
 
         # 需要人机验证时是否直接放弃
         chuck = site.get("chuck", False)
@@ -359,12 +352,11 @@ def assign(
                 chatgpt=chatgpt,
                 liveness=liveness,
                 coupon=coupon,
-                allow_insecure=allow_insecure,
+                disable_insecure=disable_insecure,
                 ignorede=ignoreder,
                 rigid=rigid,
                 chuck=chuck,
                 special_protocols=special_protocols,
-                emoji_patterns=emoji_patterns if emoji else None,
                 invite_code=invite_code,
             )
             found = workflow.exists(tasks=tasks, task=task)
@@ -401,9 +393,7 @@ def assign(
                     index=-1,
                     retry=retry,
                     bin_name=bin_name,
-                    remained=True,
                     special_protocols=special_protocols,
-                    emoji_patterns=emoji_patterns,
                 )
             )
             taskids.append(globalid)
@@ -541,6 +531,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
         push_conf = group_configs.get(k, {})
         target = utils.trim(push_conf.get("target", "")) or "clash"
+
         mixed = target in ["v2ray", "mixed"]
         emoji = push_conf.get("emoji", True)
 
@@ -561,60 +552,47 @@ def aggregate(args: argparse.Namespace) -> None:
             )
 
         data = {"proxies": nochecks}
+        persisted, content, source_file = False, "", "config.yaml"
 
-        # compress if data is too large
-        compress = False if mixed else len(nochecks) >= 300
+        filepath = os.path.join(PATH, "subconverter", source_file)
+        with open(filepath, "w+", encoding="utf8") as f:
+            yaml.dump(data, f, allow_unicode=True)
 
-        persisted, content = False, ""
+        # convert
+        artifact, dest_file = "convert", "subscribe.txt"
 
-        if mixed or compress:
-            source_file = "config.yaml"
-            filepath = os.path.join(PATH, "subconverter", source_file)
-            with open(filepath, "w+", encoding="utf8") as f:
-                yaml.dump(data, f, allow_unicode=True)
+        if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+            os.remove(generate_conf)
 
-            # convert
-            dest_file = "subscribe.txt"
-            artifact = "convert"
+        success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target, emoji)
+        if not success:
+            logger.error(f"cannot generate subconverter config file, group=[{k}]")
+            continue
 
-            if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-                os.remove(generate_conf)
+        if subconverter.convert(binname=subconverter_bin, artifact=artifact):
+            filepath = os.path.join(PATH, "subconverter", dest_file)
 
-            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target, emoji)
-            if not success:
-                logger.error(f"cannot generate subconverter config file, group=[{k}]")
+            if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                logger.error(f"converted file {filepath} not found, group: {k}")
                 continue
 
-            if subconverter.convert(binname=subconverter_bin, artifact=artifact):
-                filepath = os.path.join(PATH, "subconverter", dest_file)
+            content = " "
+            with open(filepath, "r", encoding="utf8") as f:
+                content = f.read()
 
-                if not os.path.exists(filepath) or not os.path.isfile(filepath):
-                    logger.error(f"converted file {filepath} not found, group: {k}")
+            if mixed and not utils.isb64encode(content=content):
+                # base64 encode
+                try:
+                    content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
+                except Exception as e:
+                    logger.error(f"base64 encode error, message: {str(e)}")
                     continue
 
-                content = " "
-                with open(filepath, "r", encoding="utf8") as f:
-                    content = f.read()
-
-                if mixed and not utils.isb64encode(content=content):
-                    # base64 encode
-                    try:
-                        content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
-                    except Exception as e:
-                        logger.error(f"base64 encode error, message: {str(e)}")
-                        continue
-
-                # save to remote server
-                persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
-
-            # clean workspace
-            workflow.cleanup(
-                os.path.join(PATH, "subconverter"),
-                [source_file, dest_file, "generate.ini"],
-            )
-        else:
-            content = yaml.dump(data=data, allow_unicode=True)
+            # save to remote server
             persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
+
+        # clean workspace
+        workflow.cleanup(os.path.join(PATH, "subconverter"), [source_file, dest_file, "generate.ini"])
 
         if content and not persisted:
             filename = os.path.join(PATH, "data", f"{k}.txt")
@@ -625,14 +603,9 @@ def aggregate(args: argparse.Namespace) -> None:
         cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(f"group [{k}] process finished, count: {len(nochecks)}, cost: {cost}")
 
-    config = {
-        "domains": sites,
-        "crawl": crawl_conf,
-        "groups": group_configs,
-        "update": update_conf,
-    }
-
+    config = {"domains": sites, "crawl": crawl_conf, "groups": group_configs, "update": update_conf}
     skip_remark = utils.trim(os.environ.get("SKIP_REMARK", "false")).lower() in ["true", "1"]
+
     workflow.refresh(config=config, push=pushtool, alives=dict(subscribes), skip_remark=skip_remark)
 
 

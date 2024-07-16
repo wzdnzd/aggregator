@@ -15,7 +15,7 @@
             "rate": 2.5,
             "count": 2,
             "coupon": "",
-            "insecure": false,
+            "secure": false,
             "renew": {
                 "account": [
                     {
