@@ -7,7 +7,9 @@
 import argparse
 import math
 import os
+import random
 import re
+import string
 from collections import defaultdict
 
 import yaml
@@ -61,6 +63,9 @@ def main(args: argparse.Namespace) -> None:
                 records.add(key)
 
                 name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
+                if not name:
+                    name = "".join(random.sample(string.ascii_uppercase, 6))
+
                 item["name"] = name
 
                 if args.secure:
