@@ -6,8 +6,10 @@
 import json
 import math
 import os
+import random
 import re
 import socket
+import string
 import urllib
 from collections import defaultdict
 
@@ -162,6 +164,9 @@ def regularize(
     records = defaultdict(list)
     for proxy in proxies:
         name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", proxy.get("name", "")).strip()
+        if not name:
+            name = "".join(random.sample(string.ascii_uppercase, 6))
+
         proxy["name"] = name
         records[name].append(proxy)
 
