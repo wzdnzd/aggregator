@@ -1,10 +1,8 @@
 # > Apple Music
 PROCESS-NAME,Music
 USER-AGENT,Music*
-DOMAIN-SUFFIX,applemusic.com
 DOMAIN-SUFFIX,music.apple.com
 DOMAIN,aod.itunes.apple.com
-DOMAIN,aod-ssl.itunes.apple.com
 DOMAIN,audio.itunes.apple.com
 DOMAIN,audio-ssl.itunes.apple.com
 DOMAIN,mvod.itunes.apple.com
