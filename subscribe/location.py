@@ -117,6 +117,7 @@ def rename(proxy: dict, reader: database.Reader) -> dict:
 
         # fake ip
         if ip.startswith("198.18.0."):
+            logger.warning("cannot get geolocation and rename because IP address is faked")
             return proxy
 
         name = proxy.get("name", "")
