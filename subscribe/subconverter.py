@@ -20,6 +20,7 @@ def generate_conf(
     source: str,
     dest: str,
     target: str,
+    emoji: bool = True,
     list_only: bool = True,
     ignore_exclude: bool = False,
 ) -> None:
@@ -37,6 +38,11 @@ def generate_conf(
 
         if list_only:
             lines.append("list=true")
+
+        if emoji:
+            lines.extend(["emoji=true", "add_emoji=true"])
+        else:
+            lines.extend(["emoji=false", "add_emoji=false"])
 
         if ignore_exclude:
             lines.append("exclude=流量|过期|剩余|时间|Expire|Traffic")
