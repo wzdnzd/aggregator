@@ -18,6 +18,7 @@ from copy import deepcopy
 
 import crawl
 import executable
+import location
 import push
 import utils
 import workflow
@@ -41,7 +42,7 @@ def load_configs(
 ) -> tuple[list, dict, dict, dict, int]:
     def parse_config(config: dict) -> None:
         sites.extend(config.get("domains", []))
-        push_conf.update(config.get("push", {}))
+        group_conf.update(config.get("groups", {}))
         update_conf.update(config.get("update", {}))
         crawl_conf.update(config.get("crawl", {}))
 
@@ -55,7 +56,7 @@ def load_configs(
         params["exclude"] = crawl_conf.get("exclude", "")
 
         # persistence configuration
-        persist = {k: push_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
+        persist = {k: group_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
         params["persist"] = persist
 
         params["config"] = crawl_conf.get("config", {})
@@ -189,7 +190,7 @@ def load_configs(
         params["scripts"] = scripts
 
     sites, delay = [], sys.maxsize
-    params, push_conf, crawl_conf, update_conf = {}, {}, {}, {}
+    params, group_conf, crawl_conf, update_conf = {}, {}, {}, {}
 
     try:
         if re.match(
@@ -221,7 +222,7 @@ def load_configs(
         logger.error("occur error when load task config")
         sys.exit(0)
 
-    return sites, push_conf, crawl_conf, update_conf, delay
+    return sites, group_conf, crawl_conf, update_conf, delay
 
 
 def assign(
@@ -240,16 +241,14 @@ def assign(
     # 是否允许特殊协议
     special_protocols = AirPort.enable_special_protocols()
 
-    # 解析 emoji 配置
-    emoji_conf = os.path.join(PATH, "subconverter", "snippets", "emoji.txt")
-    emoji_patterns = utils.load_emoji_pattern(filepath=emoji_conf)
-
     for site in sites:
         if not site:
             continue
 
         name = site.get("name", "").strip().lower()
         domain = site.get("domain", "").strip().lower()
+
+        # 订阅地址，支持单个或多个
         subscribe = site.get("sub", "")
         if isinstance(subscribe, str):
             subscribe = [subscribe.strip()]
@@ -257,33 +256,64 @@ def assign(
         if len(subscribe) >= 2:
             subscribe = list(set(subscribe))
 
+        # 自定义标签，追加到名称前
         tag = site.get("tag", "").strip().upper()
+
+        # 节点倍率超过该值将会被丢弃
         rate = float(site.get("rate", 3.0))
+
+        # 需要注册账号的个数
         num = min(max(1, int(site.get("count", 1))), 10)
 
         # 如果订阅链接不为空，num为订阅链接数
         num = len(subscribe) if subscribe else num
+
+        # 组名列表
         push_names = site.get("push_to", [])
+
+        # 失败次数，超过该值将不再尝试注册
         errors = max(site.get("errors", 0), 0) + 1
+
+        # 来源类别
         source = site.get("origin", "")
+
+        # 重命名规则，正常正则表达式
         rename = site.get("rename", "")
+
+        # 排除匹配到的节点，支持正则表达式
         exclude = site.get("exclude", "").strip()
+
+        # 仅保留匹配到的节点，支持正则表达式
         include = site.get("include", "").strip()
+
+        # 是否检查 ChatGPT 的连通性
         chatgpt = site.get("chatgpt", {})
+
+        # 是否对节点测活
         liveness = site.get("liveness", True)
-        coupon = site.get("coupon", "").strip()
-        allow_insecure = site.get("insecure", False)
+
+        # 拒绝跳过证书验证
+        disable_insecure = site.get("secure", False)
+
+        # 优惠码
+        coupon = utils.trim(site.get("coupon", ""))
+
+        # 邀请码
+        invite_code = utils.trim(site.get("invite_code", ""))
+
         # 覆盖subconverter默认exclude规则
         ignoreder = site.get("ignorede", False)
 
-        # 是否添加国旗 emoji
-        emoji = site.get("emoji", False)
+        # 需要人机验证时是否直接放弃
+        chuck = site.get("chuck", False)
 
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
+
         if source != Origin.TEMPORARY.name:
             site["errors"] = errors
+
         site["name"] = name.rsplit(crawl.SEPARATOR, maxsplit=1)[0]
         arrays.append(site)
 
@@ -322,11 +352,12 @@ def assign(
                 chatgpt=chatgpt,
                 liveness=liveness,
                 coupon=coupon,
-                allow_insecure=allow_insecure,
+                disable_insecure=disable_insecure,
                 ignorede=ignoreder,
                 rigid=rigid,
+                chuck=chuck,
                 special_protocols=special_protocols,
-                emoji_patterns=emoji_patterns if emoji else None,
+                invite_code=invite_code,
             )
             found = workflow.exists(tasks=tasks, task=task)
             if found:
@@ -362,9 +393,7 @@ def assign(
                     index=-1,
                     retry=retry,
                     bin_name=bin_name,
-                    remained=True,
                     special_protocols=special_protocols,
-                    emoji_patterns=emoji_patterns,
                 )
             )
             taskids.append(globalid)
@@ -383,14 +412,14 @@ def aggregate(args: argparse.Namespace) -> None:
 
     # parse config
     server = utils.trim(args.server) or os.environ.get("SUBSCRIBE_CONF", "").strip()
-    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
+    sites, group_configs, crawl_conf, update_conf, delay = load_configs(
         url=server,
         only_check=args.check,
         num_threads=args.num,
         display=display,
     )
 
-    push_configs = pushtool.filter_push(push_configs)
+    group_configs = pushtool.filter_push(group_configs)
     retry = min(max(1, args.retry), 10)
 
     # generate tasks
@@ -400,7 +429,7 @@ def aggregate(args: argparse.Namespace) -> None:
         bin_name=subconverter_bin,
         remain=not args.overwrite,
         pushtool=pushtool,
-        push_conf=push_configs,
+        push_conf=group_configs,
         only_check=args.check,
         rigid=not args.flexible,
     )
@@ -469,7 +498,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
                 params = [
                     [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, delay, False]
-                    for p in proxies
+                    for p in checks
                     if isinstance(p, dict)
                 ]
 
@@ -487,8 +516,11 @@ def aggregate(args: argparse.Namespace) -> None:
                 except:
                     logger.error(f"terminate clash process error, group: {k}")
 
-                availables = [proxies[i] for i in range(len(proxies)) if masks[i]]
+                availables = [checks[i] for i in range(len(checks)) if masks[i]]
                 nochecks.extend(availables)
+
+                dead = len(checks) - len(availables)
+                logger.info(f"proxies check finished, total: {len(checks)}, alive: {len(availables)}, dead: {dead}")
 
         for item in nochecks:
             item.pop("sub", "")
@@ -497,64 +529,70 @@ def aggregate(args: argparse.Namespace) -> None:
             logger.error(f"cannot fetch any proxy, group=[{k}], cost: {time.time()-starttime:.2f}s")
             continue
 
-        data = {"proxies": nochecks}
-        push_conf = push_configs.get(k, {})
+        push_conf = group_configs.get(k, {})
         target = utils.trim(push_conf.get("target", "")) or "clash"
+
         mixed = target in ["v2ray", "mixed"]
+        emoji = push_conf.get("emoji", True)
 
-        # compress if data is too large
-        compress = False if mixed else len(nochecks) >= 300
+        regularize = push_conf.get("regularize", {})
+        if regularize and isinstance(regularize, dict) and regularize.get("enable", False):
+            locate = regularize.get("locate", False)
+            try:
+                bits = max(1, int(regularize.get("bits", 2)))
+            except:
+                bits = 2
 
-        persisted, content = False, ""
+            nochecks = location.regularize(
+                proxies=nochecks,
+                num_threads=args.num,
+                show_progress=display,
+                locate=locate,
+                digits=bits,
+            )
 
-        if mixed or compress:
-            source_file = "config.yaml"
-            filepath = os.path.join(PATH, "subconverter", source_file)
-            with open(filepath, "w+", encoding="utf8") as f:
-                yaml.dump(data, f, allow_unicode=True)
+        data = {"proxies": nochecks}
+        persisted, content, source_file = False, "", "config.yaml"
 
-            # convert
-            dest_file = "subscribe.txt"
-            artifact = "convert"
+        filepath = os.path.join(PATH, "subconverter", source_file)
+        with open(filepath, "w+", encoding="utf8") as f:
+            yaml.dump(data, f, allow_unicode=True)
 
-            if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
-                os.remove(generate_conf)
+        # convert
+        artifact, dest_file = "convert", "subscribe.txt"
 
-            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target)
-            if not success:
-                logger.error(f"cannot generate subconverter config file, group=[{k}]")
+        if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
+            os.remove(generate_conf)
+
+        success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target, emoji)
+        if not success:
+            logger.error(f"cannot generate subconverter config file, group=[{k}]")
+            continue
+
+        if subconverter.convert(binname=subconverter_bin, artifact=artifact):
+            filepath = os.path.join(PATH, "subconverter", dest_file)
+
+            if not os.path.exists(filepath) or not os.path.isfile(filepath):
+                logger.error(f"converted file {filepath} not found, group: {k}")
                 continue
 
-            if subconverter.convert(binname=subconverter_bin, artifact=artifact):
-                filepath = os.path.join(PATH, "subconverter", dest_file)
+            content = " "
+            with open(filepath, "r", encoding="utf8") as f:
+                content = f.read()
 
-                if not os.path.exists(filepath) or not os.path.isfile(filepath):
-                    logger.error(f"converted file {filepath} not found, group: {k}")
+            if mixed and not utils.isb64encode(content=content):
+                # base64 encode
+                try:
+                    content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
+                except Exception as e:
+                    logger.error(f"base64 encode error, message: {str(e)}")
                     continue
 
-                content = " "
-                with open(filepath, "r", encoding="utf8") as f:
-                    content = f.read()
-
-                if mixed and not utils.isb64encode(content=content):
-                    # base64 encode
-                    try:
-                        content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
-                    except Exception as e:
-                        logger.error(f"base64 encode error, message: {str(e)}")
-                        continue
-
-                # save to remote server
-                persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
-
-            # clean workspace
-            workflow.cleanup(
-                os.path.join(PATH, "subconverter"),
-                [source_file, dest_file, "generate.ini"],
-            )
-        else:
-            content = yaml.dump(data=data, allow_unicode=True)
+            # save to remote server
             persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
+
+        # clean workspace
+        workflow.cleanup(os.path.join(PATH, "subconverter"), [source_file, dest_file, "generate.ini"])
 
         if content and not persisted:
             filename = os.path.join(PATH, "data", f"{k}.txt")
@@ -563,16 +601,11 @@ def aggregate(args: argparse.Namespace) -> None:
             utils.write_file(filename=filename, lines=content)
 
         cost = "{:.2f}s".format(time.time() - starttime)
-        logger.info(f"proxies check finished, group: {k}\tcount: {len(nochecks)}, cost: {cost}")
+        logger.info(f"group [{k}] process finished, count: {len(nochecks)}, cost: {cost}")
 
-    config = {
-        "domains": sites,
-        "crawl": crawl_conf,
-        "push": push_configs,
-        "update": update_conf,
-    }
-
+    config = {"domains": sites, "crawl": crawl_conf, "groups": group_configs, "update": update_conf}
     skip_remark = utils.trim(os.environ.get("SKIP_REMARK", "false")).lower() in ["true", "1"]
+
     workflow.refresh(config=config, push=pushtool, alives=dict(subscribes), skip_remark=skip_remark)
 
 
