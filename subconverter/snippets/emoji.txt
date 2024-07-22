@@ -5,7 +5,7 @@
 (尼日利亚|Nigeria),🇳🇬
 (?i:\bJP[N]?\b|Japan|Tokyo|Osaka|Saitama|日本|东京|大阪|埼玉|[^-]日),🇯🇵
 (?i:\bK[O]?R\b|Korea|首尔|韩|韓),🇰🇷
-(?i:\bUS[A]?\b|America|United.*?States|美国|[^-]美|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥),🇺🇸
+(?i:\bUS[A]?\b|America|United.*?States|美国|[^-]美|美西|美东|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|圣何塞|圣克拉拉|西雅图|芝加哥|纽约|旧金山),🇺🇸
 (Ascension|阿森松),🇦🇨
 (?i:\bUAE\b|Dubai|阿联酋|迪拜),🇦🇪
 (阿尔巴尼亚|Albania),🇦🇱
