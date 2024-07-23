@@ -82,15 +82,16 @@ def getrss(params: dict) -> list:
 
     include = params.get("include", "").strip()
     persist = params.get("persist", {})
+    engine = params.get("engine", "")
 
-    exists = load(persist=persist)
+    exists = load(engine=engine, persist=persist)
     emails = [x for x in emails if x not in exists.keys()]
 
     results, subscribes = utils.multi_thread_run(func=fetch, tasks=emails), []
     exists.update(filter(data=dict(zip(emails, results))))
 
     # persist subscribes
-    commons.persist(data=exists, persist=persist)
+    commons.persist(engine=engine, data=exists, persist=persist)
 
     results = list(exists.values())
     results.extend(config.get("sub", []))
@@ -117,8 +118,8 @@ def getrss(params: dict) -> list:
     return [config]
 
 
-def load(persist: dict) -> dict:
-    pushtool = push.get_instance()
+def load(engine: str, persist: dict) -> dict:
+    pushtool = push.get_instance(engine=engine)
     if not pushtool.validate(persist):
         return {}
 

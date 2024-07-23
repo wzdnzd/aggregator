@@ -102,7 +102,7 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     return tasks
 
 
-def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list[dict]:
+def batch_crawl(engine: str, conf: dict, num_threads: int = 50, display: bool = True) -> list[dict]:
     mode, connectable = crawlable()
 
     if not conf or not conf.get("enable", True):
@@ -120,7 +120,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
         subspushconf = persists.get("subs", {})
         linkspushconf = persists.get("proxies", {})
 
-        pushtool = push.get_instance()
+        pushtool = push.get_instance(engine=engine)
         should_persist = pushtool.validate(push_conf=subspushconf)
         # skip tasks if mode == 1 and not set persistence
         if mode == 1 and not should_persist:
