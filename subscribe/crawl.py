@@ -102,7 +102,7 @@ def multi_thread_crawl(func: typing.Callable, params: list) -> dict:
     return tasks
 
 
-def batch_crawl(engine: str, conf: dict, num_threads: int = 50, display: bool = True) -> list[dict]:
+def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list[dict]:
     mode, connectable = crawlable()
 
     if not conf or not conf.get("enable", True):
@@ -117,6 +117,7 @@ def batch_crawl(engine: str, conf: dict, num_threads: int = 50, display: bool = 
     datasets, peristedtasks = [], {}
     try:
         persists = conf.get("persist", {})
+        engine = persists.get("engine", "")
         subspushconf = persists.get("subs", {})
         linkspushconf = persists.get("proxies", {})
 
