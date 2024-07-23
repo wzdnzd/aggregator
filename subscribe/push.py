@@ -9,11 +9,11 @@ import traceback
 import urllib
 import urllib.parse
 import urllib.request
-from enum import Enum
 from http.client import HTTPResponse
 
 import utils
 from logger import logger
+from urlvalidator import isurl
 
 
 class PushTo(object):
@@ -449,41 +449,55 @@ class PushToGist(PushTo):
         return f"{prefix}/raw/{filename}"
 
 
-PUSHTYPE = Enum(
-    "PUSHTYPE",
-    (
-        "paste.ding.free.hr",
-        "pastefy.ga",
-        "paste.gg",
-        "imperialb.in",
-        "gist.githubusercontent.com",
-    ),
-)
+ENGINE_MAPPING = {
+    "imperialb.in": "imperialb",
+    "gist.githubusercontent.com": "gist",
+    "paste.ding.free.hr": "drift",
+    "pastefy.ga": "pastefy",
+    "paste.gg": "pastegg",
+}
+
+LOCAL_STORAGE = "local"
+
+SUPPORTED_ENGINES = set(list(ENGINE_MAPPING.values()) + [LOCAL_STORAGE])
 
 
-def get_instance() -> PushTo:
-    def confirm_pushtype() -> int:
-        subscription = os.environ.get("SUBSCRIBE_CONF", "").strip()
-        domain = utils.extract_domain(url=subscription, include_protocal=False)
-        for item in PUSHTYPE:
-            if domain == item.name:
-                return item.value
+def get_instance(engine: str) -> PushTo:
+    def confirm_engine(engine: str) -> str:
+        engine = utils.trim(engine).lower()
+        if engine and engine not in SUPPORTED_ENGINES:
+            return ""
 
-        return 0
+        if not engine:
+            subscription = os.environ.get("SUBSCRIBE_CONF", "").strip()
+            if not isurl(url=subscription):
+                engine = LOCAL_STORAGE
+            else:
+                domain = utils.extract_domain(url=subscription, include_protocal=False)
+                for k, v in ENGINE_MAPPING.items():
+                    if domain == v:
+                        engine = k
+                        break
 
-    push_type = confirm_pushtype()
+        return engine
+
+    target = confirm_engine(engine=engine)
+    if not target:
+        raise ValueError(f"[PushError] unknown storge type: {engine}")
+
     token = os.environ.get("PUSH_TOKEN", "").strip()
-    if push_type != 0 and not token:
+    if target != LOCAL_STORAGE and not token:
         raise ValueError(f"[PushError] not found 'PUSH_TOKEN' in environment variables, please check it and try again")
 
-    if push_type == 1:
-        return PushToDrift(token=token)
-    elif push_type == 2:
-        return PushToPastefy(token=token)
-    elif push_type == 3:
-        return PushToPasteGG(token=token)
-    elif push_type == 4:
+    if target == "imperialb":
         return PushToImperial(token=token)
-    elif push_type == 5:
+    elif target == "drift":
+        return PushToDrift(token=token)
+    elif target == "pastefy":
+        return PushToPastefy(token=token)
+    elif target == "pastegg":
+        return PushToPasteGG(token=token)
+    elif target == "gist":
         return PushToGist(token=token)
+
     return PushToLocal()

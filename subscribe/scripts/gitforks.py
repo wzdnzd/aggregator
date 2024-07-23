@@ -134,7 +134,7 @@ def collect_subs(params: dict) -> list[dict]:
     # used to store subscriptions
     persist = params.get("persist", {})
 
-    pushtool = push.get_instance()
+    pushtool = push.get_instance(engine=params.get("engine", ""))
     if not pushtool.validate(persist):
         logger.error(f"[GithubFork] cannot fetch subscriptions due to invalid persist config")
         return []

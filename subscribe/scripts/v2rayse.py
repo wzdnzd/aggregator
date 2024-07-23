@@ -218,7 +218,7 @@ def fetch(params: dict) -> list:
         return []
 
     persist = params.get("persist", {})
-    pushtool = push.get_instance()
+    pushtool = push.get_instance(engine=params.get("engine", ""))
     if not persist or type(persist) != dict or not pushtool.validate(persist.get("proxies", {})):
         logger.error(f"[V2RaySE] invalid persist config, please check it and try again")
         return []
