@@ -67,7 +67,6 @@ def load_configs(
         groups.update(config.get("groups", {}))
         update_conf.update(config.get("update", {}))
         crawl_conf.update(config.get("crawl", {}))
-
         storage.update(config.get("storage", {}))
 
         nonlocal engine
@@ -84,6 +83,7 @@ def load_configs(
 
         # persistence configuration
         persist = {k: storage.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
+        persist["engine"] = engine
         params["persist"] = persist
 
         params["config"] = crawl_conf.get("config", {})
@@ -287,7 +287,7 @@ def load_configs(
 
         # execute crawl tasks
         if params:
-            result = crawl.batch_crawl(engine=engine, conf=params, num_threads=num_threads, display=display)
+            result = crawl.batch_crawl(conf=params, num_threads=num_threads, display=display)
             tasks.extend(result)
     except SystemExit as e:
         if e.code != 0:
