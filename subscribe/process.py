@@ -82,7 +82,7 @@ def load_configs(
         params["exclude"] = crawl_conf.get("exclude", "")
 
         # persistence configuration
-        persist = {k: storage.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
+        persist = {k: storage.get("items", {}).get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
         persist["engine"] = engine
         params["persist"] = persist
 
