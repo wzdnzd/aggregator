@@ -15,9 +15,11 @@ import subprocess
 import sys
 import time
 from copy import deepcopy
+from dataclasses import dataclass, field
 
 import crawl
 import executable
+import location
 import push
 import utils
 import workflow
@@ -33,17 +35,42 @@ import subconverter
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
+@dataclass
+class ProcessConfig(object):
+    # task list
+    tasks: list[dict] = field(default_factory=list)
+
+    # crawl config
+    crawl: dict = field(default_factory=dict)
+
+    # persist config
+    storage: dict = field(default_factory=dict)
+
+    # groups config
+    groups: dict[dict] = field(default_factory=dict)
+
+    # update config
+    update: dict = field(default_factory=dict)
+
+    # max acceptable delay
+    delay: int = 5000
+
+
 def load_configs(
     url: str,
     only_check: bool = False,
     num_threads: int = 0,
     display: bool = True,
-) -> tuple[list, dict, dict, dict, int]:
+) -> ProcessConfig:
     def parse_config(config: dict) -> None:
-        sites.extend(config.get("domains", []))
-        push_conf.update(config.get("push", {}))
+        tasks.extend(config.get("domains", []))
+        groups.update(config.get("groups", {}))
         update_conf.update(config.get("update", {}))
         crawl_conf.update(config.get("crawl", {}))
+        storage.update(config.get("storage", {}))
+
+        nonlocal engine
+        engine = utils.trim(storage.get("engine", "")) or engine
 
         nonlocal delay
         delay = min(delay, max(config.get("delay", sys.maxsize), 50))
@@ -55,7 +82,8 @@ def load_configs(
         params["exclude"] = crawl_conf.get("exclude", "")
 
         # persistence configuration
-        persist = {k: push_conf.get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
+        persist = {k: storage.get("items", {}).get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
+        persist["engine"] = engine
         params["persist"] = persist
 
         params["config"] = crawl_conf.get("config", {})
@@ -185,11 +213,54 @@ def load_configs(
             if not enable or not path:
                 continue
 
-            scripts[path] = script.get("params", {})
+            task_conf = script.get("params", {})
+            if not isinstance(task_conf, dict):
+                task_conf = {}
+
+            # record storge engine
+            task_conf["engine"] = engine
+
+            scripts[path] = task_conf
         params["scripts"] = scripts
 
-    sites, delay = [], sys.maxsize
-    params, push_conf, crawl_conf, update_conf = {}, {}, {}, {}
+    def verify(storage: dict, groups: dict) -> bool:
+        if not isinstance(storage, dict) or not isinstance(groups, dict):
+            return False
+
+        pushtool = push.get_instance(engine=storage.get("engine", ""))
+        if not isinstance(storage.get("items", {}), dict):
+            logger.error(f"cannot found any valid storage config")
+            return False
+
+        items = pushtool.filter_push(push_conf=storage.get("items", {}))
+        for name, group in groups.items():
+            name = utils.trim(name)
+
+            if not name or not isinstance(group, dict):
+                logger.error(f"invalid group config, name: {name}")
+                return False
+
+            targets = group.get("targets", {})
+            if not targets or not isinstance(targets, dict):
+                logger.error(f"group {name} should contain at least one type conversion")
+                return False
+
+            for category, storage_name in targets.items():
+                category = utils.trim(category).lower()
+                if category not in subconverter.CONVERT_TARGETS:
+                    logger.error(f"group {name} contains unsupported conversion type: {category}")
+                    return False
+
+                storage_name = utils.trim(storage_name)
+                if storage_name not in items:
+                    logger.error(f"missing storage configuration for group {name} to convert type to {category}")
+                    return False
+
+        return True
+
+    tasks, delay = [], sys.maxsize
+    engine, storage, groups = "", {}, {}
+    params, crawl_conf, update_conf = {}, {}, {}
 
     try:
         if re.match(
@@ -201,17 +272,23 @@ def load_configs(
             if not content:
                 logger.error(f"cannot fetch config from remote, url: {utils.hide(url=url)}")
             else:
+                os.environ["SUBSCRIBE_CONF"] = url
                 parse_config(json.loads(content))
         else:
             localfile = os.path.abspath(url)
             if os.path.exists(localfile) and os.path.isfile(localfile):
                 config = json.loads(open(localfile, "r", encoding="utf8").read())
+                os.environ["SUBSCRIBE_CONF"] = localfile
                 parse_config(config)
+
+        # check configuration
+        if not verify(storage=storage, groups=groups):
+            raise ValueError(f"there are some errors in the configuration, please check and confirm")
 
         # execute crawl tasks
         if params:
             result = crawl.batch_crawl(conf=params, num_threads=num_threads, display=display)
-            sites.extend(result)
+            tasks.extend(result)
     except SystemExit as e:
         if e.code != 0:
             logger.error("parse configuration failed due to process abnormally exits")
@@ -221,29 +298,35 @@ def load_configs(
         logger.error("occur error when load task config")
         sys.exit(0)
 
-    return sites, push_conf, crawl_conf, update_conf, delay
+    return ProcessConfig(
+        tasks=tasks,
+        crawl=crawl_conf,
+        storage=storage,
+        groups=groups,
+        update=update_conf,
+        delay=delay,
+    )
 
 
 def assign(
-    sites: list,
+    pc: ProcessConfig,
     retry: int,
     bin_name: str,
     remain: bool,
     pushtool: push.PushTo,
-    push_conf: dict = {},
     only_check=False,
     rigid: bool = True,
 ) -> tuple[list[TaskConfig], dict, list]:
+    if not isinstance(pc, ProcessConfig):
+        return [], {}, []
+
     tasks, groups, arrays = [], {}, []
     retry, globalid = max(1, retry), 0
 
     # 是否允许特殊协议
     special_protocols = AirPort.enable_special_protocols()
 
-    # 解析 emoji 配置
-    emoji_conf = os.path.join(PATH, "subconverter", "snippets", "emoji.txt")
-    emoji_patterns = utils.load_emoji_pattern(filepath=emoji_conf)
-
+    sites = [] if not isinstance(pc.tasks, list) else deepcopy(pc.tasks)
     for site in sites:
         if not site:
             continue
@@ -295,8 +378,8 @@ def assign(
         # 是否对节点测活
         liveness = site.get("liveness", True)
 
-        # 跳过证书验证
-        allow_insecure = site.get("insecure", False)
+        # 拒绝跳过证书验证
+        disable_insecure = site.get("secure", False)
 
         # 优惠码
         coupon = utils.trim(site.get("coupon", ""))
@@ -306,9 +389,6 @@ def assign(
 
         # 覆盖subconverter默认exclude规则
         ignoreder = site.get("ignorede", False)
-
-        # 是否添加国旗 emoji
-        emoji = site.get("emoji", False)
 
         # 需要人机验证时是否直接放弃
         chuck = site.get("chuck", False)
@@ -358,12 +438,11 @@ def assign(
                 chatgpt=chatgpt,
                 liveness=liveness,
                 coupon=coupon,
-                allow_insecure=allow_insecure,
+                disable_insecure=disable_insecure,
                 ignorede=ignoreder,
                 rigid=rigid,
                 chuck=chuck,
                 special_protocols=special_protocols,
-                emoji_patterns=emoji_patterns if emoji else None,
                 invite_code=invite_code,
             )
             found = workflow.exists(tasks=tasks, task=task)
@@ -372,7 +451,7 @@ def assign(
 
             tasks.append(task)
             for push_name in push_names:
-                if not push_conf.get(push_name, None):
+                if push_name not in pc.groups:
                     logger.error(f"cannot found push config, name=[{push_name}]\tsite=[{name}]")
                     continue
 
@@ -380,14 +459,20 @@ def assign(
                 taskids.append(globalid)
                 groups[push_name] = taskids
 
-    if (remain or only_check) and push_conf:
+    if (remain or only_check) and pc.groups:
         if only_check:
             # clean all extra tasks
             tasks, groups, globalid = [], {k: [] for k in groups.keys()}, 0
 
-        for k, v in push_conf.items():
+        for k, v in pc.groups.items():
             taskids = groups.get(k, [])
-            subscribe = pushtool.raw_url(push_conf=v)
+            targets = v.get("targets", {})
+            if not targets:
+                continue
+
+            # get the first conversion configuration for each group
+            push_conf = pc.storage.get("items", {}).get(targets.values()[0], {})
+            subscribe = pushtool.raw_url(push_conf=push_conf)
             if k not in groups or not subscribe:
                 continue
 
@@ -400,9 +485,7 @@ def assign(
                     index=-1,
                     retry=retry,
                     bin_name=bin_name,
-                    remained=True,
                     special_protocols=special_protocols,
-                    emoji_patterns=emoji_patterns,
                 )
             )
             taskids.append(globalid)
@@ -411,34 +494,32 @@ def assign(
 
 
 def aggregate(args: argparse.Namespace) -> None:
-    if not args:
+    if not args or not isinstance(args, argparse.Namespace):
         return
 
-    pushtool = push.get_instance()
     clash_bin, subconverter_bin = executable.which_bin()
-
     display = not args.invisible
 
     # parse config
     server = utils.trim(args.server) or os.environ.get("SUBSCRIBE_CONF", "").strip()
-    sites, push_configs, crawl_conf, update_conf, delay = load_configs(
+    process_config = load_configs(
         url=server,
         only_check=args.check,
         num_threads=args.num,
         display=display,
     )
 
-    push_configs = pushtool.filter_push(push_configs)
+    storages = process_config.storage or {}
+    pushtool = push.get_instance(engine=storages.get("engine", ""))
     retry = min(max(1, args.retry), 10)
 
     # generate tasks
     tasks, groups, sites = assign(
-        sites=sites,
+        pc=process_config,
         retry=retry,
         bin_name=subconverter_bin,
         remain=not args.overwrite,
         pushtool=pushtool,
-        push_conf=push_configs,
         only_check=args.check,
         rigid=not args.flexible,
     )
@@ -506,7 +587,7 @@ def aggregate(args: argparse.Namespace) -> None:
                 time.sleep(random.randint(5, 8))
 
                 params = [
-                    [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, delay, False]
+                    [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, process_config.delay, False]
                     for p in checks
                     if isinstance(p, dict)
                 ]
@@ -538,82 +619,100 @@ def aggregate(args: argparse.Namespace) -> None:
             logger.error(f"cannot fetch any proxy, group=[{k}], cost: {time.time()-starttime:.2f}s")
             continue
 
-        data = {"proxies": nochecks}
-        push_conf = push_configs.get(k, {})
-        target = utils.trim(push_conf.get("target", "")) or "clash"
-        mixed = target in ["v2ray", "mixed"]
+        group_conf = process_config.groups.get(k, {})
+        emoji = group_conf.get("emoji", True)
+        list_only = group_conf.get("list", True)
 
-        # compress if data is too large
-        compress = False if mixed else len(nochecks) >= 300
+        regularize = group_conf.get("regularize", {})
+        if regularize and isinstance(regularize, dict) and regularize.get("enable", False):
+            locate = regularize.get("locate", False)
+            try:
+                bits = max(1, int(regularize.get("bits", 2)))
+            except:
+                bits = 2
 
-        persisted, content = False, ""
+            nochecks = location.regularize(
+                proxies=nochecks,
+                num_threads=args.num,
+                show_progress=display,
+                locate=locate,
+                digits=bits,
+            )
 
-        if mixed or compress:
-            source_file = "config.yaml"
-            filepath = os.path.join(PATH, "subconverter", source_file)
-            with open(filepath, "w+", encoding="utf8") as f:
-                yaml.dump(data, f, allow_unicode=True)
+        source_file, data = "config.yaml", {"proxies": nochecks}
+        filepath = os.path.join(PATH, "subconverter", source_file)
+        with open(filepath, "w+", encoding="utf8") as f:
+            yaml.dump(data, f, allow_unicode=True)
+
+        targets = group_conf.get("targets", {})
+        for target, storage_name in targets.items():
+            persisted, content = False, " "
 
             # convert
-            dest_file = "subscribe.txt"
-            artifact = "convert"
+            artifact = f"convert_{target}"
+            dest_file = subconverter.get_filename(target=target)
 
             if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
                 os.remove(generate_conf)
 
-            success = subconverter.generate_conf(generate_conf, artifact, source_file, dest_file, target)
+            success = subconverter.generate_conf(
+                filepath=generate_conf,
+                name=artifact,
+                source=source_file,
+                dest=dest_file,
+                target=target,
+                emoji=emoji,
+                list_only=list_only,
+            )
             if not success:
-                logger.error(f"cannot generate subconverter config file, group=[{k}]")
+                logger.error(f"cannot generate subconverter config file, group: {k}, target: {target}")
                 continue
 
             if subconverter.convert(binname=subconverter_bin, artifact=artifact):
                 filepath = os.path.join(PATH, "subconverter", dest_file)
 
                 if not os.path.exists(filepath) or not os.path.isfile(filepath):
-                    logger.error(f"converted file {filepath} not found, group: {k}")
+                    logger.error(f"converted file {filepath} not found, group: {k}, target: {target}")
                     continue
 
-                content = " "
                 with open(filepath, "r", encoding="utf8") as f:
                     content = f.read()
 
+                mixed = target == "v2ray" or target == "mixed" or "ss" in target
                 if mixed and not utils.isb64encode(content=content):
                     # base64 encode
                     try:
                         content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
                     except Exception as e:
-                        logger.error(f"base64 encode error, message: {str(e)}")
+                        logger.error(f"base64 encode error, group: {k}, target: {target}, message: {str(e)}")
                         continue
 
                 # save to remote server
-                persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
+                push_conf = process_config.storage.get("items", {}).get(storage_name, {})
+                persisted = pushtool.push_to(content=content, push_conf=push_conf, group=f"{k}::{target}")
 
             # clean workspace
-            workflow.cleanup(
-                os.path.join(PATH, "subconverter"),
-                [source_file, dest_file, "generate.ini"],
-            )
-        else:
-            content = yaml.dump(data=data, allow_unicode=True)
-            persisted = pushtool.push_to(content=content, push_conf=push_conf, group=k)
+            workflow.cleanup(os.path.join(PATH, "subconverter"), [dest_file, "generate.ini"])
 
-        if content and not persisted:
-            filename = os.path.join(PATH, "data", f"{k}.txt")
+            if content and not persisted:
+                filename = os.path.join(PATH, "data", f"{k}-{dest_file}")
 
-            logger.error(f"failed to push config to remote server, group: {k}, save it to {filename}")
-            utils.write_file(filename=filename, lines=content)
+                logger.error(f"storage config to remote failed, group: {k}, target: {target}, save it to {filename}")
+                utils.write_file(filename=filename, lines=content)
 
+        workflow.cleanup(os.path.join(PATH, "subconverter"), [source_file])
         cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(f"group [{k}] process finished, count: {len(nochecks)}, cost: {cost}")
 
     config = {
         "domains": sites,
-        "crawl": crawl_conf,
-        "push": push_configs,
-        "update": update_conf,
+        "crawl": process_config.crawl,
+        "groups": process_config.groups,
+        "storage": process_config.storage,
+        "update": process_config.update,
     }
-
     skip_remark = utils.trim(os.environ.get("SKIP_REMARK", "false")).lower() in ["true", "1"]
+
     workflow.refresh(config=config, push=pushtool, alives=dict(subscribes), skip_remark=skip_remark)
 
 
