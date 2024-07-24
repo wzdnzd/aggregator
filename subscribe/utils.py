@@ -362,17 +362,6 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     ) -> typing.IO[bytes]:
         return fp
 
-    def redirect_request(
-        self,
-        req: urllib.request.Request,
-        fp: typing.IO[bytes],
-        code: int,
-        msg: str,
-        headers: HTTPMessage,
-        newurl: str,
-    ):
-        return None
-
 
 def http_post(
     url: str,
