@@ -1598,6 +1598,13 @@ def collect_airport(
                 request = urllib.request.Request(url=url, headers=utils.DEFAULT_HTTP_HEADERS, method="GET")
                 response = urllib.request.urlopen(request, timeout=6, context=utils.CTX)
 
+                # do not redirect
+                # opener = urllib.request.build_opener(utils.NoRedirect)
+                # response = opener.open(request, timeout=6)
+
+                if not utils.trim(response.geturl()).endswith("/env.js"):
+                    return domain
+
                 content = response.read()
                 try:
                     content = str(content, encoding="utf8")
