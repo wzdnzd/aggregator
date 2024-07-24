@@ -134,7 +134,7 @@ def collect_subs(params: dict) -> list[dict]:
     # used to store subscriptions
     persist = params.get("persist", {})
 
-    pushtool = push.get_instance()
+    pushtool = push.get_instance(engine=params.get("engine", ""))
     if not pushtool.validate(persist):
         logger.error(f"[GithubFork] cannot fetch subscriptions due to invalid persist config")
         return []
@@ -161,19 +161,39 @@ def collect_subs(params: dict) -> list[dict]:
         url = github_warp(ghproxy=ghproxy, url=url)
         materials[url] = update_conf(config=config, sub=url)
 
-    # query fork list
-    count, peer = query_forks_count(username=username, repository=repository, retry=3), 100
-    total = int(math.ceil(count / peer))
+    whitelist, results = params.get("whitelist", []), []
+    if whitelist and isinstance(whitelist, list):
+        logger.info(f"[GithubFork] fetch github forks via whitelist, count: {len(whitelist)}")
 
-    sort = params.get("sort", "") or "newest"
+        subscriptions = {}
+        for fork in whitelist:
+            words = utils.trim(fork).split("/")
+            if len(words) != 2 and len(words) != 3:
+                continue
 
-    # see: https://docs.github.com/en/rest/repos/forks?apiVersion=2022-11-28
-    if sort not in ["newest", "oldest", "stargazers", "watchers"]:
-        sort = "newest"
+            branch = DEFAULT_BRANCH if len(words) == 2 else words[2]
+            fullname = f"{words[0]}/{words[1]}"
 
-    # concurrent fetch
-    pages = [[username, repository, x, peer, sort] for x in range(1, total + 1)]
-    results = utils.multi_thread_run(func=query_forks, tasks=pages)
+            links = [f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{p}" for p in PROXY_FILES]
+            subs = [f"{GITHUB_CONTENT_API}/{fullname}/{branch}/{s}" for s in SUBSCRIBE_FILES]
+            subscriptions[fullname] = (links, subs)
+
+        results = [subscriptions]
+    else:
+        # query fork list
+        count, peer = query_forks_count(username=username, repository=repository, retry=3), 100
+        total = int(math.ceil(count / peer))
+        sort = params.get("sort", "") or "newest"
+
+        logger.info(f"[GithubFork] fetch github forks via full scan, count: {total}")
+
+        # see: https://docs.github.com/en/rest/repos/forks?apiVersion=2022-11-28
+        if sort not in ["newest", "oldest", "stargazers", "watchers"]:
+            sort = "newest"
+
+        # concurrent fetch
+        pages = [[username, repository, x, peer, sort] for x in range(1, total + 1)]
+        results = utils.multi_thread_run(func=query_forks, tasks=pages)
 
     include = utils.trim(params.get("include", ""))
     exclude = utils.trim(params.get("exclude", ""))

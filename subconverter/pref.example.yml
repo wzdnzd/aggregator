@@ -19,49 +19,43 @@ common:
   quanx_rule_base: base/all_base.tpl
   loon_rule_base: base/all_base.tpl
   sssub_rule_base: base/all_base.tpl
+  singbox_rule_base: base/all_base.tpl
   proxy_config: SYSTEM
   proxy_ruleset: SYSTEM
   proxy_subscription: NONE
   append_proxy_type: false
+  reload_conf_on_request: false
 
 userinfo:
-  stream_rule:
-    - { match: "^剩余流量：(.*?)\\|总流量：(.*)$", replace: "total=$2&left=$1" }
-    - { match: "^剩余流量：(.*?) (.*)$", replace: "total=$1&left=$2" }
-    - { match: "^Bandwidth: (.*?)/(.*)$", replace: "used=$1&total=$2" }
-    - { match: "^.*剩余(.*?)(?:\\s*?)@(?:.*)$", replace: "total=$1" }
-    - { match: "^.*?流量:(.*?) 剩:(?:.*)$", replace: "total=$1" }
+  stream_rule: 
+  - {match: "^剩余流量：(.*?)\\|总流量：(.*)$", replace: "total=$2&left=$1"}
+  - {match: "^剩余流量：(.*?) (.*)$", replace: "total=$1&left=$2"}
+  - {match: "^Bandwidth: (.*?)/(.*)$", replace: "used=$1&total=$2"}
+  - {match: "^.*剩余(.*?)(?:\\s*?)@(?:.*)$", replace: "total=$1"}
+  - {match: "^.*?流量:(.*?) 剩:(?:.*)$", replace: "total=$1"}
   time_rule:
-    - {
-        match: "^过期时间：(\\d+)-(\\d+)-(\\d+) (\\d+):(\\d+):(\\d+)$",
-        replace: "$1:$2:$3:$4:$5:$6",
-      }
-    - {
-        match: "^到期时间(:|：)(\\d+)-(\\d+)-(\\d+)$",
-        replace: "$1:$2:$3:0:0:0",
-      }
-    - {
-        match: "^Smart Access expire: (\\d+)/(\\d+)/(\\d+)$",
-        replace: "$1:$2:$3:0:0:0",
-      }
-    - { match: "^.*?流量:(?:.*?) 剩:(.*?)天$", replace: "left=$1d" }
+  - {match: "^过期时间：(\\d+)-(\\d+)-(\\d+) (\\d+):(\\d+):(\\d+)$", replace: "$1:$2:$3:$4:$5:$6"}
+  - {match: "^到期时间(:|：)(\\d+)-(\\d+)-(\\d+)$", replace: "$1:$2:$3:0:0:0"}
+  - {match: "^Smart Access expire: (\\d+)/(\\d+)/(\\d+)$", replace: "$1:$2:$3:0:0:0"}
+  - {match: "^.*?流量:(?:.*?) 剩:(.*?)天$", replace: "left=$1d"}
 
 node_pref:
-  #  udp_flag: false
-  #  tcp_fast_open_flag: false
-  #  skip_cert_verify_flag: false
-  #  tls13_flag: false
+#  udp_flag: false
+#  tcp_fast_open_flag: false
+#  skip_cert_verify_flag: false
+#  tls13_flag: false
   sort_flag: false
   sort_script: ""
   filter_deprecated_nodes: false
   append_sub_userinfo: true
   clash_use_new_field_name: true
   clash_proxies_style: flow
+  singbox_add_clash_modes: true
   rename_node:
-    #  - {match: "\\(?((x|X)?(\\d+)(\\.?\\d+)?)((\\s?倍率?)|(x|X))\\)?", replace: "$1x"}
-    #  - {script: "function rename(node){}"}
-    #  - {script: "path:/path/to/script.js"}
-    - { import: snippets/rename_node.txt }
+#  - {match: "\\(?((x|X)?(\\d+)(\\.?\\d+)?)((\\s?倍率?)|(x|X))\\)?", replace: "$1x"}
+#  - {script: "function rename(node){}"}
+#  - {script: "path:/path/to/script.js"}
+  - {import: snippets/rename_node.txt}
 
 managed_config:
   write_managed_config: true
@@ -78,59 +72,62 @@ emojis:
   add_emoji: true
   remove_old_emoji: true
   rules:
-    #  - {match: "(流量|时间|应急)", emoji: "🏳️‍🌈"}
-    #  - {script: "function getEmoji(node){}"}
-    #  - {script: "path:/path/to/script.js"}
-    - { import: snippets/emoji.txt }
+#  - {match: "(流量|时间|应急)", emoji: "🏳️‍🌈"}
+#  - {script: "function getEmoji(node){}"}
+#  - {script: "path:/path/to/script.js"}
+  - {import: snippets/emoji.txt}
 
 rulesets:
   enabled: true
   overwrite_original_rules: false
   update_ruleset_on_request: false
   rulesets:
-    #  - {rule: "GEOIP,CN", group: "DIRECT"}
-    #  - {ruleset: "rules/LocalAreaNetwork.list", group: "DIRECT"}
-    #  - {ruleset: "surge:rules/LocalAreaNetwork.list", group: "DIRECT"}
-    #  - {ruleset: "quanx:https://raw.githubusercontent.com/ConnersHua/Profiles/master/Quantumult/X/Filter/Advertising.list", group: "Advertising", interval: 86400}
-    #  - {ruleset: "clash-domain:https://ruleset.dev/clash_domestic_services_domains", group: "Domestic Services", interval: 86400}
-    #  - {ruleset: "clash-ipcidr:https://ruleset.dev/clash_domestic_services_ips", group: "Domestic Services", interval: 86400}
-    #  - {ruleset: "clash-classic:https://raw.githubusercontent.com/DivineEngine/Profiles/master/Clash/RuleSet/China.yaml", group: "DIRECT", interval: 86400}
-    - { import: snippets/rulesets.txt }
+#  - {rule: "GEOIP,CN", group: "DIRECT"}
+#  - {ruleset: "rules/LocalAreaNetwork.list", group: "DIRECT"}
+#  - {ruleset: "surge:rules/LocalAreaNetwork.list", group: "DIRECT"}
+#  - {ruleset: "quanx:https://raw.githubusercontent.com/ConnersHua/Profiles/master/Quantumult/X/Filter/Advertising.list", group: "Advertising", interval: 86400}
+#  - {ruleset: "clash-domain:https://ruleset.dev/clash_domestic_services_domains", group: "Domestic Services", interval: 86400}
+#  - {ruleset: "clash-ipcidr:https://ruleset.dev/clash_domestic_services_ips", group: "Domestic Services", interval: 86400}
+#  - {ruleset: "clash-classic:https://raw.githubusercontent.com/DivineEngine/Profiles/master/Clash/RuleSet/China.yaml", group: "DIRECT", interval: 86400}
+  - {import: snippets/rulesets.txt}
 
 proxy_groups:
   custom_proxy_group:
-    #  - {name: UrlTest, type: url-test, rule: [".*"], url: http://www.gstatic.com/generate_204, interval: 300, tolerance: 100, timeout: 5}
-    #  - {name: Proxy, type: select, rule: [".*"]}
-    #  - {name: group1, type: select, rule: ["!!GROUPID=0"]}
-    #  - {name: v2ray, type: select, rule: ["!!GROUP=V2RayProvider"]}
-    #  - {import: snippets/groups_forcerule.txt}
-    #  - {name: ssid group, type: ssid, rule: ["default_group", "celluar=group0,ssid1=group1,ssid2=group2"]}
-    - { import: snippets/groups.txt }
+#  - {name: UrlTest, type: url-test, rule: [".*"], url: http://www.gstatic.com/generate_204, interval: 300, tolerance: 100, timeout: 5}
+#  - {name: Proxy, type: select, rule: [".*"]}
+#  - {name: group1, type: select, rule: ["!!GROUPID=0"]}
+#  - {name: v2ray, type: select, rule: ["!!GROUP=V2RayProvider"]}
+#  - {import: snippets/groups_forcerule.txt}
+#  - {name: ssid group, type: ssid, rule: ["default_group", "celluar=group0,ssid1=group1,ssid2=group2"]}
+  - {import: snippets/groups.txt}
 
 template:
   template_path: ""
   globals:
-    - { key: clash.http_port, value: 7890 }
-    - { key: clash.socks_port, value: 7891 }
-    - { key: clash.allow_lan, value: true }
-    - { key: clash.log_level, value: info }
-
+  - {key: clash.http_port, value: 7890}
+  - {key: clash.socks_port, value: 7891}
+  - {key: clash.allow_lan, value: true}
+  - {key: clash.log_level, value: info}
+  - {key: singbox.allow_lan, value: true}
+  - {key: singbox.mixed_port, value: 2080}
+  
 aliases:
-  - { uri: /v, target: /version }
-  - { uri: /clash, target: "/sub?target=clash" }
-  - { uri: /clashr, target: "/sub?target=clashr" }
-  - { uri: /surge, target: "/sub?target=surge" }
-  - { uri: /quan, target: "/sub?target=quan" }
-  - { uri: /quanx, target: "/sub?target=quanx" }
-  - { uri: /mellow, target: "/sub?target=mellow" }
-  - { uri: /surfboard, target: "/sub?target=surfboard" }
-  - { uri: /loon, target: "/sub?target=loon" }
-  - { uri: /ss, target: "/sub?target=ss" }
-  - { uri: /ssd, target: "/sub?target=ssd" }
-  - { uri: /sssub, target: "/sub?target=sssub" }
-  - { uri: /ssr, target: "/sub?target=ssr" }
-  - { uri: /v2ray, target: "/sub?target=v2ray" }
-  - { uri: /trojan, target: "/sub?target=trojan" }
+  - {uri: /v, target: /version}
+  - {uri: /clash, target: "/sub?target=clash"}
+  - {uri: /clashr, target: "/sub?target=clashr"}
+  - {uri: /surge, target: "/sub?target=surge"}
+  - {uri: /quan, target: "/sub?target=quan"}
+  - {uri: /quanx, target: "/sub?target=quanx"}
+  - {uri: /mellow, target: "/sub?target=mellow"}
+  - {uri: /surfboard, target: "/sub?target=surfboard"}
+  - {uri: /loon, target: "/sub?target=loon"}
+  - {uri: /singbox, target: "/sub?target=singbox"}
+  - {uri: /ss, target: "/sub?target=ss"}
+  - {uri: /ssd, target: "/sub?target=ssd"}
+  - {uri: /sssub, target: "/sub?target=sssub"}
+  - {uri: /ssr, target: "/sub?target=ssr"}
+  - {uri: /v2ray, target: "/sub?target=v2ray"}
+  - {uri: /trojan, target: "/sub?target=trojan"}
 
 tasks:
 #  - name: tick

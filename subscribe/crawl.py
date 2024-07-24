@@ -117,10 +117,11 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
     datasets, peristedtasks = [], {}
     try:
         persists = conf.get("persist", {})
+        engine = persists.get("engine", "")
         subspushconf = persists.get("subs", {})
         linkspushconf = persists.get("proxies", {})
 
-        pushtool = push.get_instance()
+        pushtool = push.get_instance(engine=engine)
         should_persist = pushtool.validate(push_conf=subspushconf)
         # skip tasks if mode == 1 and not set persistence
         if mode == 1 and not should_persist:
@@ -1268,7 +1269,7 @@ def check_status(
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
         except ConstructorError:
-            yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
+            yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
         except:
             proxies = []
@@ -1596,6 +1597,13 @@ def collect_airport(
             try:
                 request = urllib.request.Request(url=url, headers=utils.DEFAULT_HTTP_HEADERS, method="GET")
                 response = urllib.request.urlopen(request, timeout=6, context=utils.CTX)
+
+                # do not redirect
+                # opener = urllib.request.build_opener(utils.NoRedirect)
+                # response = opener.open(request, timeout=6)
+
+                if not utils.trim(response.geturl()).endswith("/env.js"):
+                    return ""
 
                 content = response.read()
                 try:
