@@ -1603,7 +1603,7 @@ def collect_airport(
                 # response = opener.open(request, timeout=6)
 
                 if not utils.trim(response.geturl()).endswith("/env.js"):
-                    return domain
+                    return ""
 
                 content = response.read()
                 try:
