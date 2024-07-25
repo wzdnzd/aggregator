@@ -24,5 +24,5 @@ jobs:
       - name: Merge Upstream changes and push
         run: |
           git checkout main # 如果你的主分支不是 main，替换为相应分支名称
-          git merge upstream/main # 如果主分支不是 main，也相应替换
+          git merge upstream/main --allow-unrelated-histories # 强制合并
           git push origin main
