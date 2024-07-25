@@ -15,6 +15,11 @@ jobs:
           repository: shenmadouyaowen/aggregator
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Configure Git
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "shenmadouyao@163.com"
+
       - name: Add Upstream Repository
         run: git remote add upstream https://github.com/wzdnzd/aggregator.git
 
