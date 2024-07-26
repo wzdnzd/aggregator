@@ -18,14 +18,16 @@ WORKDIR /aggregator
 # copy files, only linux related files are needed
 COPY requirements.txt /aggregator
 COPY subscribe /aggregator/subscribe 
-COPY clash/clash-linux clash/Country.mmdb /aggregator/clash
+COPY clash/clash-linux-amd clash/Country.mmdb /aggregator/clash
 
 COPY subconverter /aggregator/subconverter
-RUN rm -rf subconverter/subconverter-darwin \
+RUN rm -rf subconverter/subconverter-darwin-amd \
+    && rm -rf subconverter/subconverter-darwin-arm \
+    && rm -rf subconverter/subconverter-linux-arm \
     && rm -rf subconverter/subconverter-windows.exe
 
 # install dependencies
 RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r requirements.txt
 
 # start and run
-CMD ["python", "-u", "subscribe/collect.py", "--all", "--both", "--overwrite", "--skip"]
+CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
