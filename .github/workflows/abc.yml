@@ -26,4 +26,3 @@ jobs:
           push: true
           tags: 
            qdw1010/aggregator:20240727001
-           qdw1010/aggregator:latest
