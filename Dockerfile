@@ -1,7 +1,21 @@
-# build: docker buildx build --platform linux/amd64 -f Dockerfile -t wzdnzd/aggregator:tag .
-
-FROM arm64v8/ubuntu:latest
-RUN apt-get update && apt-get install -y python3 python3-pip
+FROM python:3.9-slim as builder
+ 
+# 安装编译依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        gcc \
+        libffi-dev \
+        libssl-dev \
+        make \
+    && rm -rf /var/lib/apt/lists/*
+ 
+# 安装Python依赖
+RUN pip install --no-cache-dir -U pip setuptools
+ 
+# 第二阶段，从builder阶段复制构建好的Python环境到最终的ARM镜像
+FROM arm32v7/python:3.9-slim
+ 
+# 复制构建阶段中安装的Python环境
+COPY --from=builder /usr/local /usr/local
 MAINTAINER wzdnzd
 
 # github personal access token
