@@ -2,11 +2,13 @@ name: Build and Push Docker Image
 
 on:
   push:
+    tags:
+      - v*
     branches:
-        - main
-    pull_request:
-      branches:
-        - main
+      - main
+  pull_request:
+    branches:
+      - main
       
   env:
     APP_NAME: aggregator
