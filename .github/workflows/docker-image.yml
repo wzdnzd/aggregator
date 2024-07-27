@@ -24,4 +24,4 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
-          tags: spf20081/aggregator:latest
+          tags: spf20081/aggregator:1.0.1
