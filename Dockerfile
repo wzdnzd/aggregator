@@ -1,6 +1,8 @@
 # build: docker buildx build --platform linux/amd64 -f Dockerfile -t wzdnzd/aggregator:tag .
 
-FROM python:3.12.3-slim
+#FROM python:3.12.3-slim
+FROM --platform=linux/amd64 python:3.12.3-slim AS amd64
+FROM --platform=linux/arm64 arm64v8/python:3.12.3-slim AS arm64
 
 MAINTAINER wzdnzd
 
@@ -31,3 +33,7 @@ RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r re
 
 # start and run
 CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
+
+FROM --platform=linux/amd64/arm64 manifest-tool:v0.5.0 AS manifest
+COPY --from=amd64 /aggregator /aggregator
+COPY --from=arm64 /aggregator /aggregator
