@@ -1,7 +1,7 @@
 # build: docker buildx build --platform linux/amd64 -f Dockerfile -t wzdnzd/aggregator:tag .
 
 FROM arm64v8/ubuntu:latest
-
+RUN apt-get update && apt-get install -y python3 python3-pip
 MAINTAINER wzdnzd
 
 # github personal access token
