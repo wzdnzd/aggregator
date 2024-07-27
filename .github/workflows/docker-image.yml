@@ -4,14 +4,11 @@ on:
   push:
     tags:
       - v*
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+      
   env:
     APP_NAME: aggregator
     DOCKERHUB_REPO: qdw1010/aggregator
+    
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -45,6 +42,9 @@ jobs:
         context: .
         platforms: linux/amd64,linux/arm64
         push: true
+        build-args: |
+          APP_NAME=${{ env.APP_NAME }}
+          APP_VERSION=${{ env.APP_VERSION }}
         tags: |
-        ${{ env.DOCKERHUB_REPO }}:latest
-        ${{ env.DOCKERHUB_REPO }}:${{ env.APP_VERSION }}
+          ${{ env.DOCKERHUB_REPO }}:latest
+          ${{ env.DOCKERHUB_REPO }}:${{ env.APP_VERSION }}
