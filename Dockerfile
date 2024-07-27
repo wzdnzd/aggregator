@@ -8,7 +8,7 @@ ENV GIST_PAT=""
 ENV GIST_LINK=""
 
 # 自定义机场列表 URL 地址
-ENV CUSTOMIZE_LINK=""
+ENV CUSTOMIZE_LINK="https://raw.githubusercontent.com/shipeng101/aggregator/main/list.txt"
 
 WORKDIR /aggregator
 
