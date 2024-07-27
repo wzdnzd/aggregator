@@ -15,7 +15,7 @@ WORKDIR /aggregator
 # 复制文件，仅需与 Linux 相关的文件
 COPY requirements.txt /aggregator
 COPY subscribe /aggregator/subscribe
-COPY clash/clash-linux-arm clash/Country.mmdb /aggregator/clash
+COPY clash/clash-linux-amd clash/Country.mmdb /aggregator/clash
 
 COPY subconverter /aggregator/subconverter
 RUN rm -rf subconverter/subconverter-darwin-amd \
