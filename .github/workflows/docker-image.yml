@@ -2,12 +2,16 @@ name: Build and Push Docker Image
 
 on:
   push:
+    tags:
+      - v*
     branches:
       - main
   pull_request:
     branches:
       - main
-
+  env:
+    APP_NAME: aggregator
+    DOCKERHUB_REPO: qdw1010/aggregator
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,10 +36,15 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+    - name: Generate App Version
+      run: echo APP_VERSION=`git describe --tags --always` >> $GITHUB_ENV
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v3
       with:
         context: .
         platforms: linux/amd64,linux/arm64
         push: true
-        tags: qdw1010/aggregator:latest
+        tags: |
+        ${{ env.DOCKERHUB_REPO }}:latest
+        ${{ env.DOCKERHUB_REPO }}:${{ env.APP_VERSION }}
