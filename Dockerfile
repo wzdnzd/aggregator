@@ -31,8 +31,3 @@ RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r re
 
 # Start and run command for both architectures
 CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
-
-# Manifest stage to combine the two architectures
-FROM --platform=linux/amd64/arm64 docker.io/library/manifest-tool:v0.5.0 AS manifest
-COPY --from=amd64 /aggregator /aggregator
-COPY --from=arm64 /aggregator /aggregator
