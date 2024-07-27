@@ -4,8 +4,8 @@
  * @Description: 
  * Copyright (c) 2022 by wzdnzd, All Rights Reserved.
 -->
-## 修改功能
-修改dockerfile文件和.github/workflows/docker-image.yml文件。可以在构建docker镜像时生成支持linux/arm64和linux/amd64的镜像。
+## 学习练手
+修改dockerfile文件和.github/workflows/docker-image.yml文件。可以在构建docker镜像时生成支持linux/arm64和linux/amd64的镜像。定义以v开头的新tag提交时出发该流程生成docker镜像。
 ## 功能
 打造免费代理池，爬一切可爬节点
 > 拥有灵活的插件系统，如果目标网站特殊，现有功能未能覆盖，可针对性地通过插件实现
