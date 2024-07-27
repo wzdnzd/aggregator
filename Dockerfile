@@ -34,6 +34,6 @@ RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r re
 # start and run
 CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
 
-FROM --platform=linux/amd64/arm64 manifest-tool:v0.5.0 AS manifest
+FROM --platform=linux/amd64/arm64 gcr.io/google-containers/manifest-tool:v0.5.0 AS manifest
 COPY --from=amd64 /aggregator /aggregator
 COPY --from=arm64 /aggregator /aggregator
