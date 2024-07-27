@@ -1,6 +1,6 @@
 # build: docker buildx build --platform linux/amd64 -f Dockerfile -t wzdnzd/aggregator:tag .
 
-FROM arm64v8/python:3.12.3-slim
+FROM python:3.12.3-slim
 
 MAINTAINER wzdnzd
 
