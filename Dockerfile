@@ -18,13 +18,15 @@ WORKDIR /aggregator
 COPY requirements.txt /aggregator
 COPY subscribe /aggregator/subscribe 
 COPY clash/clash-linux-amd clash/Country.mmdb /aggregator/clash
+COPY clash/clash-linux-arm clash/Country.mmdb /aggregator/clash
 COPY subconverter /aggregator/subconverter
 
 # Remove unnecessary files for both architectures
 RUN rm -rf subconverter/subconverter-darwin-amd \
     && rm -rf subconverter/subconverter-darwin-arm \
+    && rm -rf subconverter/subconverter-linux-amd \
     && rm -rf subconverter/subconverter-linux-arm \
-    && rm -rf subconverter/subconverter-windows.exe
+    && rm -rf subconverter/subconverter-windows-amd.exe
 
 # Install dependencies for both architectures
 RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r requirements.txt
