@@ -1,38 +1,21 @@
-FROM python:3.9-slim as builder
- 
-# 安装编译依赖
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        gcc \
-        libffi-dev \
-        libssl-dev \
-        make \
-    && rm -rf /var/lib/apt/lists/*
- 
-# 安装Python依赖
-RUN pip install --no-cache-dir -U pip setuptools
- 
-# 第二阶段，从builder阶段复制构建好的Python环境到最终的ARM镜像
-FROM arm32v7/python:3.9-slim
- 
-# 复制构建阶段中安装的Python环境
-COPY --from=builder /usr/local /usr/local
+FROM python:3.12.3-slim
 MAINTAINER wzdnzd
 
-# github personal access token
+# GitHub 个人访问令牌
 ENV GIST_PAT=""
 
-# github gist info, format: username/gist_id
+# GitHub gist 信息，格式：用户名/gist_id
 ENV GIST_LINK=""
 
-# customize airport listing url address
+# 自定义机场列表 URL 地址
 ENV CUSTOMIZE_LINK=""
 
 WORKDIR /aggregator
 
-# copy files, only linux related files are needed
+# 复制文件，仅需与 Linux 相关的文件
 COPY requirements.txt /aggregator
-COPY subscribe /aggregator/subscribe 
-COPY clash/clash-linux-amd clash/Country.mmdb /aggregator/clash
+COPY subscribe /aggregator/subscribe
+COPY clash/clash-linux-arm clash/Country.mmdb /aggregator/clash
 
 COPY subconverter /aggregator/subconverter
 RUN rm -rf subconverter/subconverter-darwin-amd \
@@ -40,8 +23,8 @@ RUN rm -rf subconverter/subconverter-darwin-amd \
     && rm -rf subconverter/subconverter-linux-arm \
     && rm -rf subconverter/subconverter-windows.exe
 
-# install dependencies
+# 安装依赖项
 RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r requirements.txt
 
-# start and run
+# 启动并运行
 CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
