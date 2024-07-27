@@ -6,11 +6,6 @@ on:
     # push tag 时触发执行
     tags:
       - v*
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
   build:
