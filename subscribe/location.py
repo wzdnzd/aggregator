@@ -131,7 +131,7 @@ def rename(proxy: dict, reader: database.Reader) -> dict:
         if country == "中国":
             # TODO: may be a transit node, need to further confirm landing ip address
             text = re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}", "", name, flags=re.I).strip()
-            name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", text, flags=re.I).strip()
+            name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", text, flags=re.I).strip()
             if not name:
                 name = country
         elif country:
@@ -174,7 +174,7 @@ def regularize(
 
     records = defaultdict(list)
     for proxy in proxies:
-        name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", proxy.get("name", "")).strip()
+        name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", proxy.get("name", "")).strip()
         if not name:
             name = "未知地域"
 
