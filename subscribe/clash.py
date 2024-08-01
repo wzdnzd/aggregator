@@ -33,6 +33,14 @@ DOWNLOAD_URL = [
 EXTERNAL_CONTROLLER = "127.0.0.1:9090"
 
 
+class QuotedStr(str):
+    pass
+
+
+def quoted_scalar(dumper, data):
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
+
+
 def generate_config(path: str, proxies: list, filename: str) -> list:
     os.makedirs(path, exist_ok=True)
     external_config = filter_proxies(proxies)
@@ -45,6 +53,10 @@ def generate_config(path: str, proxies: list, filename: str) -> list:
 
     config.update(external_config)
     with open(os.path.join(path, filename), "w+", encoding="utf8") as f:
+        # avoid mihomo error: invalid REALITY short ID see: https://github.com/MetaCubeX/mihomo/blob/Meta/adapter/outbound/reality.go#L35
+        yaml.add_representer(QuotedStr, quoted_scalar)
+
+        # write to file
         yaml.dump(config, f, allow_unicode=True)
 
     return config.get("proxies", [])
@@ -498,7 +510,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                         if len(short_id) != 8 or not is_hex(short_id):
                             return False
 
-                        reality_opts["short-id"] = short_id
+                        reality_opts["short-id"] = QuotedStr(short_id)
             elif item["type"] == "tuic":
                 # mihomo: https://wiki.metacubex.one/config/proxies/tuic
                 token = wrap(item.get("token", ""))
