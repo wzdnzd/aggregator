@@ -1445,7 +1445,7 @@ def collect_airport(
                     if not address:
                         continue
 
-                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+([^\s\r\n）]+)"
+                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+(?:<span.*?>)?([^\s\r\n<）]+)"
                     words = re.findall(coupon_regex, text, flags=re.M)
                     coupon = words[0] if words else ""
 
@@ -1479,7 +1479,7 @@ def collect_airport(
             url="https://www.askahh.com/archives/101",
             separator=r"&lt;h2&gt;[^\r\n]+&lt;/h2&gt;",
             address_regex=r"&lt;a class=&quot;no-external-link&quot; href=&quot;(https?://[^\s]+)&quot; target=&quot;_blank&quot;&gt;",
-            coupon_regex=r"可使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
+            coupon_regex=r"使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
         )
 
     def crawl_ygpy() -> dict:
