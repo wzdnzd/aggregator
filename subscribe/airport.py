@@ -719,4 +719,5 @@ class AirPort:
 
     @staticmethod
     def enable_special_protocols() -> bool:
-        return os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true").lower() in ["true", "1"] and is_mihomo()
+        flag = utils.trim(os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true")).lower()
+        return (flag == "" or flag in ["true", "1"]) and is_mihomo()
