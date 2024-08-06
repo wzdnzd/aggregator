@@ -1,3 +1,0 @@
-PyYAML
-tqdm
-geoip2
