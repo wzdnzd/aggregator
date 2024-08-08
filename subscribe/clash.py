@@ -175,7 +175,7 @@ def proxies_exists(proxy: dict, hosts: dict) -> bool:
     return False
 
 
-SS_SUPPORTED_CIPHERS = [
+COMMON_SS_SUPPORTED_CIPHERS = [
     "aes-128-gcm",
     "aes-192-gcm",
     "aes-256-gcm",
@@ -199,7 +199,31 @@ MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN = {
     "2022-blake3-chacha20-poly1305": 32,
 }
 
-MIHOMO_SS_SUPPORTED_CIPHERS = list(MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.keys())
+MIHOMO_SS_SUPPORTED_CIPHERS = (
+    COMMON_SS_SUPPORTED_CIPHERS
+    + list(MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.keys())
+    + [
+        "aes-128-ccm",
+        "aes-192-ccm",
+        "aes-256-ccm",
+        "aes-128-gcm-siv",
+        "aes-256-gcm-siv",
+        "chacha20",
+        "chacha8-ietf-poly1305",
+        "xchacha8-ietf-poly1305",
+        "lea-128-gcm",
+        "lea-192-gcm",
+        "lea-256-gcm",
+        "rabbit128-poly1305",
+        "aegis-128l",
+        "aegis-256",
+        "aez-384",
+        "deoxys-ii-256-128",
+        "none",
+    ]
+)
+
+SSR_SUPPORTED_CIPHERS = COMMON_SS_SUPPORTED_CIPHERS + ["dummy", "none"]
 
 SSR_SUPPORTED_OBFS = [
     "plain",
@@ -303,7 +327,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
         authentication = "password"
 
         if item["type"] == "ss":
-            ciphers = set(SS_SUPPORTED_CIPHERS if not mihomo else SS_SUPPORTED_CIPHERS + MIHOMO_SS_SUPPORTED_CIPHERS)
+            ciphers = COMMON_SS_SUPPORTED_CIPHERS if not mihomo else MIHOMO_SS_SUPPORTED_CIPHERS
             if item["cipher"] not in ciphers:
                 return False
 
@@ -339,7 +363,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                 ):
                     return False
         elif item["type"] == "ssr":
-            if item["cipher"] not in SS_SUPPORTED_CIPHERS:
+            if item["cipher"] not in SSR_SUPPORTED_CIPHERS:
                 return False
             if item["obfs"] not in SSR_SUPPORTED_OBFS:
                 return False
@@ -360,7 +384,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                 return False
 
             # mihomo: https://wiki.metacubex.one/config/proxies/vmess/#cipher
-            ciphers = set(VMESS_SUPPORTED_CIPHERS + ["zero"] if mihomo else VMESS_SUPPORTED_CIPHERS)
+            ciphers = VMESS_SUPPORTED_CIPHERS + ["zero"] if mihomo else VMESS_SUPPORTED_CIPHERS
             if item["cipher"] not in ciphers:
                 return False
             if "alterId" not in item or not utils.is_number(item["alterId"]):
@@ -621,7 +645,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
             return False
 
         if utils.is_number(item[authentication]):
-            item[authentication] = str(item[authentication])
+            item[authentication] = QuotedStr(item[authentication])
 
         return True
     except:

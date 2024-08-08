@@ -26,6 +26,7 @@ from logger import logger
 from origin import Origin
 
 import subconverter
+from clash import QuotedStr, quoted_scalar
 
 # outbind type
 SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "vless", "hysteria2", "hysteria", "http", "socks5"]
@@ -293,6 +294,7 @@ def fetch(params: dict) -> list:
     generate = os.path.join(datapath, "generate.ini")
 
     with open(filepath, "w+", encoding="utf8") as f:
+        yaml.add_representer(QuotedStr, quoted_scalar)
         yaml.dump(data, f, allow_unicode=True)
 
     if os.path.exists(generate) and os.path.isfile(generate):
@@ -301,6 +303,7 @@ def fetch(params: dict) -> list:
     success = subconverter.generate_conf(generate, artifact, source, dest, "mixed")
     if not success:
         logger.error(f"[V2RaySE] cannot generate subconverter config file")
+        yaml.add_representer(QuotedStr, quoted_scalar)
         content = yaml.dump(data=data, allow_unicode=True)
     else:
         _, program = which_bin()
