@@ -45,6 +45,9 @@ PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 # 重命名分隔符
 RENAME_SEPARATOR = "#@&#@"
 
+# 重命名正则表达式组分隔符
+RENAME_GROUP_SEPARATOR = "`"
+
 # 生成随机字符串时候选字符
 LETTERS = set(string.ascii_letters + string.digits)
 
@@ -515,15 +518,21 @@ class AirPort:
 
                 try:
                     if self.rename:
-                        # re对group的引用方法: https://stackoverflow.com/questions/7191209/re-sub-replace-with-matched-content
-                        if RENAME_SEPARATOR in self.rename:
-                            words = self.rename.split(RENAME_SEPARATOR, maxsplit=1)
-                            old = words[0].strip()
-                            new = words[1].strip()
-                            if old:
-                                name = re.sub(old, new, name, flags=re.I)
-                        else:
-                            name = re.sub(self.rename, "", name, flags=re.I)
+                        pattern_groups = self.rename.split(RENAME_GROUP_SEPARATOR)
+                        for group in pattern_groups:
+                            rename_regex = utils.trim(group)
+                            if not rename_regex:
+                                continue
+
+                            # re对group的引用方法: https://stackoverflow.com/questions/7191209/re-sub-replace-with-matched-content
+                            if RENAME_SEPARATOR in rename_regex:
+                                words = rename_regex.split(RENAME_SEPARATOR, maxsplit=1)
+                                old = words[0].strip()
+                                new = words[1].strip()
+                                if old:
+                                    name = re.sub(old, new, name, flags=re.I)
+                            else:
+                                name = re.sub(rename_regex, "", name, flags=re.I)
 
                     # 标记需要进行ChatGPT连通性测试的节点
                     flag, detect = (
