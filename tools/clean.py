@@ -48,17 +48,20 @@ def copy(filepath: str) -> None:
     os.rename(filepath, newfile)
 
 
-def download_mmdb(target: str, filepath: str, retry: int = 3):
+def download_mmdb(repo: str, target: str, filepath: str, retry: int = 3):
     """
     Download GeoLite2-City.mmdb from github release
     """
+    repo = trim(text=repo)
+    if not repo or len(repo.split("/", maxsplit=1)) != 2:
+        raise ValueError(f"invalid github repo name: {repo}")
 
     target = trim(target)
     if not target:
         raise ValueError("invalid download target")
 
     # extract download url from github release page
-    release_api = "https://api.github.com/repos/PrxyHunter/GeoLite2/releases/latest?per_page=1"
+    release_api = f"https://api.github.com/repos/{repo}/releases/latest?per_page=1"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -122,10 +125,13 @@ def download(url: str, filepath: str, filename: str, retry: int = 3) -> None:
     print(f"download file {filename} to {fullpath} success")
 
 
-def load_mmdb(directory: str, filename: str, update: bool = False) -> database.Reader:
+def load_mmdb(
+    directory: str, repo: str = "alecthw/mmdb_china_ip_list", filename: str = "Country.mmdb", update: bool = False
+) -> database.Reader:
     filepath = os.path.join(directory, filename)
     if update or not os.path.exists(filepath) or not os.path.isfile(filepath):
-        download_mmdb(filename, directory)
+        if not download_mmdb(repo, filename, directory):
+            return None
 
     return database.Reader(filepath)
 
@@ -181,7 +187,7 @@ def main(args: argparse.Namespace) -> None:
 
         if nodes and args.location:
             workspace = os.path.abspath(trim(args.workspace) or PATH)
-            reader = load_mmdb(directory=workspace, filename="GeoLite2-Country.mmdb", update=args.update)
+            reader = load_mmdb(directory=workspace, update=args.update)
         else:
             reader = None
 
@@ -214,7 +220,7 @@ def main(args: argparse.Namespace) -> None:
                             if country == "中国":
                                 # TODO: may be a transit node, need to further confirm landing ip address
                                 name = re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}", "", name, flags=re.I)
-                            else:
+                            elif country:
                                 name = country
                         else:
                             print("cannot get geolocation and rename because IP address is faked")
@@ -223,7 +229,7 @@ def main(args: argparse.Namespace) -> None:
                     except Exception:
                         pass
 
-                name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
+                name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", item.get("name", "")).strip()
                 if not name:
                     name = "".join(random.sample(string.ascii_uppercase, 6))
 

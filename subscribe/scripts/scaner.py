@@ -340,7 +340,7 @@ def scan(params: dict) -> list:
 
     config = params.get("config", {})
     persist = params.get("persist", {})
-    pushtool = push.get_instance()
+    pushtool = push.get_instance(engine=params.get("engine", ""))
 
     if not pushtool.validate(push_conf=persist) or not config or type(config) != dict or not config.get("push_to"):
         logger.error(f"[ScanerError] cannot scan proxies bcause missing some parameters")

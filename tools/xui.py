@@ -194,17 +194,20 @@ def convert_bytes_to_readable_unit(num: int) -> str:
         return f"{num / MB:.2f} MB"
 
 
-def download_mmdb(target: str, filepath: str, retry: int = 3):
+def download_mmdb(repo: str, target: str, filepath: str, retry: int = 3):
     """
     Download GeoLite2-City.mmdb from github release
     """
+    repo = trim(text=repo)
+    if not repo or len(repo.split("/", maxsplit=1)) != 2:
+        raise ValueError(f"invalid github repo name: {repo}")
 
     target = trim(target)
     if not target:
         raise ValueError("invalid download target")
 
     # extract download url from github release page
-    release_api = "https://api.github.com/repos/PrxyHunter/GeoLite2/releases/latest?per_page=1"
+    release_api = f"https://api.github.com/repos/{repo}/releases/latest?per_page=1"
     headers = {
         "User-Agent": USER_AGENT,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -268,10 +271,13 @@ def download(url: str, filepath: str, filename: str, retry: int = 3) -> None:
     print(f"download file {filename} to {fullpath} success")
 
 
-def load_mmdb(directory: str, filename: str, update: bool = False) -> database.Reader:
+def load_mmdb(
+    directory: str, repo: str = "alecthw/mmdb_china_ip_list", filename: str = "Country.mmdb", update: bool = False
+) -> database.Reader:
     filepath = os.path.join(directory, filename)
     if update or not os.path.exists(filepath) or not os.path.isfile(filepath):
-        download_mmdb(filename, directory)
+        if not download_mmdb(repo, filename, directory):
+            return None
 
     return database.Reader(filepath)
 
@@ -564,7 +570,7 @@ def main(args: argparse.Namespace) -> None:
         return
 
     # load mmdb
-    reader = load_mmdb(directory=workspace, filename="GeoLite2-Country.mmdb", update=args.update)
+    reader = load_mmdb(directory=workspace, update=args.update)
 
     available = os.path.join(workspace, trim(args.available))
     tasks = [[domain, available, reader] for domain in domains]

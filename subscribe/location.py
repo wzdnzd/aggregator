@@ -6,10 +6,8 @@
 import json
 import math
 import os
-import random
 import re
 import socket
-import string
 import urllib
 from collections import defaultdict
 
@@ -18,10 +16,14 @@ from geoip2 import database
 from logger import logger
 
 
-def download_mmdb(target: str, filepath: str, retry: int = 3) -> bool:
+def download_mmdb(repo: str, target: str, filepath: str, retry: int = 3) -> bool:
     """
     Download GeoLite2-City.mmdb from github release
     """
+    repo = utils.trim(text=repo)
+    if not repo or len(repo.split("/", maxsplit=1)) != 2:
+        logger.error(f"invalid github repo name: {repo}")
+        return False
 
     target = utils.trim(text=target)
     if not target:
@@ -29,7 +31,7 @@ def download_mmdb(target: str, filepath: str, retry: int = 3) -> bool:
         return False
 
     # extract download url from github release page
-    release_api = "https://api.github.com/repos/PrxyHunter/GeoLite2/releases/latest?per_page=1"
+    release_api = f"https://api.github.com/repos/{repo}/releases/latest?per_page=1"
 
     assets, content = None, utils.http_get(url=release_api)
     try:
@@ -94,10 +96,12 @@ def download(url: str, filepath: str, filename: str, retry: int = 3) -> bool:
     return True
 
 
-def load_mmdb(directory: str, filename: str, update: bool = False) -> database.Reader:
+def load_mmdb(
+    directory: str, repo: str = "alecthw/mmdb_china_ip_list", filename: str = "Country.mmdb", update: bool = False
+) -> database.Reader:
     filepath = os.path.join(directory, filename)
     if update or not os.path.exists(filepath) or not os.path.isfile(filepath):
-        if not download_mmdb(filename, directory):
+        if not download_mmdb(repo, filename, directory):
             return None
 
     return database.Reader(filepath)
@@ -126,13 +130,16 @@ def rename(proxy: dict, reader: database.Reader) -> dict:
 
         if country == "中国":
             # TODO: may be a transit node, need to further confirm landing ip address
-            name = re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}", "", name, flags=re.I)
-        else:
+            text = re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}", "", name, flags=re.I).strip()
+            name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", text, flags=re.I).strip()
+            if not name:
+                name = country
+        elif country:
             name = country
 
         proxy["name"] = name
     except Exception:
-        pass
+        logger.error(f"query ip geolocation failed, address: {address}")
 
     return proxy
 
@@ -140,7 +147,7 @@ def rename(proxy: dict, reader: database.Reader) -> dict:
 def regularize(
     proxies: list[dict],
     directory: str = "",
-    update: bool = True,
+    update: bool = False,
     num_threads: int = 0,
     show_progress: bool = True,
     locate: bool = False,
@@ -154,19 +161,22 @@ def regularize(
         if not directory:
             directory = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "data")
 
+        # repo, filename = "PrxyHunter/GeoLite2", "GeoLite2-Country.mmdb"
+        repo, filename = "alecthw/mmdb_china_ip_list", "Country.mmdb"
+
         # load mmdb
-        reader = load_mmdb(directory=directory, filename="GeoLite2-Country.mmdb", update=update)
+        reader = load_mmdb(repo=repo, directory=directory, filename=filename, update=update)
         if reader:
             tasks = [[p, reader] for p in proxies if p and isinstance(p, dict)]
             proxies = utils.multi_thread_run(rename, tasks, num_threads, show_progress, "")
         else:
-            logger.error("skip rename proxies due to cannot load mmdb: GeoLite2-Country.mmdb")
+            logger.error(f"skip rename proxies due to cannot load mmdb: {filename}")
 
     records = defaultdict(list)
     for proxy in proxies:
-        name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", proxy.get("name", "")).strip()
+        name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", proxy.get("name", "")).strip()
         if not name:
-            name = "".join(random.sample(string.ascii_uppercase, 6))
+            name = "未知地域"
 
         proxy["name"] = name
         records[name].append(proxy)
