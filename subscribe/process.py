@@ -178,10 +178,16 @@ def load_configs(
             multiple = page.pop("multiple", False)
             if not multiple:
                 page["push_to"] = push_to
-                pages[url] = page
+                if isinstance(url, str):
+                    pages[url] = page
+                elif isinstance(url, list):
+                    for u in url:
+                        u = utils.trim(u)
+                        if u:
+                            pages[u] = page
             else:
                 placeholder = utils.trim(page.pop("placeholder", ""))
-                if not placeholder or placeholder not in url:
+                if not placeholder or placeholder not in url or not isinstance(url, str):
                     continue
 
                 # page number range

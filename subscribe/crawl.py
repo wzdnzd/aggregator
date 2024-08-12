@@ -882,7 +882,12 @@ def crawl_pages(
         config = v.get("config", {})
         nocache = v.get("nocache", False)
 
-        params.append([k, push_to, include, exclude, config, headers, origin, nocache])
+        final_headers = deepcopy(headers) if headers and isinstance(headers, dict) else utils.DEFAULT_HTTP_HEADERS
+        specific_headers = v.get("headers", {})
+        if specific_headers and isinstance(specific_headers, dict):
+            final_headers.update(specific_headers)
+
+        params.append([k, push_to, include, exclude, config, final_headers, origin, nocache])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
