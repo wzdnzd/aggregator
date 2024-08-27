@@ -9,9 +9,9 @@ import push
 from logger import logger
 
 
-def persist(data: dict, persist: dict, meta: str = "") -> None:
+def persist(engine: str, data: dict, persist: dict, meta: str = "") -> None:
     try:
-        pushtool = push.get_instance()
+        pushtool = push.get_instance(engine=engine)
         if data is None or type(data) != dict or not pushtool.validate(push_conf=persist):
             logger.debug(f"[{meta}] skip persist subscibes because fileid or data is empty")
             return

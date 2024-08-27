@@ -117,10 +117,11 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
     datasets, peristedtasks = [], {}
     try:
         persists = conf.get("persist", {})
+        engine = persists.get("engine", "")
         subspushconf = persists.get("subs", {})
         linkspushconf = persists.get("proxies", {})
 
-        pushtool = push.get_instance()
+        pushtool = push.get_instance(engine=engine)
         should_persist = pushtool.validate(push_conf=subspushconf)
         # skip tasks if mode == 1 and not set persistence
         if mode == 1 and not should_persist:
@@ -881,7 +882,12 @@ def crawl_pages(
         config = v.get("config", {})
         nocache = v.get("nocache", False)
 
-        params.append([k, push_to, include, exclude, config, headers, origin, nocache])
+        final_headers = deepcopy(headers) if headers and isinstance(headers, dict) else utils.DEFAULT_HTTP_HEADERS
+        specific_headers = v.get("headers", {})
+        if specific_headers and isinstance(specific_headers, dict):
+            final_headers.update(specific_headers)
+
+        params.append([k, push_to, include, exclude, config, final_headers, origin, nocache])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
@@ -1268,7 +1274,7 @@ def check_status(
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
         except ConstructorError:
-            yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
+            yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
         except:
             proxies = []
@@ -1444,7 +1450,7 @@ def collect_airport(
                     if not address:
                         continue
 
-                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+([^\s\r\n）]+)"
+                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+(?:<span.*?>)?([^\s\r\n<）]+)"
                     words = re.findall(coupon_regex, text, flags=re.M)
                     coupon = words[0] if words else ""
 
@@ -1478,7 +1484,7 @@ def collect_airport(
             url="https://www.askahh.com/archives/101",
             separator=r"&lt;h2&gt;[^\r\n]+&lt;/h2&gt;",
             address_regex=r"&lt;a class=&quot;no-external-link&quot; href=&quot;(https?://[^\s]+)&quot; target=&quot;_blank&quot;&gt;",
-            coupon_regex=r"可使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
+            coupon_regex=r"使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
         )
 
     def crawl_ygpy() -> dict:
@@ -1596,6 +1602,13 @@ def collect_airport(
             try:
                 request = urllib.request.Request(url=url, headers=utils.DEFAULT_HTTP_HEADERS, method="GET")
                 response = urllib.request.urlopen(request, timeout=6, context=utils.CTX)
+
+                # do not redirect
+                # opener = urllib.request.build_opener(utils.NoRedirect)
+                # response = opener.open(request, timeout=6)
+
+                if not utils.trim(response.geturl()).endswith("/env.js"):
+                    return ""
 
                 content = response.read()
                 try:
