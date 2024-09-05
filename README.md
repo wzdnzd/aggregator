@@ -14,6 +14,10 @@
 ## 使用方法
 > 略，自行探索。我才不会告诉你入口是 `collect.py` 和 `process.py`
 
+## 共享订阅
++ Clash: https://imperialb.in/r/ununbd0v
++ V2Ray: https://imperialb.in/r/nwfoyovz
+
 ## 免责申明
 + 本项目仅用作学习爬虫技术，请勿滥用，不要通过此工具做任何违法乱纪或有损国家利益之事
 + 禁止使用该项目进行任何盈利活动，对一切非法使用所产生的后果，本人概不负责
