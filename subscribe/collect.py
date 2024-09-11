@@ -317,6 +317,7 @@ def aggregate(args: argparse.Namespace) -> None:
         os.remove(supplier)
 
     with open(supplier, "w+", encoding="utf8") as f:
+        yaml.add_representer(clash.QuotedStr, clash.quoted_scalar)
         yaml.dump(data, f, allow_unicode=True)
 
     if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
