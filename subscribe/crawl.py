@@ -1212,7 +1212,8 @@ def validate(
     if not params.pop("saved", False):
         if reachable or (discovered and defeat <= threshold and not expired):
             # don't storage temporary link shared by someone
-            if not workflow.standard_sub(url=url) and mode != 1:
+            pardon = params.pop("pardon", False)
+            if not pardon and not workflow.standard_sub(url=url) and mode != 1:
                 return result
 
             remark(source=params, defeat=defeat, discovered=True)

@@ -325,7 +325,7 @@ def fetch(params: dict) -> list:
         # clean workspace
         workflow.cleanup(datapath, filenames=[source, dest, "generate.ini"])
 
-    success = pushtool.push_to(content=content, push_conf=proxies_store, group="v2rayse")
+    success = pushtool.push_to(content=content or " ", push_conf=proxies_store, group="v2rayse")
     if not success:
         filename = os.path.join(os.path.dirname(datapath), "data", "v2rayse.txt")
         logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies, will save it to local file {filename}")
