@@ -57,7 +57,7 @@ def fetchsub(params: dict) -> list:
 
     exists, unregisters, unknowns, data = load(engine=engine, persist=persist, retry=params.get("retry", True))
     if not exists and not unregisters and unknowns:
-        logger.warn(f"[TempSubError] skip fetchsub because cannot get any valid config")
+        logger.warning(f"[TempSubError] skip fetchsub because cannot get any valid config")
         return []
 
     if unregisters:
@@ -75,7 +75,7 @@ def fetchsub(params: dict) -> list:
                     f"[TempSubInfo] cannot get subscribe because domain=[{airport.ref}] forced validation or need pay"
                 )
                 if not utils.isblank(airport.sub):
-                    logger.warn(
+                    logger.warning(
                         f"[TempSubInfo] renew error, domain: {airport.ref} username: {airport.username} password: {airport.password} sub: {airport.sub}"
                     )
 
