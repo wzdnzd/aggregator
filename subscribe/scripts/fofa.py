@@ -3,16 +3,23 @@
 # @Author  : wzdnzd
 # @Time    : 2024-09-08
 
+import gzip
 import itertools
 import re
+import socket
+import ssl
 import sys
 import time
+import urllib
+import urllib.error
+import urllib.request
 from copy import deepcopy
 
 import utils
 from crawl import naming_task
 from logger import logger
 from origin import Origin
+from urlvalidator import isurl
 
 
 def search(exclude: str = "", maxsize: int = sys.maxsize, timesleep: float = 3, timeout: float = 180) -> list[str]:
@@ -53,16 +60,41 @@ def search(exclude: str = "", maxsize: int = sys.maxsize, timesleep: float = 3, 
 
 
 def extract_one(url: str) -> list[str]:
+    url = utils.trim(url)
+    if not isurl(url=url):
+        return []
+
+    regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+
     headers = {"User-Agent": "Clash.Meta; Mihomo"}
-    content = utils.http_get(url=url, headers=headers, timeout=15)
+    subscriptions, content = [], ""
+    count, retry = 0, 3
 
-    subscriptions = []
+    while not content and count < retry:
+        count += 1
+
+        try:
+            request = urllib.request.Request(url=url, headers=headers, method="GET")
+            response = urllib.request.urlopen(request, timeout=15, context=utils.CTX)
+
+            if re.search(regex, response.geturl(), flags=re.I):
+                subscriptions.append(response.geturl())
+
+            content = response.read()
+            try:
+                content = str(content, encoding="utf8")
+            except:
+                content = gzip.decompress(content).decode("utf8")
+        except urllib.error.URLError as e:
+            if not isinstance(e.reason, (socket.gaierror, ssl.SSLError, socket.timeout)):
+                break
+        except Exception as e:
+            pass
+
     if content:
-        regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
         groups = re.findall(regex, content, flags=re.I)
-
         if groups:
-            subscriptions = list(set([utils.url_complete(x) for x in groups if x]))
+            subscriptions.extend(list(set([utils.url_complete(x) for x in groups if x])))
 
     return subscriptions
 
