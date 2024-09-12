@@ -23,6 +23,7 @@ class Origin(enum.Enum):
     GOOGLE = ExpireInfo(name="GOOGLE", expire=10)
     YANDEX = ExpireInfo(name="YANDEX", expire=10)
     GITHUB = ExpireInfo(name="GITHUB", expire=20)
+    FOFA = ExpireInfo(name="FOFA", expire=20)
     V2RAYSE = ExpireInfo(name="V2RAYSE", expire=45)
     REPO = ExpireInfo(name="REPO", expire=60)
     REMAIND = ExpireInfo(name="REMAIND", expire=maxsize)
