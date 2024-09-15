@@ -505,6 +505,13 @@ class AirPort:
                 if utils.isblank(name) or name in unused_nodes:
                     continue
 
+                # JustMySocks节点，用主机名代替 IP 地址
+                if re.match(r"^JMS-\d+@[a-zA-Z0-9.]+:\d+$", name, flags=re.I):
+                    server = name.split("@", maxsplit=1)[1]
+                    hostname = utils.trim(server.split(":", maxsplit=1)[0]).lower()
+                    if re.match(r"^(\d+\.){3}\d+$", item.get("server", ""), flags=re.I):
+                        item["server"] = hostname
+
                 try:
                     if self.include and not re.search(self.include, name, re.I):
                         continue
