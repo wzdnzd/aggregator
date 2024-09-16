@@ -115,6 +115,7 @@ def list_files(base: str, date: str, maxsize: int, last: datetime) -> list[str]:
     prefix, files = f"{base}?prefix={date}/", []
 
     while truncated and count < 3:
+        count += 1
         url = prefix if not marker else f"{prefix}&marker={marker}"
         try:
             content = utils.http_get(url=url)
@@ -154,7 +155,6 @@ def list_files(base: str, date: str, maxsize: int, last: datetime) -> list[str]:
 
                 files.append(f"{base}/{name}")
         except:
-            count += 1
             logger.error(f"[V2RaySE] list files error, date: {date}, marker: {marker}")
 
     return files

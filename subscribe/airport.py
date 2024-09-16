@@ -454,7 +454,7 @@ class AirPort:
             return []
 
         if self.sub.startswith(utils.FILEPATH_PROTOCAL):
-            self.sub = self.sub[len(utils.FILEPATH_PROTOCAL) - 1 :]
+            self.sub = self.sub[len(utils.FILEPATH_PROTOCAL) :]
             if not os.path.exists(self.sub) or not os.path.isfile(self.sub):
                 logger.error(f"[ParseError] file: {self.sub} not found")
                 return []
