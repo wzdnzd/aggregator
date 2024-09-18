@@ -51,7 +51,7 @@ def fetch(email: str, retry: int = 2) -> str:
                 fake_email = email[: index // 2] + "***" + email[index:]
 
             if "已封禁" in content:
-                logger.warn(f"[GetRSSError] {content}, email=[{fake_email}]")
+                logger.warning(f"[GetRSSError] {content}, email=[{fake_email}]")
                 return ""
 
             regex = "https://f\.kxyz\.eu\.org/f\.php\?r=([A-Za-z0-9/=]+)"
