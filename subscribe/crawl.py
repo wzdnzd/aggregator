@@ -329,7 +329,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
         if len(unknowns) > 0:
             unknowns = [utils.mask(url=x) for x in unknowns]
-            logger.warn(
+            logger.warning(
                 f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {unknowns}"
             )
 
@@ -1212,7 +1212,8 @@ def validate(
     if not params.pop("saved", False):
         if reachable or (discovered and defeat <= threshold and not expired):
             # don't storage temporary link shared by someone
-            if not workflow.standard_sub(url=url) and mode != 1:
+            pardon = params.pop("pardon", False)
+            if not pardon and not workflow.standard_sub(url=url) and mode != 1:
                 return result
 
             remark(source=params, defeat=defeat, discovered=True)
