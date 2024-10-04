@@ -19,7 +19,9 @@ import push
 import utils
 import workflow
 import yaml
+from airport import AirPort
 from logger import logger
+from urlvalidator import isurl
 from workflow import TaskConfig
 
 import clash
@@ -76,17 +78,45 @@ def assign(
 
         return [links[i] for i in range(len(links)) if results[i][0] and not results[i][1]]
 
+    def parse_domains(content: str) -> dict:
+        if not content or not isinstance(content, str):
+            logger.warning("cannot found any domain due to content is empty or not string")
+            return {}
+
+        records = {}
+        for line in content.split("\n"):
+            line = utils.trim(line)
+            if not line or line.startswith("#"):
+                continue
+
+            words = line.rsplit(delimiter, maxsplit=2)
+            address = utils.trim(words[0])
+            coupon = utils.trim(words[1]) if len(words) > 1 else ""
+            invite_code = utils.trim(words[2]) if len(words) > 2 else ""
+
+            records[address] = {"coupon": coupon, "invite_code": invite_code}
+
+        return records
+
     subscribes_file = utils.trim(kwargs.get("subscribes_file", ""))
     access_token = utils.trim(kwargs.get("access_token", ""))
     gist_id = utils.trim(kwargs.get("gist_id", ""))
     username = utils.trim(kwargs.get("username", ""))
+    chuck = kwargs.get("chuck", False)
 
     # 加载已有订阅
     subscriptions = load_exist(username, gist_id, access_token, subscribes_file)
     logger.info(f"load exists subscription finished, count: {len(subscriptions)}")
 
+    # 是否允许特殊协议
+    special_protocols = AirPort.enable_special_protocols()
+
     tasks = (
-        [TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name) for x in subscriptions if x]
+        [
+            TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name, special_protocols=special_protocols)
+            for x in subscriptions
+            if x
+        ]
         if subscriptions
         else []
     )
@@ -101,20 +131,13 @@ def assign(
     if not domains_file:
         domains_file = "domains.txt"
 
+    # 加载已有站点列表
     fullpath = os.path.join(DATA_BASE, domains_file)
     if os.path.exists(fullpath) and os.path.isfile(fullpath):
         with open(fullpath, "r", encoding="UTF8") as f:
-            for line in f.readlines():
-                line = line.replace("\n", "").strip()
-                if not line:
-                    continue
+            domains.update(parse_domains(content=str(f.read())))
 
-                words = line.rsplit(delimiter, maxsplit=1)
-                address = utils.trim(words[0])
-                coupon = utils.trim(words[1]) if len(words) > 1 else ""
-
-                domains[address] = coupon
-
+    # 爬取新站点列表
     if not domains or overwrite:
         candidates = crawl.collect_airport(
             channel="jichang_list",
@@ -124,11 +147,28 @@ def assign(
             display=display,
             filepath=os.path.join(DATA_BASE, "coupons.txt"),
             delimiter=delimiter,
+            chuck=chuck,
         )
 
         if candidates:
-            domains.update(candidates)
+            for k, v in candidates.items():
+                item = domains.get(k, {})
+                item["coupon"] = v
+
+                domains[k] = item
+
             overwrite = True
+
+    # 加载自定义机场列表
+    customize_link = utils.trim(kwargs.get("customize_link", ""))
+    if customize_link:
+        if isurl(customize_link):
+            domains.update(parse_domains(content=utils.http_get(url=customize_link)))
+        else:
+            local_file = os.path.join(DATA_BASE, customize_link)
+            if local_file != fullpath and os.path.exists(local_file) and os.path.isfile(local_file):
+                with open(local_file, "r", encoding="UTF8") as f:
+                    domains.update(parse_domains(content=str(f.read())))
 
     if not domains:
         logger.error("cannot collect any new airport for free use")
@@ -137,9 +177,20 @@ def assign(
     if overwrite:
         crawl.save_candidates(candidates=domains, filepath=fullpath, delimiter=delimiter)
 
-    for domain, coupon in domains.items():
+    for domain, param in domains.items():
         name = crawl.naming_task(url=domain)
-        tasks.append(TaskConfig(name=name, domain=domain, coupon=coupon, bin_name=bin_name, rigid=rigid))
+        tasks.append(
+            TaskConfig(
+                name=name,
+                domain=domain,
+                coupon=param.get("coupon", ""),
+                invite_code=param.get("invite_code", ""),
+                bin_name=bin_name,
+                rigid=rigid,
+                chuck=chuck,
+                special_protocols=special_protocols,
+            )
+        )
 
     return tasks
 
@@ -170,10 +221,12 @@ def aggregate(args: argparse.Namespace) -> None:
         display=display,
         num_threads=args.num,
         refresh=args.refresh,
+        chuck=args.chuck,
         username=username,
         gist_id=gist_id,
         access_token=access_token,
         subscribes_file=subscribes_file,
+        customize_link=args.yourself,
     )
 
     if not tasks:
@@ -201,29 +254,27 @@ def aggregate(args: argparse.Namespace) -> None:
         nodes = clash.filter_proxies(proxies).get("proxies", [])
     else:
         binpath = os.path.join(workspace, clash_bin)
-        filename = "config.yaml"
-        proxies = clash.generate_config(workspace, list(proxies), filename)
+        confif_file = "config.yaml"
+        proxies = clash.generate_config(workspace, list(proxies), confif_file)
 
         # 可执行权限
         utils.chmod(binpath)
 
-        logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
+        logger.info(f"startup clash now, workspace: {workspace}, config: {confif_file}")
         process = subprocess.Popen(
             [
                 binpath,
                 "-d",
                 workspace,
                 "-f",
-                os.path.join(workspace, filename),
+                os.path.join(workspace, confif_file),
             ]
         )
         logger.info(f"clash start success, begin check proxies, num: {len(proxies)}")
 
         time.sleep(random.randint(3, 6))
         params = [
-            [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, args.delay, False]
-            for p in proxies
-            if isinstance(p, dict)
+            [p, clash.EXTERNAL_CONTROLLER, 5000, args.url, args.delay, False] for p in proxies if isinstance(p, dict)
         ]
 
         masks = utils.multi_thread_run(
@@ -256,35 +307,33 @@ def aggregate(args: argparse.Namespace) -> None:
 
     data = {"proxies": nodes}
     urls = list(subscriptions)
+    source = "proxies.yaml"
 
     # 如果文件夹不存在则创建
     os.makedirs(DATA_BASE, exist_ok=True)
 
-    # 保存为 mixed 格式
-    to_mixed = args.both or args.mixed
-
-    # 保存为 clash 格式
-    to_clash = args.both or not args.mixed
-
-    source, clash_file, mixed_file = "proxies.yaml", "clash.yaml", "v2ray.txt"
     supplier = os.path.join(PATH, "subconverter", source)
     if os.path.exists(supplier) and os.path.isfile(supplier):
         os.remove(supplier)
 
     with open(supplier, "w+", encoding="utf8") as f:
+        yaml.add_representer(clash.QuotedStr, clash.quoted_scalar)
         yaml.dump(data, f, allow_unicode=True)
 
     if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
         os.remove(generate_conf)
 
     targets, records = [], {}
-    if to_clash:
-        targets.append(("convert_clash", clash_file, "clash", not args.all, args.vitiate))
-    if to_mixed:
-        targets.append(("convert_mixed", mixed_file, "mixed", False, args.vitiate))
+    for target in args.targets:
+        target = utils.trim(target).lower()
+        convert_name = f'convert_{target.replace("&", "_").replace("=", "_")}'
+
+        filename = subconverter.get_filename(target=target)
+        list_only = False if target == "v2ray" or target == "mixed" or "ss" in target else not args.all
+        targets.append((convert_name, filename, target, list_only, args.vitiate))
 
     for t in targets:
-        success = subconverter.generate_conf(generate_conf, t[0], source, t[1], t[2], t[3], t[4])
+        success = subconverter.generate_conf(generate_conf, t[0], source, t[1], t[2], True, t[3], t[4])
         if not success:
             logger.error(f"cannot generate subconverter config file for target: {t[2]}")
             continue
@@ -359,8 +408,28 @@ def aggregate(args: argparse.Namespace) -> None:
     workflow.cleanup(workspace, [])
 
 
+class CustomHelpFormatter(argparse.HelpFormatter):
+    def _format_action_invocation(self, action):
+        if action.choices:
+            parts = []
+            if action.option_strings:
+                parts.extend(action.option_strings)
+
+                # 移除使用帮助信息中 -t 或 --targets 附带的过长的可选项信息
+                if action.nargs != 0 and action.option_strings != ["-t", "--targets"]:
+                    default = action.dest.upper()
+                    args_string = self._format_args(action, default)
+                    parts[-1] += " " + args_string
+            else:
+                args_string = self._format_args(action, action.dest)
+                parts.append(args_string)
+            return ", ".join(parts)
+        else:
+            return super()._format_action_invocation(action)
+
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(formatter_class=CustomHelpFormatter)
     parser.add_argument(
         "-a",
         "--all",
@@ -371,12 +440,12 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-b",
-        "--both",
-        dest="both",
+        "-c",
+        "--chuck",
+        dest="chuck",
         action="store_true",
         default=False,
-        help="save results in both clash and mixed formats, only clash is saved by default",
+        help="discard candidate sites that may require human-authentication",
     )
 
     parser.add_argument(
@@ -443,15 +512,6 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-m",
-        "--mixed",
-        dest="mixed",
-        action="store_true",
-        default=False,
-        help="convert and save as mixed format",
-    )
-
-    parser.add_argument(
         "-n",
         "--num",
         type=int,
@@ -475,7 +535,7 @@ if __name__ == "__main__":
         type=int,
         required=False,
         default=sys.maxsize,
-        help="crawl page num",
+        help="max page number when crawling telegram",
     )
 
     parser.add_argument(
@@ -498,11 +558,11 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-t",
-        "--timeout",
-        type=int,
-        required=False,
-        default=5000,
-        help="timeout",
+        "--targets",
+        nargs="+",
+        choices=subconverter.CONVERT_TARGETS,
+        default=["clash", "v2ray", "singbox"],
+        help=f"choose one or more generated profile type. default to clash, v2ray and singbox. supported: {subconverter.CONVERT_TARGETS}",
     )
 
     parser.add_argument(
@@ -517,10 +577,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "-v",
         "--vitiate",
-        type=int,
-        required=False,
-        default=0,
+        dest="vitiate",
+        action="store_true",
+        default=False,
         help="ignoring default proxies filter rules",
+    )
+
+    parser.add_argument(
+        "-y",
+        "--yourself",
+        type=str,
+        required=False,
+        default=os.environ.get("CUSTOMIZE_LINK", ""),
+        help="the url to the list of airports that you maintain yourself",
     )
 
     aggregate(args=parser.parse_args())

@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import base64
+import gzip
 import importlib
 import itertools
 import json
@@ -11,12 +12,15 @@ import multiprocessing
 import os
 import random
 import re
+import socket
+import ssl
 import string
 import sys
 import time
 import traceback
 import typing
 import urllib
+import urllib.error
 import urllib.parse
 import urllib.request
 from copy import deepcopy
@@ -113,10 +117,11 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
     datasets, peristedtasks = [], {}
     try:
         persists = conf.get("persist", {})
+        engine = persists.get("engine", "")
         subspushconf = persists.get("subs", {})
         linkspushconf = persists.get("proxies", {})
 
-        pushtool = push.get_instance()
+        pushtool = push.get_instance(engine=engine)
         should_persist = pushtool.validate(push_conf=subspushconf)
         # skip tasks if mode == 1 and not set persistence
         if mode == 1 and not should_persist:
@@ -324,7 +329,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
         if len(unknowns) > 0:
             unknowns = [utils.mask(url=x) for x in unknowns]
-            logger.warn(
+            logger.warning(
                 f"[CrawlWarn] some links were found, but could not be confirmed to work, subscriptions: {unknowns}"
             )
 
@@ -877,7 +882,12 @@ def crawl_pages(
         config = v.get("config", {})
         nocache = v.get("nocache", False)
 
-        params.append([k, push_to, include, exclude, config, headers, origin, nocache])
+        final_headers = deepcopy(headers) if headers and isinstance(headers, dict) else utils.DEFAULT_HTTP_HEADERS
+        specific_headers = v.get("headers", {})
+        if specific_headers and isinstance(specific_headers, dict):
+            final_headers.update(specific_headers)
+
+        params.append([k, push_to, include, exclude, config, final_headers, origin, nocache])
 
     subscribes = multi_thread_crawl(func=crawl_single_page, params=params)
     if not silent:
@@ -1202,7 +1212,8 @@ def validate(
     if not params.pop("saved", False):
         if reachable or (discovered and defeat <= threshold and not expired):
             # don't storage temporary link shared by someone
-            if not workflow.standard_sub(url=url) and mode != 1:
+            pardon = params.pop("pardon", False)
+            if not pardon and not workflow.standard_sub(url=url) and mode != 1:
                 return result
 
             remark(source=params, defeat=defeat, discovered=True)
@@ -1264,7 +1275,7 @@ def check_status(
         try:
             proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
         except ConstructorError:
-            yaml.add_multi_constructor("str", lambda loader, suffix, node: None, Loader=yaml.SafeLoader)
+            yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
         except:
             proxies = []
@@ -1392,6 +1403,7 @@ def collect_airport(
     display: bool = True,
     filepath: str = "",
     delimiter: str = "",
+    chuck: bool = False,
 ) -> dict:
     def crawl_channel(channel: str, page_num: int, fun: typing.Callable) -> list[str]:
         """crawl from telegram channel"""
@@ -1439,7 +1451,7 @@ def collect_airport(
                     if not address:
                         continue
 
-                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+([^\s\r\n）]+)"
+                    coupon_regex = r"(?:白嫖|优惠)码[:\s：]+(?:<span.*?>)?([^\s\r\n<）]+)"
                     words = re.findall(coupon_regex, text, flags=re.M)
                     coupon = words[0] if words else ""
 
@@ -1473,7 +1485,7 @@ def collect_airport(
             url="https://www.askahh.com/archives/101",
             separator=r"&lt;h2&gt;[^\r\n]+&lt;/h2&gt;",
             address_regex=r"&lt;a class=&quot;no-external-link&quot; href=&quot;(https?://[^\s]+)&quot; target=&quot;_blank&quot;&gt;",
-            coupon_regex=r"可使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
+            coupon_regex=r"使用优惠码(?:&lt;strong&gt;)?([A-Za-z0-9\u4e00-\u9fa5_\-%*:.@&#]+)(?:&lt;/strong&gt;(?:[\r\n\s]+)?)?免费购买",
         )
 
     def crawl_ygpy() -> dict:
@@ -1581,6 +1593,42 @@ def collect_airport(
 
         return result
 
+    def extract_real_url(domain: str, retry: int = 2) -> str:
+        count, retry = 0, max(retry, 1)
+        url = urllib.parse.urljoin(domain, "env.js")
+
+        while count < retry:
+            count += 1
+
+            try:
+                request = urllib.request.Request(url=url, headers=utils.DEFAULT_HTTP_HEADERS, method="GET")
+                response = urllib.request.urlopen(request, timeout=6, context=utils.CTX)
+
+                # do not redirect
+                # opener = urllib.request.build_opener(utils.NoRedirect)
+                # response = opener.open(request, timeout=6)
+
+                if not utils.trim(response.geturl()).endswith("/env.js"):
+                    return ""
+
+                content = response.read()
+                try:
+                    content = str(content, encoding="utf8")
+                except:
+                    content = gzip.decompress(content).decode("utf8")
+
+                groups = re.findall(r"window.routerBase(?:\s+)?=(?:\s+)?['\"](https?://.*)['\"]", content, flags=re.I)
+                return groups[0].rstrip("/") if groups and groups[0] else domain
+            except urllib.error.HTTPError:
+                return domain
+            except urllib.error.URLError as e:
+                if isinstance(e.reason, (socket.gaierror, ssl.SSLError, socket.timeout)):
+                    return ""
+            except Exception as e:
+                pass
+
+        return domain
+
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
     candidates = {} if not domains else {x: "" for x in domains}
 
@@ -1610,19 +1658,23 @@ def collect_airport(
 
     # merge
     candidates.update(materials)
-
     domains = list(candidates.keys())
-    logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start to check it now")
 
-    tasks = [[domain, rigid] for domain in domains]
+    # extract real routing base url
+    logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start extracting real routing addresses")
+    sites = utils.multi_thread_run(func=extract_real_url, tasks=domains, num_threads=num_thread, show_progress=display)
+
+    tasks = [[site, rigid, chuck] for site in sites if site]
+    records = {sites[i]: candidates.get(domains[i], "") for i in range(len(sites)) if sites[i]}
+
+    # check website availability
+    logger.info(f"[AirPortCollector] extract real base url finished, start to check it now")
     result = utils.multi_thread_run(func=validate_domain, tasks=tasks, num_threads=num_thread, show_progress=display)
 
-    availables = [domains[i] for i in range(len(domains)) if result[i]]
-    logger.info(
-        f"[AirPortCollector] finished collect airport from telegram channel: {channel}, availables: {len(availables)}"
-    )
+    availables = [tasks[i][0] for i in range(len(tasks)) if result[i]]
+    logger.info(f"[AirPortCollector] finished collect airport, availables: {len(availables)}")
 
-    return {x: candidates.get(x, "") for x in availables}
+    return {x: records.get(x, "") for x in availables}
 
 
 def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
@@ -1637,21 +1689,31 @@ def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
 
     lines = []
     for k, v in candidates.items():
-        if not v or not isinstance(v, str):
-            lines.append(k)
-        else:
-            lines.append(f"{k}\t{delimiter}\t{v}")
+        text = k
+        if v and isinstance(v, str):
+            text += f"\t{delimiter}\t{v}"
+        elif v and isinstance(v, dict):
+            coupon = utils.trim(v.get("coupon", ""))
+            invite_code = utils.trim(v.get("invite_code", ""))
+
+            if coupon or invite_code:
+                text += f"\t{delimiter}\t{coupon}"
+
+                if invite_code:
+                    text += f"\t{delimiter}\t{invite_code}"
+
+        lines.append(text)
 
     utils.write_file(filename=filepath, lines=lines)
 
 
-def validate_domain(url: str, rigid: bool = True) -> bool:
+def validate_domain(url: str, rigid: bool = True, chuck: bool = False) -> bool:
     try:
         if not url:
             return False
 
         rr = airport.AirPort.get_register_require(domain=url)
-        if rr.invite or rr.recaptcha or (rigid and rr.whitelist and rr.verify):
+        if rr.invite or (chuck and rr.recaptcha) or (rigid and rr.whitelist and rr.verify):
             return False
 
         return True

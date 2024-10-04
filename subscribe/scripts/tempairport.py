@@ -16,7 +16,9 @@ from urlvalidator import isurl
 from . import commons, scaner
 
 
-def register(domain: str, subtype: int = 1, coupon: str = "") -> AirPort:
+def register(
+    domain: str, subtype: int = 1, coupon: str = "", rigid: bool = True, chuck: bool = False, invite_code: str = ""
+) -> AirPort:
     url = utils.extract_domain(url=domain, include_protocal=True)
     if not isurl(url=url):
         logger.error(f"[TempSubError] cannot register because domain=[{domain}] is invalidate")
@@ -35,7 +37,7 @@ def register(domain: str, subtype: int = 1, coupon: str = "") -> AirPort:
         airport.password = passwd
         airport.sub = suburl
     else:
-        airport.get_subscribe(retry=3)
+        airport.get_subscribe(retry=3, rigid=rigid, chuck=chuck, invite_code=invite_code)
 
     return airport
 
@@ -46,15 +48,16 @@ def fetchsub(params: dict) -> list:
 
     config = params.get("config", {})
     persist = params.get("persist", {})
+    engine = params.get("engine", "")
 
     threshold = max(params.get("threshold", 1), 1)
     if not persist or not config or type(config) != dict or not config.get("push_to"):
         logger.error(f"[TempSubError] cannot fetch subscribes bcause not found arguments 'persist' or 'push_to'")
         return []
 
-    exists, unregisters, unknowns, data = load(persist=persist, retry=params.get("retry", True))
+    exists, unregisters, unknowns, data = load(engine=engine, persist=persist, retry=params.get("retry", True))
     if not exists and not unregisters and unknowns:
-        logger.warn(f"[TempSubError] skip fetchsub because cannot get any valid config")
+        logger.warning(f"[TempSubError] skip fetchsub because cannot get any valid config")
         return []
 
     if unregisters:
@@ -72,7 +75,7 @@ def fetchsub(params: dict) -> list:
                     f"[TempSubInfo] cannot get subscribe because domain=[{airport.ref}] forced validation or need pay"
                 )
                 if not utils.isblank(airport.sub):
-                    logger.warn(
+                    logger.warning(
                         f"[TempSubInfo] renew error, domain: {airport.ref} username: {airport.username} password: {airport.password} sub: {airport.sub}"
                     )
 
@@ -94,7 +97,7 @@ def fetchsub(params: dict) -> list:
 
         # persist subscribes
         payload = {"usables": exists, "unknowns": unknowns}
-        commons.persist(data=payload, persist=persist)
+        commons.persist(engine=engine, data=payload, persist=persist)
 
     if not exists:
         logger.info(f"[TempSubInfo] fetchsub finished, cannot found any subscribes")
@@ -120,8 +123,8 @@ def fetchsub(params: dict) -> list:
     return results
 
 
-def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
-    pushtool = push.get_instance()
+def load(engine: str, persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
+    pushtool = push.get_instance(engine=engine)
     if not pushtool.validate(push_conf=persist):
         return {}, [], {}, {}
 
@@ -148,7 +151,13 @@ def load(persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
                     if not utils.isblank(v.get("sub", "")):
                         exists[k] = v
                     else:
-                        unregisters.append([k, v.get("type", 1), v.get("coupon", "")])
+                        coupon = v.get("coupon", "")
+                        rigid = v.get("rigid", True)
+                        chuck = v.get("chuck", False)
+                        invite_code = v.get("invite_code", "")
+
+                        unregisters.append([k, v.get("type", 1), coupon, rigid, chuck, invite_code])
+
                     unknowns.pop(k, None)
 
         domains, subscribes = [], []

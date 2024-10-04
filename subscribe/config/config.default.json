@@ -15,7 +15,7 @@
             "rate": 2.5,
             "count": 2,
             "coupon": "",
-            "insecure": false,
+            "secure": false,
             "renew": {
                 "account": [
                     {
@@ -144,24 +144,47 @@
             }
         ]
     },
-    "push": {
+    "groups": {
         "xxx": {
-            "username": "",
-            "folderid": "",
-            "fileid": "",
-            "target": "v2ray|mixed|clash|...",
-            "local": ""
-        },
-        "crawledsubs": {
-            "username": "",
-            "folderid": "",
-            "fileid": "",
-            "local": ""
-        },
-        "crawledproxies": {
-            "username": "",
-            "folderid": "",
-            "fileid": ""
+            "emoji": true,
+            "list": true,
+            "targets": {
+                "clash": "xxx-clash",
+                "singbox": "xxx-singbox",
+                "v2ray": "xxx-v2ray"
+            },
+            "regularize": {
+                "enable": false,
+                "locate": true,
+                "bits": 2
+            }
+        }
+    },
+    "storage": {
+        "engine": "xxx",
+        "items": {
+            "xxx-clash": {
+                "username": "",
+                "folderid": "",
+                "fileid": ""
+            },
+            "xxx-singbox": {
+                "fileid": ""
+            },
+            "xxx-v2ray": {
+                "username": "",
+                "fileid": ""
+            },
+            "crawledsubs": {
+                "username": "",
+                "folderid": "",
+                "fileid": ""
+            },
+            "crawledproxies": {
+                "username": "",
+                "folderid": "",
+                "fileid": ""
+            }
         }
     }
 }

@@ -25,8 +25,8 @@ exclude_remarks = ["(到期|剩余流量|时间|官网|产品)"]
 # Enable script support for filtering nodes
 enable_filter = false
 # Script used for filtering nodes. Supports inline script and script path. A "filter" function with 1 argument which is a node should be defined in the script.
-# Example: Inline script: Set value to content of script.
-#          Script path: Set value to "path:/path/to/script.js".
+# Example: Inline script: set value to content of script.
+#          Script path: set value to "path:/path/to/script.js".
 #filter_script = '''
 #function filter(node) {
 #    const info = JSON.parse(node.ProxyInfo);
@@ -66,6 +66,9 @@ loon_rule_base = "base/all_base.tpl"
 # Shadowsocks Android config base used by the generator, supports local files/URL
 sssub_rule_base = "base/all_base.tpl"
 
+# sing-box config base used by the generator, supports local files/URL
+singbox_rule_base = "base/all_base.tpl"
+
 # Proxy used to download rulesets or subscriptions, set to NONE or empty to disable it, set to SYSTEM to use system proxy.
 # Accept cURL-supported proxies (http:// https:// socks4a:// socks5://)
 
@@ -75,6 +78,9 @@ proxy_subscription = "NONE"
 
 # Append a proxy type string ([SS] [SSR] [VMess]) to node remark.
 append_proxy_type = false
+
+# When requesting /sub, reload this config file first.
+reload_conf_on_request = false
 
 [[userinfo.stream_rule]]
 # Rules to extract stream data from node
@@ -111,10 +117,10 @@ match = '^Smart Access expire: (\d+)/(\d+)/(\d+)$'
 replace = '$1:$2:$3:0:0:0'
 
 [node_pref]
-udp_flag = true
-tcp_fast_open_flag = false
-skip_cert_verify_flag = true
-tls13_flag = false
+#udp_flag = true
+#tcp_fast_open_flag = false
+#skip_cert_verify_flag = true
+#tls13_flag = false
 
 sort_flag = false
 # Script used for sorting nodes. A "compare" function with 2 arguments which are the 2 nodes to be compared should be defined in the script. Supports inline script and script path.
@@ -136,6 +142,9 @@ clash_use_new_field_name = true
 #       - name: name2
 #         key: value
 clash_proxies_style = "flow"
+
+# add Clash mode to sing-box rules, and add a GLOBAL group to end of outbounds
+singbox_add_clash_modes = true
 
 [[node_pref.rename_node]]
 match = '\(?((x|X)?(\d+)(\.?\d+)?)((\s?倍率?)|(x|X))\)?'
@@ -234,6 +243,14 @@ value = "true"
 key = "clash.log_level"
 value = "info"
 
+[[template.globals]]
+key = "singbox.allow_lan"
+value = "true"
+
+[[template.globals]]
+key = "singbox.mixed_port"
+value = "2080"
+
 [[aliases]]
 uri = "/clash"
 target = "/sub?target=clash"
@@ -265,6 +282,10 @@ target = "/sub?target=surfboard"
 [[aliases]]
 uri = "/loon"
 target = "/sub?target=loon"
+
+[[aliases]]
+uri = "/singbox"
+target = "/sub?target=singbox"
 
 [[aliases]]
 uri = "/ss"
