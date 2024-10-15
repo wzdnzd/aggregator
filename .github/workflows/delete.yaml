@@ -1,7 +1,7 @@
 name: Delete
 on:
   schedule:
-    - cron: "0 5 * * SUN"
+    - cron: "0 0 * * SUN"
 
 jobs:
   del_runs:
