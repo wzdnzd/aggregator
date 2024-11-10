@@ -1083,7 +1083,7 @@ def extract_subscribes(
         limits, collections, proxies = max(1, limits), {}, []
         sub_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
         extra_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/sub\?(?:\S+)?target=\S+"
-        protocal_regex = r"(?:vmess|trojan|ss|ssr|snell|hysteria2|vless|hysteria)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
+        protocal_regex = r"(?:vmess|trojan|ss|ssr|snell|hysteria2|vless|hysteria|tuic)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
 
         regex = f"{sub_regex}|{extra_regex}"
 
@@ -1278,6 +1278,10 @@ def check_status(
             yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
         except:
+            if all(airport.AirPort.check_protocol(x) for x in content.split("\n") if x):
+                return True, False
+
+            # TODO: 如果配置文件为 singbox、quanx、loon、surge等，需要解析出代理节点信息，并判断是否过期
             proxies = []
 
         if proxies is None or len(proxies) == 0:
