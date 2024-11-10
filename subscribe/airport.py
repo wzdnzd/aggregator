@@ -3,6 +3,7 @@
 # @Author  : wzdnzd
 # @Time    : 2022-07-15
 
+import base64
 import concurrent.futures
 import json
 import os
@@ -623,6 +624,14 @@ class AirPort:
             return []
 
     @staticmethod
+    def check_protocol(link: str) -> bool:
+        return re.match(
+            r"^(vmess|trojan|ss|ssr|vless|hysteria|hysteria2|tuic|snell)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}",
+            utils.trim(link).replace("\r", ""),
+            flags=re.I,
+        )
+
+    @staticmethod
     def decode(
         text: str, program: str, artifact: str = "", ignore: bool = False, special: bool = False, throw: bool = False
     ) -> list:
@@ -647,9 +656,10 @@ class AirPort:
         if not text:
             return []
 
+        is_b64encode, is_json = False, False
         if (
-            utils.isb64encode(text)
-            or (text.startswith("{") and text.endswith("}"))
+            (is_b64encode := utils.isb64encode(text))
+            or (is_json := (text.startswith("{") and text.endswith("}")))
             or not re.search(r"^proxies:([\s\r\n]+)?$", text, flags=re.MULTILINE)
         ):
             artifact = utils.trim(text=artifact)
@@ -658,6 +668,10 @@ class AirPort:
 
             v2ray_file = os.path.join(PATH, "subconverter", f"{artifact}.txt")
             clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
+
+            # base64 encoding if all lines start with valid protocol
+            if not is_b64encode and not is_json and all(AirPort.check_protocol(x) for x in text.split("\n") if x):
+                text = base64.b64encode(text.encode(encoding="UTF8")).decode(encoding="UTF8")
 
             try:
                 with open(v2ray_file, "w+", encoding="UTF8") as f:
