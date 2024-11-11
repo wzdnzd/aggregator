@@ -1125,10 +1125,12 @@ def extract_subscribes(
                     items.extend([x for x in url.split("|") if not re.match(extra_regex, x, flags=re.I)])
 
             for s in items:
+                s = re.sub(r"\\/|\/", "/", s, flags=re.I)
                 try:
                     if include and not re.match(
                         r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+.*",
                         s,
+                        flags=re.I,
                     ):
                         continue
 
