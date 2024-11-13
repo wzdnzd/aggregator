@@ -424,12 +424,15 @@ def assign(
         for i in range(num):
             index = -1 if num == 1 else i + 1
             sub = subscribe[i] if subscribe else ""
-            renew = {"coupon_code": coupon, "api_prefix": api_prefix}
+            renew = {"coupon_code": coupon} if coupon else {}
 
             globalid += 1
             if accounts:
                 renew.update(accounts[i])
                 renew.update(renews)
+
+            if renew and api_prefix:
+                renew["api_prefix"] = api_prefix
 
             task = TaskConfig(
                 name=name,
