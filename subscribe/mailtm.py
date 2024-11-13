@@ -777,14 +777,12 @@ class Emailnator(TemporaryMail):
         return True
 
 
-def create_instance(onlygmail: bool = False) -> TemporaryMail:
-    if onlygmail:
+def create_instance(only_gmail: bool = False) -> TemporaryMail:
+    if only_gmail:
         return Emailnator(onlygmail=True)
 
-    num = random.randint(0, 2)
-    if num == 0:
-        return SnapMail()
-    elif num == 1:
+    num = random.randint(0, 1)
+    if num == 1:
         return MailTM()
     else:
         return MOAKT()

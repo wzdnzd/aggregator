@@ -1697,7 +1697,7 @@ def collect_airport(
         return domain
 
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
-    candidates = {} if not domains else {x: "" for x in domains}
+    candidates = {} if not domains else {utils.extract_domain(x, True): "" for x in domains}
 
     materials = dict()
     jctj = crawl_jctj(convert=False)
@@ -1743,10 +1743,17 @@ def collect_airport(
     logger.info(f"[AirPortCollector] extract real base url finished, start to check it now")
     result = utils.multi_thread_run(func=validate_domain, tasks=tasks, num_threads=num_thread, show_progress=display)
 
-    availables = [tasks[i][0] for i in range(len(tasks)) if result[i]]
-    logger.info(f"[AirPortCollector] finished collect airport, availables: {len(availables)}")
+    availables = dict()
+    for i in range(len(tasks)):
+        if not result[i][0]:
+            continue
 
-    return {x: records.get(x, "") for x in availables}
+        site = tasks[i][0]
+        coupon = records.get(site, "")
+        availables[site] = {"coupon": coupon, "api_prefix": result[i][1]}
+
+    logger.info(f"[AirPortCollector] finished collect airport, availables: {len(availables)}")
+    return availables
 
 
 def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
@@ -1767,30 +1774,24 @@ def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
         elif v and isinstance(v, dict):
             coupon = utils.trim(v.get("coupon", ""))
             invite_code = utils.trim(v.get("invite_code", ""))
+            api_prefix = utils.trim(v.get("api_prefix", ""))
 
-            if coupon or invite_code:
-                text += f"\t{delimiter}\t{coupon}"
-
-                if invite_code:
-                    text += f"\t{delimiter}\t{invite_code}"
-
+            text = f"{text}\t{delimiter}\t{coupon}\t{delimiter}\t{invite_code}\t{delimiter}\t{api_prefix}"
         lines.append(text)
 
     utils.write_file(filename=filepath, lines=lines)
 
 
-def validate_domain(url: str, rigid: bool = True, chuck: bool = False) -> bool:
+def validate_domain(url: str, rigid: bool = True, chuck: bool = False) -> tuple[bool, str]:
     try:
         if not url:
-            return False
+            return False, ""
 
         rr = airport.AirPort.get_register_require(domain=url)
-        if rr.invite or (chuck and rr.recaptcha) or (rigid and rr.whitelist and rr.verify):
-            return False
-
-        return True
+        flag = rr.invite or (chuck and rr.recaptcha) or (rigid and rr.whitelist and rr.verify)
+        return not flag, rr.api_prefix
     except:
-        return False
+        return False, ""
 
 
 def batch_call(tasks: dict) -> list[dict]:
