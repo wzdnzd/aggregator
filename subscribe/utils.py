@@ -472,6 +472,16 @@ def get_emoji(text: str, patterns: dict, default: str = "") -> str:
     return default
 
 
+def get_subpath(api_prefix: str, default: str = "/api/v1/") -> str:
+    path = trim(api_prefix) or trim(default) or "/api/v1/"
+    if not path.startswith("/"):
+        path = "/" + path
+    if not path.endswith("=") and not path.endswith("/"):
+        path += "/"
+
+    return path
+
+
 def multi_process_run(func: typing.Callable, tasks: list) -> list:
     if not func or not isinstance(func, typing.Callable):
         logger.error(f"skip execute due to func is not callable")

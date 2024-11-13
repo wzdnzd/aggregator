@@ -399,6 +399,9 @@ def assign(
         # 需要人机验证时是否直接放弃
         chuck = site.get("chuck", False)
 
+        # 接口地址前缀
+        api_prefix = site.get("api_prefix", "")
+
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -421,7 +424,8 @@ def assign(
         for i in range(num):
             index = -1 if num == 1 else i + 1
             sub = subscribe[i] if subscribe else ""
-            renew = {} if utils.isblank(coupon) else {"coupon_code": coupon}
+            renew = {"coupon_code": coupon, "api_prefix": api_prefix}
+
             globalid += 1
             if accounts:
                 renew.update(accounts[i])
@@ -450,6 +454,7 @@ def assign(
                 chuck=chuck,
                 special_protocols=special_protocols,
                 invite_code=invite_code,
+                api_prefix=api_prefix,
             )
             found = workflow.exists(tasks=tasks, task=task)
             if found:
