@@ -89,12 +89,13 @@ def assign(
             if not line or line.startswith("#"):
                 continue
 
-            words = line.rsplit(delimiter, maxsplit=2)
+            words = line.rsplit(delimiter, maxsplit=3)
             address = utils.trim(words[0])
             coupon = utils.trim(words[1]) if len(words) > 1 else ""
             invite_code = utils.trim(words[2]) if len(words) > 2 else ""
+            api_prefix = utils.trim(words[3]) if len(words) > 3 else ""
 
-            records[address] = {"coupon": coupon, "invite_code": invite_code}
+            records[address] = {"coupon": coupon, "invite_code": invite_code, "api_prefix": api_prefix}
 
         return records
 
@@ -153,7 +154,7 @@ def assign(
         if candidates:
             for k, v in candidates.items():
                 item = domains.get(k, {})
-                item["coupon"] = v
+                item.update(v)
 
                 domains[k] = item
 
@@ -185,6 +186,7 @@ def assign(
                 domain=domain,
                 coupon=param.get("coupon", ""),
                 invite_code=param.get("invite_code", ""),
+                api_prefix=param.get("api_prefix", ""),
                 bin_name=bin_name,
                 rigid=rigid,
                 chuck=chuck,

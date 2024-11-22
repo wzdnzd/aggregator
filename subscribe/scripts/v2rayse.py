@@ -115,6 +115,7 @@ def list_files(base: str, date: str, maxsize: int, last: datetime) -> list[str]:
     prefix, files = f"{base}?prefix={date}/", []
 
     while truncated and count < 3:
+        count += 1
         url = prefix if not marker else f"{prefix}&marker={marker}"
         try:
             content = utils.http_get(url=url)
@@ -154,7 +155,6 @@ def list_files(base: str, date: str, maxsize: int, last: datetime) -> list[str]:
 
                 files.append(f"{base}/{name}")
         except:
-            count += 1
             logger.error(f"[V2RaySE] list files error, date: {date}, marker: {marker}")
 
     return files
@@ -176,14 +176,26 @@ def fetchone(
     proxies, subscriptions = [], []
 
     if not utils.isb64encode(content=content):
-        regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+        regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
         groups = re.findall(regex, content, flags=re.I)
         if groups:
             subscriptions = list(set([utils.url_complete(x) for x in groups if x]))
 
     if not noproxies:
         try:
-            proxies = AirPort.decode(text=content, program=subconverter, special=SPECIAL_PROTOCOLS, throw=True)
+            index = url.rfind("/")
+            if index != -1:
+                name = url[index + 1 :]
+            else:
+                name = utils.random_chars(length=6, punctuation=False)
+
+            proxies = AirPort.decode(
+                text=content,
+                program=subconverter,
+                artifact=name,
+                special=SPECIAL_PROTOCOLS,
+                throw=True,
+            )
 
             # detect if it contains shared proxy nodes
             if detect(
@@ -325,7 +337,7 @@ def fetch(params: dict) -> list:
         # clean workspace
         workflow.cleanup(datapath, filenames=[source, dest, "generate.ini"])
 
-    success = pushtool.push_to(content=content, push_conf=proxies_store, group="v2rayse")
+    success = pushtool.push_to(content=content or " ", push_conf=proxies_store, group="v2rayse")
     if not success:
         filename = os.path.join(os.path.dirname(datapath), "data", "v2rayse.txt")
         logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies, will save it to local file {filename}")
