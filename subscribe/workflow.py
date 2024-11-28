@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import renewal
 import utils
-from airport import AirPort
+from airport import ANOTHER_API_PREFIX, AirPort
 from logger import logger
 from origin import Origin
 from push import PushTo
@@ -82,6 +82,9 @@ class TaskConfig:
     # 邀请码
     invite_code: str = ""
 
+    # 接口地址前缀，如 /api/v1/ 或 /api?scheme=
+    api_prefix: str = "/api/v1/"
+
 
 def execute(task_conf: TaskConfig) -> list:
     if not task_conf or not isinstance(task_conf, TaskConfig):
@@ -96,13 +99,18 @@ def execute(task_conf: TaskConfig) -> list:
         include=task_conf.include,
         liveness=task_conf.liveness,
         coupon=task_conf.coupon,
+        api_prefix=task_conf.api_prefix,
     )
 
     logger.info(f"start fetch proxy: name=[{task_conf.name}]\tid=[{task_conf.index}]\tdomain=[{obj.ref}]")
 
     # 套餐续期
     if task_conf.renew:
-        sub_url = renewal.add_traffic_flow(domain=obj.ref, params=task_conf.renew)
+        sub_url = renewal.add_traffic_flow(
+            domain=obj.ref,
+            params=task_conf.renew,
+            jsonify=obj.api_prefix == ANOTHER_API_PREFIX,
+        )
         if sub_url and not obj.registed:
             obj.registed = True
             obj.sub = sub_url

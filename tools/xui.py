@@ -513,6 +513,9 @@ def dedup(filepath: str) -> None:
 
         domain = extract_domain(url=line, include_protocal=False)
         if domain:
+            if not line.startswith("https://") and not line.startswith("http://"):
+                line = f"http://{line}"
+                
             groups[domain].add(line)
 
     # under the same domain name, give priority to URLs starting with https://
