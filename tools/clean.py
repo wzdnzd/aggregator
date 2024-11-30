@@ -229,7 +229,7 @@ def main(args: argparse.Namespace) -> None:
                     except Exception:
                         pass
 
-                name = re.sub(r"(\d+|(\d+)?(-\d+)?[A-Z])$", "", item.get("name", "")).strip()
+                name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", item.get("name", "")).strip()
                 if not name:
                     name = "".join(random.sample(string.ascii_uppercase, 6))
 

@@ -243,7 +243,7 @@ def collect_subs(params: dict) -> list[dict]:
     masks = utils.multi_thread_run(func=crawl.is_available, tasks=tasks)
 
     # filter available subscriptions
-    effective_subs = [candidates[i] for i in range(len(masks)) if masks[i]]
+    effective_subs = sorted([candidates[i] for i in range(len(masks)) if masks[i]])
     logger.info(f"[GithubFork] collect task finished, found {len(effective_subs)} subscriptions")
 
     # save result

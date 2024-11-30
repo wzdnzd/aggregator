@@ -23,7 +23,7 @@ match = "(?i:\\bJP[N]?\\b|Japan|Tokyo|Osaka|Saitama|日本|东京|大阪|埼玉|
 emoji = "🇯🇵"
 
 [[emoji]]
-match = "(?i:\\bK[O]?R\\b|Korea|首尔|韩|韓)"
+match = "(?i:\\bK[O]?R\\b|Korea|首尔|春川|韩|韓)"
 emoji = "🇰🇷"
 
 [[emoji]]
@@ -51,7 +51,7 @@ match = "(Austria|Vienna|奥地利|维也纳)"
 emoji = "🇦🇹"
 
 [[emoji]]
-match = "(?i:\\bAU[S]?\\b|Australia|Sydney|澳大利亚|澳洲|悉尼)"
+match = "(?i:\\bAU[S]?\\b|Australia|Sydney|澳大利亚|澳洲|悉尼|墨尔本)"
 emoji = "🇦🇺"
 
 [[emoji]]

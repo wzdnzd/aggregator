@@ -178,10 +178,16 @@ def load_configs(
             multiple = page.pop("multiple", False)
             if not multiple:
                 page["push_to"] = push_to
-                pages[url] = page
+                if isinstance(url, str):
+                    pages[url] = page
+                elif isinstance(url, list):
+                    for u in url:
+                        u = utils.trim(u)
+                        if u:
+                            pages[u] = page
             else:
                 placeholder = utils.trim(page.pop("placeholder", ""))
-                if not placeholder or placeholder not in url:
+                if not placeholder or placeholder not in url or not isinstance(url, str):
                     continue
 
                 # page number range
@@ -393,6 +399,9 @@ def assign(
         # 需要人机验证时是否直接放弃
         chuck = site.get("chuck", False)
 
+        # 接口地址前缀
+        api_prefix = site.get("api_prefix", "")
+
         if not source:
             source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
         site["origin"] = source
@@ -415,11 +424,15 @@ def assign(
         for i in range(num):
             index = -1 if num == 1 else i + 1
             sub = subscribe[i] if subscribe else ""
-            renew = {} if utils.isblank(coupon) else {"coupon_code": coupon}
+            renew = {"coupon_code": coupon} if coupon else {}
+
             globalid += 1
             if accounts:
                 renew.update(accounts[i])
                 renew.update(renews)
+
+            if renew and api_prefix:
+                renew["api_prefix"] = api_prefix
 
             task = TaskConfig(
                 name=name,
@@ -444,6 +457,7 @@ def assign(
                 chuck=chuck,
                 special_protocols=special_protocols,
                 invite_code=invite_code,
+                api_prefix=api_prefix,
             )
             found = workflow.exists(tasks=tasks, task=task)
             if found:
@@ -642,6 +656,7 @@ def aggregate(args: argparse.Namespace) -> None:
         source_file, data = "config.yaml", {"proxies": nochecks}
         filepath = os.path.join(PATH, "subconverter", source_file)
         with open(filepath, "w+", encoding="utf8") as f:
+            yaml.add_representer(clash.QuotedStr, clash.quoted_scalar)
             yaml.dump(data, f, allow_unicode=True)
 
         targets = group_conf.get("targets", {})
