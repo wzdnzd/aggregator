@@ -18,7 +18,7 @@ fi
 
 # 读取环境变量中的执行时间参数
 TIME_COLLECT=${EXECUTION_TIME_COLLECT:-"0 1 * * *"}  # 默认每天1点执行
-TIME_PROCESS=${EXECUTION_TIME_PROCESS:-"0 2 */2 * *"}  # 默认每2天2点执行
+TIME_PROCESS=${EXECUTION_TIME_PROCESS:-"0 2 */3 * *"}  # 默认每3天2点执行
 
 # 创建日志文件
 mkdir -p /log
@@ -33,10 +33,10 @@ COMMAND_PROCESS="/usr/local/bin/python -u /aggregator/subscribe/process.py --all
 
 # 立即执行命令
 echo "Executing collect.py immediately..."
-"python -u subscribe/collect.py --all --overwrite --skip" >> $LOG_FILE_COLLECT 2>&1
+$COMMAND_COLLECT >> $LOG_FILE_COLLECT 2>&1
 
 echo "Executing process.py immediately..."
-"python -u subscribe/collect.py --all --overwrite --skip" >> $LOG_FILE_PROCESS 2>&1
+$COMMAND_PROCESS >> $LOG_FILE_PROCESS 2>&1
 
 # 添加cron任务
 echo "$TIME_COLLECT $COMMAND_COLLECT >> $LOG_FILE_COLLECT 2>&1" > /etc/cron.d/aggregator-cron
