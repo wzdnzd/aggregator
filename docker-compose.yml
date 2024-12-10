@@ -1,0 +1,14 @@
+version: '3.8'
+services:
+  opaochat:
+    image: opaochat/subbygithub:latest
+    restart: always
+    container_name: subbygithub
+    environment:
+      - TZ=Asia/Shanghai
+      # - EXECUTION_TIME_COLLECT="30 2 * * *"
+      # - EXECUTION_TIME_PROCESS="30 2 * * *"
+    volumes:
+      - /www/wwwroot/ami.opao.pro/data:/aggregator/data
+      - ./log:/log
+      # - ./start.sh:/aggregator/start.sh
