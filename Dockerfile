@@ -33,4 +33,18 @@ RUN rm -rf subconverter/subconverter-darwin-amd \
 RUN pip install -i ${PIP_INDEX_URL} --no-cache-dir -r requirements.txt
 
 # start and run
-CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
+# CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
+
+
+# 确保更新包列表并安装 cron
+RUN apt-get update && apt-get install -y cron
+
+
+# 将启动脚本复制到容器中并设置执行权限
+COPY start.sh /aggregator/start.sh
+COPY default_start.sh /aggregator/default_start.sh
+RUN chmod +x /aggregator/start.sh
+
+# 启动命令，使用新的启动脚本
+CMD ["/aggregator/start.sh"]
+
