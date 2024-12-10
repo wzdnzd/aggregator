@@ -1,21 +1,5 @@
 #!/bin/bash
 
-# 设置目标文件名和路径
-TARGET_FILE="start.sh"
-TARGET_PATH="/aggregator"
-SOURCE_FILE="/aggregator/default_start.sh"
-
-# 检查目标路径中是否存在特定文件
-if [ ! -f "$TARGET_PATH/$TARGET_FILE" ]; then
-    echo "$TARGET_FILE does not exist in $TARGET_PATH, copying default script..."
-    # 如果文件不存在，则复制并重命名
-    cp "$SOURCE_FILE" "$TARGET_PATH/$TARGET_FILE"
-else
-    echo "$TARGET_FILE already exists in $TARGET_PATH, skipping copy operation."
-fi
-
-#!/bin/bash
-
 # 读取环境变量中的执行时间参数
 TIME_COLLECT=${EXECUTION_TIME_COLLECT:-"0 1 * * *"}  # 默认每天1点执行
 TIME_PROCESS=${EXECUTION_TIME_PROCESS:-"0 2 */3 * *"}  # 默认每3天2点执行
