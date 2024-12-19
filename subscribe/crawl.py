@@ -1476,6 +1476,7 @@ def collect_airport(
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
 
+        logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
         return result
 
     def crawl_maomeng() -> dict:
@@ -1545,7 +1546,10 @@ def collect_airport(
             else:
                 links = tasks
 
-            return {utils.extract_domain(url=x, include_protocal=True): "" for x in links if x}
+            result = {utils.extract_domain(url=x, include_protocal=True): "" for x in links if x}
+            logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
+
+            return result
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
             return {}
@@ -1597,6 +1601,7 @@ def collect_airport(
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
 
+        logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
         return result
 
     def extract_backend_url(domain: str, retry: int = 2) -> str:
