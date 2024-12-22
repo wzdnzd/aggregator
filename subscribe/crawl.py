@@ -756,7 +756,7 @@ def search_github_code(page: int, cookie: str, excludes: list = []) -> list[str]
         return []
 
     try:
-        regex = r'<a href="(/\S+/blob/.*?)#L\d+"'
+        regex = r'href="(/[^\s"]+/blob/(?:[^"]+)?)#L\d+"'
         groups = re.findall(regex, content, flags=re.I)
         uris, links = list(set(groups)) if groups else [], set()
         excludes = list(set(excludes))
