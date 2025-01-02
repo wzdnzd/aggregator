@@ -52,6 +52,9 @@ RENAME_GROUP_SEPARATOR = "`"
 # 生成随机字符串时候选字符
 LETTERS = set(string.ascii_letters + string.digits)
 
+# 常见非标准 API 前缀
+ANOTHER_API_PREFIX = "/api?scheme="
+
 # 标记数字位数
 # SUFFIX_BITS = 2
 
@@ -102,6 +105,9 @@ class RegisterRequire:
     # 是否是 sspanel 面板
     sspanel: bool = False
 
+    # 接口地址前缀
+    api_prefix: str = ""
+
 
 class NoRedirHandler(urllib.request.HTTPRedirectHandler):
     def http_error_302(self, req, fp, code, msg, headers):
@@ -123,8 +129,14 @@ def issspanel(domain: str) -> bool:
         except Exception:
             return -2
 
-    url = f"{domain}/api/v1/passport/auth/login"
-    return False if sniff(url=url) == 200 else sniff(url=f"{domain}/auth/login") == 200
+    return (
+        False
+        if (
+            sniff(url=f"{domain}/api/v1/passport/auth/login") == 200
+            or sniff(url=f"{domain}/api?scheme=passport/auth/login") == 200
+        )
+        else sniff(url=f"{domain}/auth/login") == 200
+    )
 
 
 class AirPort:
@@ -138,10 +150,12 @@ class AirPort:
         include: str = "",
         liveness: bool = True,
         coupon: str = "",
+        api_prefix: str = "/api/v1/",
     ):
         if site.endswith("/"):
             site = site[: len(site) - 1]
 
+        self.api_prefix = utils.get_subpath(api_prefix)
         if sub.strip() != "":
             if sub.startswith(utils.FILEPATH_PROTOCAL):
                 ref = sub[8:]
@@ -156,10 +170,10 @@ class AirPort:
             self.send_email = ""
         else:
             self.sub = ""
-            self.fetch = f"{site}/api/v1/user/server/fetch"
+            self.fetch = f"{site}{self.api_prefix}user/server/fetch"
             self.registed = False
-            self.send_email = f"{site}/api/v1/passport/comm/sendEmailVerify"
-            self.reg = f"{site}/api/v1/passport/auth/register"
+            self.send_email = f"{site}{self.api_prefix}passport/comm/sendEmailVerify"
+            self.reg = f"{site}{self.api_prefix}passport/auth/register"
             self.ref = site
         self.name = name
         self.rename = rename
@@ -167,20 +181,42 @@ class AirPort:
         self.include = include
         self.liveness = liveness
         self.coupon = "" if utils.isblank(coupon) else coupon
-        self.headers = {"User-Agent": utils.USER_AGENT, "Referer": self.ref + "/", "Origin": self.ref}
+        self.headers = {
+            "User-Agent": utils.USER_AGENT,
+            "Referer": self.ref + "/",
+            "Origin": self.ref,
+            "Host": utils.extract_domain(self.ref),
+        }
         self.username = ""
         self.password = ""
         self.available = True
 
     @staticmethod
-    def get_register_require(domain: str, proxy: str = "", default: bool = True) -> RegisterRequire:
+    def get_register_require(
+        domain: str,
+        proxy: str = "",
+        default: bool = True,
+        api_prefix: str = "",
+    ) -> RegisterRequire:
         domain = utils.extract_domain(url=domain, include_protocal=True)
         if not domain:
             return RegisterRequire(verify=default, invite=default, recaptcha=default)
 
-        url = f"{domain}/api/v1/guest/comm/config"
-        content = utils.http_get(url=url, retry=2, proxy=proxy)
-        if not content or not content.startswith("{") and content.endswith("}"):
+        api_prefix = utils.trim(api_prefix)
+        subpath = utils.get_subpath(api_prefix)
+
+        content = utils.http_get(
+            url=f"{domain}{subpath}guest/comm/config",
+            retry=2,
+            proxy=proxy,
+        )
+        if not content and (not api_prefix or subpath != ANOTHER_API_PREFIX):
+            api_prefix = ANOTHER_API_PREFIX
+
+            logger.debug(f"[QueryError] try to explore another register require, domain: {domain}")
+            content = utils.http_get(url=f"{domain}{api_prefix}guest/comm/config", retry=2, proxy=proxy)
+
+        if not content.startswith("{") and content.endswith("}"):
             logger.debug(f"[QueryError] cannot get register require, domain: {domain}")
             return RegisterRequire(verify=default, invite=default, recaptcha=default)
 
@@ -204,6 +240,7 @@ class AirPort:
                 invite=invite_force,
                 recaptcha=recaptcha,
                 whitelist=whitelist,
+                api_prefix=api_prefix,
             )
 
         except:
@@ -216,7 +253,11 @@ class AirPort:
 
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         headers = deepcopy(self.headers)
+
         headers["Content-Type"] = "application/x-www-form-urlencoded"
+        if self.api_prefix == ANOTHER_API_PREFIX:
+            headers["Content-Type"] = "application/json"
+            data = json.dumps(params).encode(encoding="UTF8")
 
         try:
             request = urllib.request.Request(self.send_email, data=data, headers=headers, method="POST")
@@ -249,6 +290,10 @@ class AirPort:
         headers = deepcopy(self.headers)
         headers["Content-Type"] = "application/x-www-form-urlencoded"
 
+        if self.api_prefix == ANOTHER_API_PREFIX:
+            headers["Content-Type"] = "application/json"
+            data = json.dumps(params).encode(encoding="UTF8")
+
         try:
             request = urllib.request.Request(self.reg, data=data, headers=headers, method="POST")
             response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
@@ -275,14 +320,17 @@ class AirPort:
                 authorization=authorization,
             )
 
-            if token:
-                self.sub = f"{self.ref}/api/v1/client/subscribe?token={token}"
-            else:
-                subscribe_info = renewal.get_subscribe_info(
-                    domain=self.ref, cookies=cookies, authorization=authorization
-                )
-                if subscribe_info:
-                    self.sub = subscribe_info.sub_url
+            subscribe_info = renewal.get_subscribe_info(
+                domain=self.ref,
+                cookies=cookies,
+                authorization=authorization,
+                api_prefix=self.api_prefix,
+            )
+            if subscribe_info:
+                self.sub = subscribe_info.sub_url
+            if not self.sub:
+                if token:
+                    self.sub = f"{self.ref}/api/v1/client/subscribe?token={token}"
                 else:
                     logger.error(f"[RegisterError] cannot get token when register, domain: {self.ref}")
 
@@ -298,12 +346,15 @@ class AirPort:
         authorization: str = "",
         retry: int = 3,
     ) -> bool:
+        jsonify = self.api_prefix == ANOTHER_API_PREFIX
         plan = renewal.get_free_plan(
             domain=self.ref,
             cookies=cookies,
             authorization=authorization,
             retry=retry,
             coupon=self.coupon,
+            api_prefix=self.api_prefix,
+            jsonify=jsonify,
         )
 
         if not plan:
@@ -312,7 +363,12 @@ class AirPort:
         else:
             logger.info(f"found free plan, domain: {self.ref}, plan: {plan}")
 
-        methods = renewal.get_payment_method(domain=self.ref, cookies=cookies, authorization=authorization)
+        methods = renewal.get_payment_method(
+            domain=self.ref,
+            cookies=cookies,
+            authorization=authorization,
+            api_prefix=self.api_prefix,
+        )
 
         method = random.choice(methods) if methods else 1
         params = {
@@ -322,6 +378,8 @@ class AirPort:
             "plan_id": plan.plan_id,
             "method": method,
             "coupon_code": self.coupon,
+            "api_prefix": self.api_prefix,
+            "jsonify": jsonify,
         }
 
         success = renewal.flow(
@@ -368,7 +426,15 @@ class AirPort:
             return "", ""
 
         invite_code = utils.trim(invite_code)
-        rr = rr if rr is not None else self.get_register_require(domain=self.ref, default=False)
+        rr = (
+            rr
+            if rr is not None
+            else self.get_register_require(
+                domain=self.ref,
+                default=False,
+                api_prefix=self.api_prefix,
+            )
+        )
 
         # 需要邀请码或者强制验证
         if (
@@ -378,6 +444,9 @@ class AirPort:
         ):
             self.available = False
             return "", ""
+
+        # API地址前缀
+        self.api_prefix = rr.api_prefix or self.api_prefix
 
         if not rr.verify:
             email = utils.random_chars(length=random.randint(6, 10), punctuation=False)
@@ -391,10 +460,10 @@ class AirPort:
             email = f"{email}@{email_domain}"
             return self.register(email=email, password=password, invite_code=invite_code, retry=retry)
         else:
-            onlygmail = True if rr.whitelist and rr.verify else False
+            only_gmail = True if rr.whitelist and rr.verify else False
 
             try:
-                mailbox = mailtm.create_instance(onlygmail=onlygmail)
+                mailbox = mailtm.create_instance(only_gmail=only_gmail)
                 account = mailbox.get_account()
                 if not account:
                     logger.error(f"cannot create temporary email account, site: {self.ref}")
@@ -404,28 +473,30 @@ class AirPort:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     starttime = time.time()
                     try:
-                        future = executor.submit(mailbox.monitor_account, account, 240, random.randint(1, 3))
+                        future = executor.submit(mailbox.monitor_account, account, 120, random.randint(1, 3))
                         success = self.sen_email_verify(email=account.address, retry=3)
                         if not success:
                             executor.shutdown(wait=False)
                             return "", ""
-                        message = future.result(timeout=180)
-                        logger.info(
+                        message = future.result(timeout=120)
+                        logger.debug(
                             f"email has been received, domain: {self.ref}\tcost: {int(time.time()- starttime)}s"
                         )
                     except concurrent.futures.TimeoutError:
-                        logger.error(f"receiving mail timeout, site: {self.ref}, address: {account.address}")
+                        logger.error(
+                            f"receiving mail timeout, site: {self.ref}, address: {mailbox.api_address}, email: {account.address}"
+                        )
 
                 if not message:
-                    logger.error(f"cannot receive any message, site: {self.ref}")
                     return "", ""
 
                 # 如果标准正则无法提取验证码则直接匹配数字
-                mask = mailbox.extract_mask(message.text) or mailbox.extract_mask(message.text, r"\s+([0-9]{6})")
+                mask = mailbox.extract_mask(message.text) or mailbox.extract_mask(message.text, r"[：\s]+([0-9]{6})")
                 mailbox.delete_account(account=account)
                 if not mask:
-                    logger.error(f"cannot fetch mask, url: {self.ref}")
+                    logger.error(f"cannot fetch mask, url: {self.ref}, message: {message.text}")
                     return "", ""
+
                 return self.register(
                     email=account.address,
                     password=account.password,
@@ -463,12 +534,17 @@ class AirPort:
             with open(self.sub, "r", encoding="UTF8") as f:
                 text = f.read()
         else:
-            headers = deepcopy(self.headers)
-            headers["Accept-Encoding"] = "gzip"
-            headers["User-Agent"] = "V2RayN; Clash.Meta; Mihomo"
-
+            headers = {"User-Agent": "Clash.Meta; Mihomo"}
             trace = os.environ.get("TRACE_ENABLE", "false").lower() in ["true", "1"]
-            text = utils.http_get(url=self.sub, headers=headers, retry=retry, timeout=30, trace=trace).strip()
+
+            text = utils.http_get(
+                url=self.sub,
+                headers=headers,
+                retry=retry,
+                timeout=30,
+                trace=trace,
+                interval=1,
+            ).strip()
 
         if "" == text or (
             text.startswith("{") and text.endswith("}") and not re.search(r'"outbounds":', text, flags=re.I)
