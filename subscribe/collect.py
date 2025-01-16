@@ -394,7 +394,9 @@ def aggregate(args: argparse.Namespace) -> None:
                     files[k] = {"content": f.read(), "filename": k}
 
         if urls:
-            files[subscribes_file] = {"content": "\n".join(urls), "filename": subscribes_file}
+            # 将订阅内容也添加日期时间
+            subscribes_content_with_date = current_datetime + "\n".join(urls)
+            files[subscribes_file] = {"content": subscribes_content_with_date, "filename": subscribes_file}
 
         if files:
             push_client = push.PushToGist(token=access_token)
