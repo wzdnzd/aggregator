@@ -389,10 +389,13 @@ def aggregate(args: argparse.Namespace) -> None:
     if gist_id and access_token:
         files, push_conf = {}, {"gistid": gist_id, "filename": list(records.keys())[0]}
 
+        current_datetime = datetime.now().strftime("# 日期时间: %Y-%m-%d %H:%M:%S\n")
+
         for k, v in records.items():
             if os.path.exists(v) and os.path.isfile(v):
                 with open(v, "r", encoding="utf8") as f:
-                    files[k] = {"content": f.read(), "filename": k}
+                    content_with_date = current_datetime + f.read()
+                    files[k] = {"content": content_with_date, "filename": k}
 
         if urls:
             # 将订阅内容也添加日期时间
