@@ -1,0 +1,48 @@
+name: Sync-force
+
+on:
+  schedule:
+    - cron: '0 */8 * * *'  # 每8小时执行一次
+  workflow_dispatch:  # 允许手动触发工作流
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout forked repository
+        uses: actions/checkout@v2
+        with:
+          ref: main
+          repository: ${{ github.repository }}
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "${{ secrets.GIT_USER_NAME }}"
+          git config --global user.email "${{ secrets.GIT_USER_EMAIL }}"
+
+      - name: Backup workflows
+        run: |
+          mkdir -p /tmp/workflows-backup
+          cp -r .github/workflows/* /tmp/workflows-backup/
+
+      - name: Add upstream repository
+        run: git remote add upstream https://github.com/wzdnzd/aggregator.git
+
+      - name: Fetch upstream changes
+        run: git fetch upstream
+
+      - name: Reset to upstream main
+        run: git reset --hard upstream/main
+
+      - name: Restore workflows
+        run: cp -r /tmp/workflows-backup/* .github/workflows/
+
+      - name: Commit and push changes
+        run: |
+          git add .github/workflows
+          git commit -m "Retain workflows while updating from upstream"
+          git push origin main --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}

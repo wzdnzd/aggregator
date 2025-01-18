@@ -1,0 +1,46 @@
+name: R2
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # 每4个小时跑一次
+  workflow_dispatch: # 允许手动触发
+  
+env:
+  # time zone
+ TZ: Asia/Shanghai
+
+permissions:
+  contents: write
+
+jobs:
+  execute-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+        architecture: "x64"
+        cache: "pip"
+
+    - name: Install dependencies
+      run: |
+        pip3 install pyYAML requests tqdm
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        
+    # usage: collect.py [-h] [-a] [-c] [-d DELAY] [-f FILENAME] [-g GIST] [-i] [-k KEY] [-l LIFE] [-n NUM] [-o] [-p PAGES] [-r] [-s] [-t TIMEOUT] [-u URL] [-v VESTIGIAL]
+    - name: Collect Subscribe
+      id: collect
+      run: |
+        python -u subscribe/collect.py -a -t clash singbox -o 
+    - name: Upload static files to R2
+      uses: ryand56/r2-upload-action@latest
+      with:
+          r2-account-id: ${{ secrets.R2_ACCOUNT_ID }}
+          r2-access-key-id: ${{ secrets.R2_ACCESS_KEY_ID }}
+          r2-secret-access-key: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          r2-bucket: ${{ secrets.R2_BUCKET }}
+          source-dir: data
