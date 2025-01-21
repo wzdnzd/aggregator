@@ -2,7 +2,7 @@ name: R2
 
 on:
   schedule:
-    - cron: '0 */1 * * *' # 每1个小时跑一次
+    - cron: '0 */3 * * *' # 每1个小时跑一次
   workflow_dispatch: # 允许手动触发
   
 env:
