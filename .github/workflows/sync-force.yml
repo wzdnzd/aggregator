@@ -38,11 +38,5 @@ jobs:
 
       - name: Restore workflows
         run: cp -r /tmp/workflows-backup/* .github/workflows/
-
-      - name: Commit and push changes
-        run: |
-          git add .github/workflows
-          git commit -m "Retain workflows while updating from upstream"
-          git push origin main --force
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
