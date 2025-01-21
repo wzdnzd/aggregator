@@ -28,7 +28,7 @@ jobs:
           cp -r .github/workflows/* /tmp/workflows-backup/
 
       - name: Add upstream repository
-        run: git remote add upstream https://github.com/wzdnzd/aggregator.git
+        run: git remote add upstream https://github.com/sorangegu/mio-pro.git
 
       - name: Fetch upstream changes
         run: git fetch upstream
