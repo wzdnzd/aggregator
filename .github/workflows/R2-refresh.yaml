@@ -2,7 +2,7 @@ name: R2-Refresh
 
 on:
   schedule:
-    - cron: '*/5 * * * *' # 每10分钟跑一次
+    - cron: '*/30 * * * *' # 每30分钟跑一次
   workflow_dispatch: # 允许手动触发
   
 env:
