@@ -544,6 +544,7 @@ class AirPort:
                 timeout=30,
                 trace=trace,
                 interval=1,
+                max_size=15 * 1024 * 1024,
             ).strip()
 
         if "" == text or (
