@@ -40,3 +40,12 @@ jobs:
         run: cp -r /tmp/workflows-backup/* .github/workflows/
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        
+    - name: Commit changes
+      run: |
+        git add .
+        git commit -m "Sync with upstream" || echo "Update upstream changes"
+        
+    - name: Push changes
+      run: |
+        git push origin main
