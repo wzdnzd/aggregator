@@ -24,7 +24,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          [ -f aggregate/requirements.txt ] && pip install -r aggregate/requirements.txt
+          pip install pyyaml requests && pip install -r aggregate/requirements.txt
 
       - name: Collect Subscribe
         id: collect
@@ -35,7 +35,6 @@ jobs:
         working-directory: aggregate
         run: |
           ls -l proxies.yaml subscribes.txt domains.txt valid-domains.txt
-          [ -f proxies.yaml ] || exit 1
 
       - name: Update Gist
         working-directory: aggregate
