@@ -21,8 +21,6 @@ jobs:
           cd data && touch subscribes.txt
       - name: Update Gist
         working-directory: data
-        env:
-          GH_TOKEN: ${{ secrets.PAT }}
         run: |
-          gh gist edit ${{ secrets.GIST_ID }} \
+          gh gist edit ${{ secrets.PAT }} \
             --add subscribes.txt
