@@ -17,7 +17,8 @@ jobs:
         run: |
           echo "PAT exists: ${{ toJson(secrets.PAT) != '' }}"  # 输出true/false
           echo "GIST_ID: ${{ secrets.GIST_ID }}"
-          # 注意：实际Secret值会被GitHub自动隐藏
+          mkdir data
+          cd data && touch subscribes.txt
       - name: Update Gist
         working-directory: data
         env:
