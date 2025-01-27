@@ -19,9 +19,10 @@ jobs:
           echo "GIST_ID: ${{ secrets.GIST_ID }}"
           mkdir data
           cd data && touch subscribes.txt
-      - name: Update Gist
-        working-directory: data
-        run: |
-          GH_TOKEN=${{ secrets.PAT }}
-          gh gist edit ${{ secrets.GIST_ID }} \
-            --add subscribes.txt
+      - name: Deploy
+        uses: exuanbo/actions-deploy-gist@v1
+        with:
+          token: ${{ secrets.PAT }}
+          gist_id: ${{ secrets.GIST_ID }}
+          file_path: data/subscribes.txt
+          file_type: binary          
