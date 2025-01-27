@@ -33,7 +33,7 @@ jobs:
       - name: Validate generated files
         working-directory: data
         run: |
-          ls -l proxies.yaml subscribes.txt domains.txt valid-domains.txt
+          ls -l subscribes.txt
 
       - name: Update Gist
         working-directory: data
@@ -41,7 +41,4 @@ jobs:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
           gh gist edit ${{ secrets.GIST_ID }} \
-            --add proxies.yaml \
-            --add subscribes.txt \
-            --add domains.txt \
-            --add valid-domains.txt
+            --add subscribes.txt
