@@ -24,7 +24,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install pyyaml requests
+          pip install --upgrade pip && pip install pyyaml requests
           [ -f aggregate/requirements.txt ] && pip install -r aggregate/requirements.txt
 
       - name: Collect Subscribe
