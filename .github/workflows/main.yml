@@ -28,16 +28,15 @@ jobs:
 
       - name: Collect Subscribe
         id: collect
-        working-directory: aggregate
         run: python -u subscribe/collect.py
 
       - name: Validate generated files
-        working-directory: aggregate
+        working-directory: data
         run: |
           ls -l proxies.yaml subscribes.txt domains.txt valid-domains.txt
 
       - name: Update Gist
-        working-directory: aggregate
+        working-directory: data
         env:
           GH_TOKEN: ${{ secrets.PAT }}
         run: |
