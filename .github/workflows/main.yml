@@ -22,5 +22,6 @@ jobs:
       - name: Update Gist
         working-directory: data
         run: |
-          gh gist edit ${{ secrets.PAT }} \
+          GH_TOKEN=${{ secrets.PAT }}
+          gh gist edit ${{ secrets.GIST_ID }} \
             --add subscribes.txt
