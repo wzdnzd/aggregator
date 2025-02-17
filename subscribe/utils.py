@@ -72,6 +72,7 @@ def http_get(
     interval: float = 0,
     timeout: float = 10,
     trace: bool = False,
+    max_size=None,
 ) -> str:
     if not isurl(url=url):
         logger.error(f"invalid url: {url}")
@@ -85,6 +86,8 @@ def http_get(
 
     interval = max(0, interval)
     timeout = max(1, timeout)
+    length = None if max_size is None or max_size <= 0 else max_size
+
     try:
         url = encoding_url(url=url)
         if params and isinstance(params, dict):
@@ -104,7 +107,7 @@ def http_get(
             request.set_proxy(host=host, type=protocal)
 
         response = urllib.request.urlopen(request, timeout=timeout, context=CTX)
-        content = response.read()
+        content = response.read(length)
         status_code = response.getcode()
         try:
             content = str(content, encoding="utf8")
@@ -128,6 +131,7 @@ def http_get(
                 proxy=proxy,
                 interval=interval,
                 timeout=timeout,
+                max_size=length,
             )
         else:
             return ""
@@ -153,6 +157,7 @@ def http_get(
             proxy=proxy,
             interval=interval,
             timeout=timeout,
+            max_size=length,
         )
 
 
