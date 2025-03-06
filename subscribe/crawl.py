@@ -756,7 +756,7 @@ def search_github_code(page: int, cookie: str, excludes: list = []) -> list[str]
         return []
 
     try:
-        regex = r'<a href="(/\S+/blob/.*?)#L\d+"'
+        regex = r'href="(/[^\s"]+/blob/(?:[^"]+)?)#L\d+"'
         groups = re.findall(regex, content, flags=re.I)
         uris, links = list(set(groups)) if groups else [], set()
         excludes = list(set(excludes))
@@ -1261,7 +1261,8 @@ def check_status(
         if response.getcode() != 200:
             return False, connectable
 
-        content = str(response.read(), encoding="utf8")
+        # in order to avoid the request to the speed test site causing constant data downloads, limit the maximum read to 15MB
+        content = str(response.read(15 * 1024 * 2014), encoding="utf8")
 
         # response text is too short, ignore
         if len(content) < 32:
@@ -1476,6 +1477,7 @@ def collect_airport(
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
 
+        logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
         return result
 
     def crawl_maomeng() -> dict:
@@ -1518,7 +1520,7 @@ def collect_airport(
             return {}
 
         separator = r'<h2 id="\d+" tabindex="-1">'
-        address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer">前往注册</a>'
+        address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer nofollow">前往注册</a>'
         coupon_regex = r"使用优惠码(?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0(?:\s+)?元购买"
 
         tasks = [[x, separator, address_regex, coupon_regex] for x in sorted(articles)]
@@ -1545,7 +1547,10 @@ def collect_airport(
             else:
                 links = tasks
 
-            return {utils.extract_domain(url=x, include_protocal=True): "" for x in links if x}
+            result = {utils.extract_domain(url=x, include_protocal=True): "" for x in links if x}
+            logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
+
+            return result
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
             return {}
@@ -1597,6 +1602,7 @@ def collect_airport(
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
 
+        logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
         return result
 
     def extract_backend_url(domain: str, retry: int = 2) -> str:
