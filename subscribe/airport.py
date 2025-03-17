@@ -688,7 +688,7 @@ class AirPort:
                     if "tls" in item:
                         item["tls"] = True
 
-                if udp and "udp" not in item:
+                if udp and "udp" not in item and (item.get("type", "") != "snell" or int(item.get("version", 1)) == 3):
                     item["udp"] = True
 
                 proxies.append(item)
