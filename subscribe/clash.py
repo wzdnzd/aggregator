@@ -471,6 +471,14 @@ def verify(item: dict, mihomo: bool = True) -> bool:
             authentication = "psk"
             if "version" in item and not item["version"].isdigit():
                 return False
+
+            version = int(item.get("version", 1))
+            if version < 1 or version > 3:
+                return False
+            if version != 3:
+                # only version 3 supports UDP
+                item.pop("udp", None)
+
             if "obfs-opts" in item:
                 obfs_opts = item.get("obfs-opts", {})
                 if not obfs_opts or type(obfs_opts) != dict:
