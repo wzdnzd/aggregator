@@ -31,7 +31,6 @@ DOMAIN,alt6-mtalk.google.com
 DOMAIN,alt7-mtalk.google.com
 DOMAIN,alt8-mtalk.google.com
 # >> Paramount+
-# AND,((OR,((USER-AGENT,mediaserverd*), (USER-AGENT,com.apple.WebKit.Networking*))), (DOMAIN,pubads.g.doubleclick.net))
 DOMAIN,pubads.g.doubleclick.net
 # > Tencent
 DOMAIN,fairplay.l.qq.com
