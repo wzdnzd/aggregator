@@ -10,17 +10,38 @@ DOMAIN,a248.e.akamai.net
 DOMAIN,a771.dscq.akamai.net
 # > Apple
 DOMAIN,testflight.apple.com
+# > Clubhouse
+DOMAIN-SUFFIX,clubhouseapi.com
+DOMAIN-SUFFIX,joinclubhouse.com
+DOMAIN,clubhouse.pubnubapi.com
 # > Crypto
 DOMAIN-SUFFIX,aex.com
 DOMAIN-SUFFIX,bibox.com
 DOMAIN-SUFFIX,binance.cc
 DOMAIN-SUFFIX,binance.com
+DOMAIN-SUFFIX,binance.us
 DOMAIN-SUFFIX,bitcointalk.org
 DOMAIN-SUFFIX,bitfinex.com
+DOMAIN-SUFFIX,bithumb.com
 DOMAIN-SUFFIX,bitmex.com
+DOMAIN-SUFFIX,bitstamp.net
+DOMAIN-SUFFIX,bittrex.com
+DOMAIN-SUFFIX,bybit.com
+DOMAIN-SUFFIX,coinbase.com
+DOMAIN-SUFFIX,coincheck.com
+DOMAIN-SUFFIX,coingecko.com
+DOMAIN-SUFFIX,coinmarketcap.com
+DOMAIN-SUFFIX,coinone.co.kr
+DOMAIN-SUFFIX,ftx.com
 DOMAIN-SUFFIX,gate.io
+DOMAIN-SUFFIX,gemini.com
 DOMAIN-SUFFIX,huobi.com
+DOMAIN-SUFFIX,korbit.co.kr
+DOMAIN-SUFFIX,kraken.com
+DOMAIN-SUFFIX,kucoin.com
+DOMAIN-SUFFIX,liquid.com
 DOMAIN-SUFFIX,okex.com
+DOMAIN-SUFFIX,poloniex.com
 DOMAIN-SUFFIX,uniswap.org
 DOMAIN-SUFFIX,zb.com
 # > Discord
@@ -58,6 +79,7 @@ DOMAIN-SUFFIX,appspot.com
 DOMAIN-SUFFIX,blogger.com
 DOMAIN-SUFFIX,getoutline.org
 DOMAIN-SUFFIX,gvt0.com
+DOMAIN-SUFFIX,gvt1.com
 DOMAIN-SUFFIX,gvt3.com
 DOMAIN-SUFFIX,xn--ngstr-lra8j.com
 DOMAIN-SUFFIX,ytimg.com
@@ -73,13 +95,6 @@ IP-CIDR,125.209.208.0/20,no-resolve
 IP-CIDR,147.92.128.0/17,no-resolve
 IP-CIDR,203.104.144.0/21,no-resolve
 # > Microsoft
-DOMAIN-SUFFIX,hotmail.com
-DOMAIN-SUFFIX,live.com
-DOMAIN-SUFFIX,live.net
-DOMAIN-SUFFIX,livefilestore.com
-DOMAIN-SUFFIX,mesh.com
-DOMAIN-SUFFIX,msn.com
-DOMAIN-SUFFIX,storage.msn.com
 DOMAIN-SUFFIX,aka.ms
 DOMAIN-SUFFIX,onedrive.live.com
 DOMAIN-SUFFIX,streaming.mediaservices.windows.net
@@ -114,23 +129,22 @@ DOMAIN-SUFFIX,redd.it
 DOMAIN-SUFFIX,reddit.com
 DOMAIN-SUFFIX,redditmedia.com
 # > Telegram
-DOMAIN-SUFFIX,t.me
-DOMAIN-SUFFIX,tdesktop.com
 DOMAIN-SUFFIX,telegra.ph
-DOMAIN-SUFFIX,telegram.me
 DOMAIN-SUFFIX,telegram.org
-DOMAIN-SUFFIX,telesco.pe
 IP-CIDR,91.108.4.0/22,no-resolve
 IP-CIDR,91.108.8.0/22,no-resolve
 IP-CIDR,91.108.12.0/22,no-resolve
 IP-CIDR,91.108.16.0/22,no-resolve
 IP-CIDR,91.108.20.0/22,no-resolve
 IP-CIDR,91.108.56.0/22,no-resolve
-IP-CIDR,95.161.64.0/20,no-resolve
+IP-CIDR,91.105.192.0/23,no-resolve
 IP-CIDR,149.154.160.0/20,no-resolve
+IP-CIDR,185.76.151.0/24,no-resolve
 IP-CIDR6,2001:b28:f23d::/48,no-resolve
 IP-CIDR6,2001:b28:f23f::/48,no-resolve
 IP-CIDR6,2001:67c:4e8::/48,no-resolve
+IP-CIDR6,2001:b28:f23c::/48,no-resolve
+IP-CIDR6,2a0a:f280::/32,no-resolve
 # > Twitter
 DOMAIN-SUFFIX,pscp.tv
 DOMAIN-SUFFIX,periscope.tv
@@ -140,14 +154,6 @@ DOMAIN-SUFFIX,twimg.com
 DOMAIN-SUFFIX,twitpic.com
 DOMAIN-SUFFIX,twitter.com
 DOMAIN-SUFFIX,vine.co
-IP-CIDR,69.195.160.0/19,no-resolve
-IP-CIDR,104.244.42.0/21,no-resolve
-IP-CIDR,192.133.76.0/22,no-resolve
-IP-CIDR,199.16.156.0/22,no-resolve
-IP-CIDR,199.59.148.0/22,no-resolve
-IP-CIDR,199.96.56.0/21,no-resolve
-IP-CIDR,202.160.128.0/22,no-resolve
-IP-CIDR,209.237.192.0/19,no-resolve
 # > Wikimedia Foundation
 DOMAIN-SUFFIX,wikileaks.org
 DOMAIN-SUFFIX,wikimapia.org
@@ -210,11 +216,8 @@ DOMAIN-SUFFIX,channelnewsasia.com
 DOMAIN-SUFFIX,ck101.com
 DOMAIN-SUFFIX,clarionproject.org
 DOMAIN-SUFFIX,cloudcone.com
-DOMAIN-SUFFIX,clubhouseapi.com
 DOMAIN-SUFFIX,clyp.it
 DOMAIN-SUFFIX,cna.com.tw
-DOMAIN-SUFFIX,cnet.com
-DOMAIN-SUFFIX,cnn.com
 DOMAIN-SUFFIX,comparitech.com
 DOMAIN-SUFFIX,conoha.jp
 DOMAIN-SUFFIX,crucial.com
@@ -306,7 +309,6 @@ DOMAIN-SUFFIX,japantimes.co.jp
 DOMAIN-SUFFIX,jiji.com
 DOMAIN-SUFFIX,jinx.com
 DOMAIN-SUFFIX,jkforum.net
-DOMAIN-SUFFIX,joinclubhouse.com
 DOMAIN-SUFFIX,joinmastodon.org
 DOMAIN-SUFFIX,justmysocks.net
 DOMAIN-SUFFIX,justpaste.it
@@ -332,6 +334,7 @@ DOMAIN-SUFFIX,mailchimp.com
 DOMAIN-SUFFIX,marc.info
 DOMAIN-SUFFIX,matters.news
 DOMAIN-SUFFIX,maying.co
+DOMAIN-SUFFIX,medibang.com
 DOMAIN-SUFFIX,medium.com
 DOMAIN-SUFFIX,mega.nz
 DOMAIN-SUFFIX,mergersandinquisitions.com
@@ -421,6 +424,7 @@ DOMAIN-SUFFIX,straitstimes.com
 DOMAIN-SUFFIX,streamable.com
 DOMAIN-SUFFIX,streema.com
 DOMAIN-SUFFIX,substack.com
+DOMAIN-SUFFIX,substack.com
 DOMAIN-SUFFIX,t66y.com
 DOMAIN-SUFFIX,tapatalk.com
 DOMAIN-SUFFIX,teco-hk.org
@@ -436,6 +440,7 @@ DOMAIN-SUFFIX,tineye.com
 DOMAIN-SUFFIX,tiny.cc
 DOMAIN-SUFFIX,tinyurl.com
 DOMAIN-SUFFIX,torproject.org
+DOMAIN-SUFFIX,tradingview.com
 DOMAIN-SUFFIX,tumblr.com
 DOMAIN-SUFFIX,turbobit.net
 DOMAIN-SUFFIX,tutanota.com
@@ -520,7 +525,6 @@ DOMAIN-SUFFIX,ggpht.com
 DOMAIN-SUFFIX,gmail.com
 DOMAIN-SUFFIX,gmodules.com
 DOMAIN-SUFFIX,godoc.org
-DOMAIN-SUFFIX,golang.org
 DOMAIN-SUFFIX,gstatic.com
 DOMAIN-SUFFIX,gv.com
 DOMAIN-SUFFIX,gwtproject.org
@@ -543,6 +547,7 @@ DOMAIN-SUFFIX,webrtc.org
 DOMAIN-SUFFIX,whatbrowser.org
 DOMAIN-SUFFIX,widevine.com
 DOMAIN-SUFFIX,x.company
+DOMAIN-SUFFIX,youtu.be
 DOMAIN-SUFFIX,yt.be
 DOMAIN-SUFFIX,ytimg.com
 # > Telegram
@@ -550,15 +555,6 @@ DOMAIN-SUFFIX,t.me
 DOMAIN-SUFFIX,tdesktop.com
 DOMAIN-SUFFIX,telegram.me
 DOMAIN-SUFFIX,telesco.pe
-
-USER-AGENT,*youtube*
-USER-AGENT,YouTube*
-DOMAIN-KEYWORD,youtube
-DOMAIN,yt3.ggpht.com
-DOMAIN-SUFFIX,googlevideo.com
-DOMAIN-SUFFIX,gvt2.com
-DOMAIN-SUFFIX,youtu.be
-
 # > Facebook
 DOMAIN-KEYWORD,.facebook.
 DOMAIN-SUFFIX,facebookmail.com
@@ -570,28 +566,41 @@ DOMAIN-SUFFIX,twitter.jp
 
 # (Region-Restricted Access Denied)
 # ---(Apple)---
-# > Apple URL Shortener
-DOMAIN-SUFFIX,appsto.re
-# > iBooks Store download
-DOMAIN,books.itunes.apple.com
-# > App Store Preview
+DOMAIN-SUFFIX,appsto.re // Apple URL Shortener
+DOMAIN,books.itunes.apple.com // iBooks Store download
+DOMAIN-SUFFIX,smoot.apple.com // Spotlight
+DOMAIN,beta.music.apple.com // Apple Music Web
+DOMAIN,lookup-api.apple.com // Look Up
+# > Web Preview
 DOMAIN,apps.apple.com
+DOMAIN,books.apple.com
 DOMAIN,itunes.apple.com
-# > Spotlight
-DOMAIN,api-glb-sea.smoot.apple.com
-# > Look Up
-DOMAIN-SUFFIX,smoot.apple.com
-DOMAIN,lookup-api.apple.com
-# > Apple Music Web
-DOMAIN,beta.music.apple.com
+DOMAIN,tv.apple.com
+# > Podcasts
+DOMAIN,amp-api.podcasts.apple.com
+DOMAIN,bookkeeper.itunes.apple.com
+# > News
+DOMAIN,gateway.icloud.com
+DOMAIN-SUFFIX,apple.news
+DOMAIN,news-assets.apple.com
+DOMAIN,news-client.apple.com
+DOMAIN,news-client-search.apple.com
+DOMAIN,news-edge.apple.com
+DOMAIN,news-events.apple.com
+DOMAIN,apple.comscoreresearch.com
 # ------
-DOMAIN-SUFFIX,push.apple.com
+# Google
+DOMAIN-SUFFIX,go.dev
+DOMAIN-SUFFIX,golang.org
 # > Others
+DOMAIN-SUFFIX,aicoin.com
+DOMAIN-SUFFIX,aimoon.com
 DOMAIN-SUFFIX,bing.com
 DOMAIN-SUFFIX,cccat.io
 DOMAIN-SUFFIX,dubox.com
 DOMAIN-SUFFIX,duboxcdn.com
 DOMAIN-SUFFIX,ifixit.com
+DOMAIN-SUFFIX,linkedin.com
 DOMAIN-SUFFIX,mangakakalot.com
 DOMAIN-SUFFIX,shopeemobile.com
 DOMAIN-SUFFIX,sushi.com
@@ -603,155 +612,14 @@ DOMAIN,appleid.apple.com
 DOMAIN,developer.apple.com
 DOMAIN,www.icloud.com
 DOMAIN,ocsp.apple.com
-DOMAIN,xp.apple.com
 # > DigiCert
 DOMAIN,cacerts.digicert.com
 DOMAIN,crl3.digicert.com
 DOMAIN,crl4.digicert.com
 DOMAIN,ocsp.digicert.com
 # > Others
-DOMAIN-SUFFIX,en.ipip.net
-DOMAIN-SUFFIX,cloudcone.com.cn
 DOMAIN-SUFFIX,inkbunny.net
 DOMAIN-SUFFIX,metapix.net
 DOMAIN-SUFFIX,s3.amazonaws.com
 DOMAIN-SUFFIX,zaobao.com.sg
 DOMAIN,international-gfe.download.nvidia.com
-DOMAIN-SUFFIX,bugsnag.com
-
-USER-AGENT,WhatsApp*
-
-DOMAIN-KEYWORD,appledaily
-DOMAIN-KEYWORD,beetalk
-DOMAIN-KEYWORD,blogspot
-DOMAIN-KEYWORD,dropbox
-DOMAIN-KEYWORD,facebook
-DOMAIN-KEYWORD,github
-DOMAIN-KEYWORD,instagram
-DOMAIN-KEYWORD,twitter
-DOMAIN-KEYWORD,whatsapp
-DOMAIN-KEYWORD,google
-DOMAIN-SUFFIX,1e100.net
-DOMAIN-SUFFIX,2mdn.net
-DOMAIN-SUFFIX,abc.xyz
-DOMAIN-SUFFIX,akamai.net
-DOMAIN-SUFFIX,appspot.com
-DOMAIN-SUFFIX,autodraw.com
-DOMAIN-SUFFIX,bandwagonhost.com
-DOMAIN-SUFFIX,blogblog.com
-DOMAIN-SUFFIX,chromeexperiments.com
-DOMAIN-SUFFIX,creativelab5.com
-DOMAIN-SUFFIX,crittercism.com
-DOMAIN-SUFFIX,culturalspot.org
-DOMAIN-SUFFIX,dartlang.org
-DOMAIN-SUFFIX,fb.com
-DOMAIN-SUFFIX,fb.me
-DOMAIN-SUFFIX,fbcdn.net
-DOMAIN-SUFFIX,fbsbx.com
-DOMAIN-SUFFIX,gcr.io
-DOMAIN-SUFFIX,gmail.com
-DOMAIN-SUFFIX,gosetsuden.jp
-DOMAIN-SUFFIX,gwtproject.org
-DOMAIN-SUFFIX,hackmd.io
-DOMAIN-SUFFIX,heroku.com
-DOMAIN-SUFFIX,html5rocks.com
-DOMAIN-SUFFIX,keyhole.com
-DOMAIN-SUFFIX,kobo.com
-DOMAIN-SUFFIX,kobobooks.com
-DOMAIN-SUFFIX,madewithcode.com
-DOMAIN-SUFFIX,material.io
-DOMAIN-SUFFIX,messenger.com
-DOMAIN-SUFFIX,netmarble.com
-DOMAIN-SUFFIX,nianticlabs.com
-DOMAIN-SUFFIX,pinimg.com
-DOMAIN-SUFFIX,pubnub.com
-DOMAIN-SUFFIX,scdn.co
-DOMAIN-SUFFIX,t.co
-DOMAIN-SUFFIX,tensorflow.org
-DOMAIN-SUFFIX,toggleable.com
-DOMAIN-SUFFIX,torproject.org
-DOMAIN-SUFFIX,unfiltered.news
-DOMAIN-SUFFIX,waveprotocol.org
-DOMAIN-SUFFIX,webmproject.org
-DOMAIN-SUFFIX,webrtc.org
-
-# > V2EX
-DOMAIN-SUFFIX,v2ex.com
-
-DOMAIN-KEYWORD,dlercloud
-
-# > Amazon
-IP-CIDR,13.32.0.0/16,no-resolve
-IP-CIDR,13.33.0.0/16,no-resolve
-IP-CIDR,13.35.0.0/17,no-resolve
-IP-CIDR,18.184.0.0/15,no-resolve
-IP-CIDR,18.194.0.0/15,no-resolve
-IP-CIDR,18.208.0.0/13,no-resolve
-IP-CIDR,18.232.0.0/14,no-resolve
-IP-CIDR,52.200.0.0/13,no-resolve
-IP-CIDR,52.58.0.0/15,no-resolve
-IP-CIDR,52.74.0.0/16,no-resolve
-IP-CIDR,52.77.0.0/16,no-resolve
-IP-CIDR,52.84.0.0/15,no-resolve
-IP-CIDR,54.156.0.0/14,no-resolve
-IP-CIDR,54.226.0.0/15,no-resolve
-IP-CIDR,54.230.156.0/22,no-resolve
-IP-CIDR,54.93.0.0/16,no-resolve
-
-# > Facebook
-IP-CIDR,103.4.96.0/22,no-resolve
-IP-CIDR,129.134.0.0/17,no-resolve
-IP-CIDR,157.240.0.0/17,no-resolve
-IP-CIDR,173.252.64.0/19,no-resolve
-IP-CIDR,173.252.96.0/19,no-resolve
-IP-CIDR,179.60.192.0/22,no-resolve
-IP-CIDR,185.60.216.0/22,no-resolve
-IP-CIDR,204.15.20.0/22,no-resolve
-IP-CIDR,31.13.24.0/21,no-resolve
-IP-CIDR,31.13.64.0/18,no-resolve
-IP-CIDR,45.64.40.0/22,no-resolve
-IP-CIDR,66.220.144.0/20,no-resolve
-IP-CIDR,69.171.224.0/19,no-resolve
-IP-CIDR,69.63.176.0/20,no-resolve
-IP-CIDR,74.119.76.0/22,no-resolve
-
-# > Google
-IP-CIDR,173.194.0.0/16,no-resolve
-IP-CIDR,74.125.0.0/16,no-resolve
-
-# > Kakao Talk
-IP-CIDR,1.201.0.0/24,no-resolve
-IP-CIDR,103.246.56.0/22,no-resolve
-IP-CIDR,103.27.148.0/22,no-resolve
-IP-CIDR,110.76.140.0/22,no-resolve
-IP-CIDR,113.61.104.0/22,no-resolve
-IP-CIDR,27.0.236.0/22,no-resolve
-
-# > LINE
-IP-CIDR,103.2.28.0/22,no-resolve
-IP-CIDR,119.235.224.0/21,no-resolve
-IP-CIDR,119.235.232.0/23,no-resolve
-IP-CIDR,119.235.235.0/24,no-resolve
-IP-CIDR,119.235.236.0/23,no-resolve
-IP-CIDR,125.6.146.0/24,no-resolve
-IP-CIDR,125.6.149.0/24,no-resolve
-IP-CIDR,125.6.190.0/24,no-resolve
-IP-CIDR,125.209.208.0/20,no-resolve
-IP-CIDR,203.104.103.0/24,no-resolve
-IP-CIDR,203.104.128.0/20,no-resolve
-IP-CIDR,203.174.66.64/26,no-resolve
-IP-CIDR,203.174.77.0/24,no-resolve
-
-# > Potato Chat
-IP-CIDR,13.251.24.157/24,no-resolve
-IP-CIDR,13.251.41.203/24,no-resolve
-IP-CIDR,17.252.156.147/24,no-resolve
-IP-CIDR,17.252.157.26/24,no-resolve
-
-# > SoftLayer
-IP-CIDR,74.86.0.0/16,no-resolve
-IP-CIDR,75.126.0.0/16,no-resolve
-IP-CIDR,174.37.0.0/16,no-resolve
-IP-CIDR,208.43.0.0/16,no-resolve
-
-IP-CIDR,17.57.145.9/24,no-resolve
