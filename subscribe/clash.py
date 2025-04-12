@@ -321,7 +321,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                 return False
 
         for attribute in ["udp", "tls", "skip-cert-verify", "tfo"]:
-            if attribute in item and item[attribute] not in [False, True]:
+            if attribute in item and type(item[attribute]) != bool:
                 return False
 
         authentication = "password"
@@ -564,7 +564,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                         item["password"] = password
 
                 for property in ["disable-sni", "reduce-rtt", "fast-open"]:
-                    if property in item and item[property] not in [False, True]:
+                    if property in item and type(item[property]) != bool:
                         return False
                 for property in [
                     "heartbeat-interval",
@@ -626,7 +626,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                         if property in item and type(item[property]) != str:
                             return False
                     for property in ["disable_mtu_discovery", "fast-open"]:
-                        if property in item and item[property] not in [False, True]:
+                        if property in item and type(item[property]) != bool:
                             return False
                     if "protocol" in item:
                         protocol = utils.trim(item.get("protocol", ""))
