@@ -1,5 +1,5 @@
 # 内容：Bilibili 哔哩哔哩
-# 数量：21条
+# 数量：23条
 USER-AGENT,Bilibili*
 USER-AGENT,bili*
 USER-AGENT,bili-inter*
@@ -12,10 +12,12 @@ DOMAIN-SUFFIX,bigfun.cn
 DOMAIN-SUFFIX,bigfunapp.cn
 DOMAIN-SUFFIX,biliapi.com
 DOMAIN-SUFFIX,biliapi.net
+DOMAIN-SUFFIX,bilibili.co
 DOMAIN-SUFFIX,bilibili.com
 DOMAIN-SUFFIX,bilibili.tv
 DOMAIN-SUFFIX,biligame.com
 DOMAIN-SUFFIX,biligame.net
+DOMAIN-SUFFIX,biliintl.co
 DOMAIN-SUFFIX,bilivideo.cn
 DOMAIN-SUFFIX,bilivideo.com
 DOMAIN-SUFFIX,hdslb.com
