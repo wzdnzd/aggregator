@@ -10,9 +10,16 @@ DOMAIN-SUFFIX,kochava.com
 DOMAIN-SUFFIX,liadm.com
 DOMAIN-SUFFIX,marketo.com
 DOMAIN-SUFFIX,mobileapptracking.com
+DOMAIN-SUFFIX,mparticle.com
+DOMAIN-SUFFIX,nexac.com
 DOMAIN-SUFFIX,nr-data.net
 DOMAIN-SUFFIX,pardot.com
+DOMAIN-SUFFIX,parrable.com
+DOMAIN-SUFFIX,petametrics.com
+DOMAIN-SUFFIX,predic.io
+DOMAIN-SUFFIX,quantcount.com
 DOMAIN-SUFFIX,quantserve.com
+DOMAIN-SUFFIX,richmetrics.com
 DOMAIN-SUFFIX,rtbasia.com
 DOMAIN-SUFFIX,scorecardresearch.com
 DOMAIN-SUFFIX,seewhy.com
@@ -56,13 +63,6 @@ DOMAIN,tracklog.58.com
 # > Baidu
 DOMAIN,hm.baidu.com
 DOMAIN,hmma.baidu.com
-# > ByteDance
-DOMAIN,log.byteoversea.com
-DOMAIN,log.tiktokv.com
-DOMAIN,log-hl-ipv6.snssdk.com
-DOMAIN,log-lq.snssdk.com
-DOMAIN,log-va.tiktokv.com
-DOMAIN,xlog.snssdk.com
 # > Daum
 DOMAIN,track.tiara.daum.net
 DOMAIN,track.tiara.kakao.com
@@ -89,10 +89,6 @@ DOMAIN-SUFFIX,talkingdata.com
 DOMAIN-SUFFIX,talkingdata.net
 DOMAIN-SUFFIX,udrig.com
 # > Tencent
-DOMAIN-SUFFIX,trace.qq.com
-DOMAIN,btrace.qq.com
-DOMAIN,btrace.video.qq.com
-DOMAIN,mtrace.qq.com
 DOMAIN,safebrowsing.urlsec.qq.com
 # > Tenjin
 DOMAIN,track.tenjin.com

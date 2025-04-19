@@ -1,0 +1,21 @@
+# > Max
+DOMAIN-SUFFIX,max.com
+DOMAIN-SUFFIX,discomax.com
+DOMAIN-SUFFIX,arkoselabs.com
+DOMAIN-SUFFIX,brightline.tv
+DOMAIN-SUFFIX,cdn.turner.com
+DOMAIN-SUFFIX,hbo.com
+DOMAIN-SUFFIX,hbomax.com
+DOMAIN-SUFFIX,ngtv.io
+DOMAIN-SUFFIX,pypestream.com
+DOMAIN-SUFFIX,warnermediacdn.com
+USER-AGENT,*Max*
+
+# > Analysis
+DOMAIN,app-analytics-services.com
+DOMAIN,kpck4q-launches.appsflyersdk.com
+DOMAIN,kpck4q-skadsdkless.appsflyersdk.com
+DOMAIN,o0137140.ingest.us.sentry.io
+DOMAIN,out053a3bejgh7t0phqa0csou.litix.io
+DOMAIN,sdk.iad-01.braze.com
+DOMAIN-SUFFIX,branch.io

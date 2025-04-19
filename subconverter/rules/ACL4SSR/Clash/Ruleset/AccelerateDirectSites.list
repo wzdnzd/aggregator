@@ -1,5 +1,5 @@
 # 内容：AccelerateDirectSites
-# 数量：240条
+# 数量：244条
 DOMAIN-SUFFIX,10010.com
 DOMAIN-SUFFIX,115.com
 DOMAIN-SUFFIX,12306.com
@@ -14,6 +14,7 @@ DOMAIN-SUFFIX,51job.com
 DOMAIN-SUFFIX,51jobcdn.com
 DOMAIN-SUFFIX,56.com
 DOMAIN-SUFFIX,8686c.com
+DOMAIN-SUFFIX,95516.com
 DOMAIN-SUFFIX,abchina.com
 DOMAIN-SUFFIX,abercrombie.com
 DOMAIN-SUFFIX,acfun.tv
@@ -29,6 +30,7 @@ DOMAIN-SUFFIX,baike.com
 DOMAIN-SUFFIX,biqudu.com
 DOMAIN-SUFFIX,biquge.com
 DOMAIN-SUFFIX,bitauto.com
+DOMAIN-SUFFIX,bosszhipin.com
 DOMAIN-SUFFIX,c-ctrip.com
 DOMAIN-SUFFIX,camera360.com
 DOMAIN-SUFFIX,cdnmama.com
@@ -42,6 +44,7 @@ DOMAIN-SUFFIX,chuimg.com
 DOMAIN-SUFFIX,cibntv.net
 DOMAIN-SUFFIX,clouddn.com
 DOMAIN-SUFFIX,cloudxns.net
+DOMAIN-SUFFIX,cmbchina.com
 DOMAIN-SUFFIX,cn163.net
 DOMAIN-SUFFIX,cnblogs.com
 DOMAIN-SUFFIX,cnki.net
@@ -108,6 +111,7 @@ DOMAIN-SUFFIX,jumei.com
 DOMAIN-SUFFIX,kaola.com
 DOMAIN-SUFFIX,knewone.com
 DOMAIN-SUFFIX,koowo.com
+DOMAIN-SUFFIX,koyso.com
 DOMAIN-SUFFIX,ksyungslb.com
 DOMAIN-SUFFIX,kuaidi100.com
 DOMAIN-SUFFIX,kugou.com
@@ -145,7 +149,6 @@ DOMAIN-SUFFIX,nuomi.com
 DOMAIN-SUFFIX,onedns.net
 DOMAIN-SUFFIX,oneplus.com
 DOMAIN-SUFFIX,onlinedown.net
-DOMAIN-SUFFIX,oppo.com
 DOMAIN-SUFFIX,oracle.com
 DOMAIN-SUFFIX,oschina.net
 DOMAIN-SUFFIX,ourdvs.com
@@ -238,5 +241,6 @@ DOMAIN-SUFFIX,zhanqi.tv
 DOMAIN-SUFFIX,zhaopin.com
 DOMAIN-SUFFIX,zhihu.com
 DOMAIN-SUFFIX,zhimg.com
+DOMAIN-SUFFIX,zhipin.com
 DOMAIN-SUFFIX,zhongsou.com
 DOMAIN-SUFFIX,zhuihd.com

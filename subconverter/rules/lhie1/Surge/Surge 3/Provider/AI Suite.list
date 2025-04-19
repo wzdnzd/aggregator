@@ -1,0 +1,95 @@
+# > ChatGPT
+DOMAIN-SUFFIX,ai.com
+DOMAIN-SUFFIX,chatgpt.com
+DOMAIN-SUFFIX,openai.com
+
+# > Chat GPT API & CDN
+DOMAIN,chat.openai.com.cdn.cloudflare.net
+DOMAIN,openaiapi-site.azureedge.net
+DOMAIN,openaicom-api-bdcpf8c6d2e9atf6.z01.azurefd.net
+DOMAIN,openaicomproductionae4b.blob.core.windows.net
+DOMAIN,production-openaicom-storage.azureedge.net
+
+DOMAIN-SUFFIX,cdn.oaistatic.com
+DOMAIN-SUFFIX,oaiusercontent.com
+
+DOMAIN,o33249.ingest.sentry.io
+
+# > Claude
+DOMAIN-SUFFIX,anthropic.com
+DOMAIN-SUFFIX,claude.ai
+DOMAIN-SUFFIX,claudeusercontent.com
+
+# > Cloudflare AI Gateway
+DOMAIN,gateway.ai.cloudflare.com
+
+# > Copilot
+DOMAIN-SUFFIX,githubcopilot.com
+DOMAIN,copilot.microsoft.com
+
+# > Cursor
+DOMAIN-SUFFIX,cursor.sh
+
+# > Dify.AI
+DOMAIN-SUFFIX,dify.ai
+
+# > GitHub Copilot
+DOMAIN,api.github.com
+
+# > Google Gemini
+DOMAIN-SUFFIX,apis.google.com
+DOMAIN-SUFFIX,bard.google.com
+DOMAIN-SUFFIX,gemini.google.com
+
+# > Google DeepMind
+DOMAIN-SUFFIX,deepmind.com
+DOMAIN-SUFFIX,deepmind.google
+
+# > Google Generative Language API
+DOMAIN-SUFFIX,generativelanguage.googleapis.com
+DOMAIN-SUFFIX,geller-pa.googleapis.com
+DOMAIN-SUFFIX,proactivebackend-pa.googleapis.com
+
+# > Google AI Studio
+DOMAIN-KEYWORD,alkalimakersuite-pa.clients6.google.com
+DOMAIN-SUFFIX,aistudio.google.com
+DOMAIN-SUFFIX,makersuite.google.com
+DOMAIN-SUFFIX,generativeai.google
+DOMAIN,ai.google.dev
+DOMAIN,alkalicore-pa.clients6.google.com
+DOMAIN,waa-pa.clients6.google.com
+
+# > Google NotebookLM
+DOMAIN-SUFFIX,notebooklm.google
+DOMAIN-SUFFIX,notebooklm.google.com
+
+# > Groq
+DOMAIN-SUFFIX,groq.com
+
+# > Jasper
+DOMAIN-SUFFIX,clipdrop.co
+DOMAIN-SUFFIX,jasper.ai
+
+# > Meta AI
+DOMAIN-SUFFIX,meta.ai
+
+# > OpenArt
+DOMAIN-SUFFIX,openart.ai
+
+# > OpenRouter
+DOMAIN-SUFFIX,openrouter.ai
+
+# > Perplexity AI
+DOMAIN-SUFFIX,perplexity.ai
+
+# > POE
+DOMAIN-SUFFIX,poe.com
+
+# > Siri
+DOMAIN,apple-relay.apple.com
+DOMAIN,apple-relay.cloudflare.com
+DOMAIN,guzzoni.smoot.apple.com
+
+# > Sora
+DOMAIN-SUFFIX,sora.com
+DOMAIN,sora-cdn.oaistatic.com
