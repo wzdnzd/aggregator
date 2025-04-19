@@ -296,7 +296,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
 
     try:
         # name must be string
-        name = str(item.get("name", "")).strip().upper()
+        name = str(item.get("name", "")).strip()
         if not name:
             return False
         item["name"] = name
@@ -663,7 +663,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
 def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, strict: bool = False) -> bool:
     proxy_name = ""
     try:
-        proxy_name = urllib.parse.quote(proxy.get("name", ""))
+        proxy_name = urllib.parse.quote(proxy.get("name", ""), safe="")
     except:
         return False
 
