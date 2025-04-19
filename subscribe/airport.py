@@ -675,8 +675,9 @@ class AirPort:
                 name = re.sub(r"\s+(\d+)[\s_\-\|]+([A-Za-z])\b", r"-\1\2", name)
                 item["name"] = re.sub(r"(-\d+[A-Za-z])+$", "", name).upper()
 
-                if "" != tag.strip():
-                    item["name"] = tag.strip().upper() + "-" + item["name"]
+                tag = utils.trim(tag)
+                if tag:
+                    item["name"] = f"{tag} {item['name']}"
 
                 # 方便过滤无效订阅
                 item["sub"] = self.sub

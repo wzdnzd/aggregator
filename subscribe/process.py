@@ -349,7 +349,7 @@ def assign(
             subscribe = list(set(subscribe))
 
         # 自定义标签，追加到名称前
-        tag = site.get("tag", "").strip().upper()
+        tag = site.get("tag", "").strip()
 
         # 节点倍率超过该值将会被丢弃
         rate = float(site.get("rate", 3.0))
