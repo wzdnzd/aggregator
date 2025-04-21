@@ -2,7 +2,7 @@ name: Collect
 on:
   # executed once a day at 00:00
   schedule:
-    - cron: "0 0 * * ?"
+    - cron: "0 */4 * * *"
   workflow_dispatch:
 
 concurrency:
