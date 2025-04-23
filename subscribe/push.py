@@ -481,7 +481,7 @@ class PushToQBin(PushToPastefy):
 
         headers = {
             "Cookie": f"token={self.token}",
-            "Content-Type": "text/plain",
+            "Content-Type": "text/plain; charset=UTF-8",
             "User-Agent": utils.USER_AGENT,
         }
 
@@ -492,7 +492,7 @@ class PushToQBin(PushToPastefy):
         if password:
             url = f"{url}/{password}"
 
-        return url, content.encode("UTF8"), headers
+        return url, content.encode("UTF-8"), headers
 
     def _is_success(self, response: HTTPResponse) -> bool:
         if not response or response.getcode() != 200:
