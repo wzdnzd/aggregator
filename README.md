@@ -22,4 +22,7 @@
 + 禁止使用该项目进行任何盈利活动，对一切非法使用所产生的后果，本人概不负责
 
 ## 致谢
-<u>[Subconverter](https://github.com/asdlokj1qpi233/subconverter)</u>、<u>[Mihomo](https://github.com/MetaCubeX/mihomo)</u>
+1. <u>[Subconverter](https://github.com/asdlokj1qpi233/subconverter)</u>、<u>[Mihomo](https://github.com/MetaCubeX/mihomo)</u>
+
+2. 感谢 [![YXVM](https://support.nodeget.com/page/promotion?id=250)](https://yxvm.com)
+[NodeSupport](https://github.com/NodeSeekDev/NodeSupport) 赞助了本项目
