@@ -116,13 +116,14 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
     datasets, peristedtasks = [], {}
     try:
-        persists = conf.get("persist", {})
-        engine = persists.get("engine", "")
+        storage = conf.get("storage", {})
+        persists = storage.get("items", {})
+
         subspushconf = persists.get("subs", {})
         linkspushconf = persists.get("proxies", {})
 
-        pushtool = push.get_instance(engine=engine)
-        should_persist = pushtool.validate(push_conf=subspushconf)
+        pushtool = push.get_instance(config=push.PushConfig.from_dict(storage))
+        should_persist = pushtool.validate(config=subspushconf)
         # skip tasks if mode == 1 and not set persistence
         if mode == 1 and not should_persist:
             logger.warning(
@@ -132,7 +133,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
         # allow if persistence configuration is valid
         enable = conf.get("singlelink", False)
-        allow = enable and pushtool.validate(linkspushconf)
+        allow = enable and pushtool.validate(config=linkspushconf)
 
         # save it to environment
         os.environ[SINGLE_PROXIES_ENV_NAME] = str(allow).lower()
@@ -241,7 +242,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
         # remain
         if should_persist:
-            url = pushtool.raw_url(push_conf=subspushconf)
+            url = pushtool.raw_url(config=subspushconf)
             try:
                 url, content = url or "", ""
                 if not url.startswith(utils.FILEPATH_PROTOCAL):
@@ -266,7 +267,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
         if not records:
             if peristedtasks and should_persist and mode != 2:
                 content = json.dumps(peristedtasks)
-                pushtool.push_to(content=content, push_conf=subspushconf, group="crawl")
+                pushtool.push_to(content=content, config=subspushconf, group="crawl")
 
             logger.debug("[CrawlInfo] cannot found any subscribe from Google/Telegram/Github and Page with crawler")
             return datasets
@@ -314,9 +315,9 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
             if len(proxies) > 0:
                 try:
                     content = base64.b64encode("\n".join(proxies).encode()).decode()
-                    success = pushtool.push_to(content=content, push_conf=linkspushconf, group="proxies")
+                    success = pushtool.push_to(content=content, config=linkspushconf, group="proxies")
                     if success:
-                        singlelink = pushtool.raw_url(push_conf=linkspushconf)
+                        singlelink = pushtool.raw_url(config=linkspushconf)
                         item = {
                             "name": "singlelink",
                             "sub": singlelink,
@@ -345,7 +346,7 @@ def batch_crawl(conf: dict, num_threads: int = 50, display: bool = True) -> list
 
             if rest:
                 content = json.dumps(survivors)
-                pushtool.push_to(content=content, push_conf=subspushconf, group="crawl")
+                pushtool.push_to(content=content, config=subspushconf, group="crawl")
     except:
         logger.error("[CrawlError] crawl from web error")
         traceback.print_exc()
@@ -756,7 +757,7 @@ def search_github_code(page: int, cookie: str, excludes: list = []) -> list[str]
         return []
 
     try:
-        regex = r'<a href="(/\S+/blob/.*?)#L\d+"'
+        regex = r'href="(/[^\s"]+/blob/(?:[^"]+)?)#L\d+"'
         groups = re.findall(regex, content, flags=re.I)
         uris, links = list(set(groups)) if groups else [], set()
         excludes = list(set(excludes))
@@ -1081,7 +1082,7 @@ def extract_subscribes(
         return {}
     try:
         limits, collections, proxies = max(1, limits), {}, []
-        sub_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
+        sub_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d)|(?:/(?:s|sub)/[a-zA-Z0-9]{32}))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
         extra_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/sub\?(?:\S+)?target=\S+"
         protocal_regex = r"(?:vmess|trojan|ss|ssr|snell|hysteria2|vless|hysteria|tuic)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
 
@@ -1125,10 +1126,12 @@ def extract_subscribes(
                     items.extend([x for x in url.split("|") if not re.match(extra_regex, x, flags=re.I)])
 
             for s in items:
+                s = re.sub(r"\\/|\/", "/", s, flags=re.I)
                 try:
                     if include and not re.match(
                         r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+.*",
                         s,
+                        flags=re.I,
                     ):
                         continue
 
@@ -1259,7 +1262,8 @@ def check_status(
         if response.getcode() != 200:
             return False, connectable
 
-        content = str(response.read(), encoding="utf8")
+        # in order to avoid the request to the speed test site causing constant data downloads, limit the maximum read to 15MB
+        content = str(response.read(15 * 1024 * 2014), encoding="utf8")
 
         # response text is too short, ignore
         if len(content) < 32:
@@ -1474,6 +1478,7 @@ def collect_airport(
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
 
+        logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
         return result
 
     def crawl_maomeng() -> dict:
@@ -1516,7 +1521,7 @@ def collect_airport(
             return {}
 
         separator = r'<h2 id="\d+" tabindex="-1">'
-        address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer">前往注册</a>'
+        address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer nofollow">前往注册</a>'
         coupon_regex = r"使用优惠码(?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0(?:\s+)?元购买"
 
         tasks = [[x, separator, address_regex, coupon_regex] for x in sorted(articles)]
@@ -1543,7 +1548,10 @@ def collect_airport(
             else:
                 links = tasks
 
-            return {utils.extract_domain(url=x, include_protocal=True): "" for x in links if x}
+            result = {utils.extract_domain(url=x, include_protocal=True): "" for x in links if x}
+            logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
+
+            return result
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
             return {}
@@ -1595,46 +1603,108 @@ def collect_airport(
         except:
             logger.error(f"[AirPortCollector] occur error when crawl from [{url}], message: \n{traceback.format_exc()}")
 
+        logger.info(f"[AirPortCollector] finished crawl from [{url}], found {len(result)} domains")
         return result
 
-    def extract_real_url(domain: str, retry: int = 2) -> str:
-        count, retry = 0, max(retry, 1)
-        url = urllib.parse.urljoin(domain, "env.js")
+    def extract_backend_url(domain: str, retry: int = 2) -> str:
+        # TODO: exploring a more generalized approach to backend addresses
+        def request_once(suffix: str) -> tuple[bool, str]:
+            count, suffix = 0, utils.trim(suffix)
+            url = urllib.parse.urljoin(domain, suffix)
 
-        while count < retry:
-            count += 1
+            while count < retry:
+                count += 1
+
+                try:
+                    request = urllib.request.Request(url=url, headers=utils.DEFAULT_HTTP_HEADERS, method="GET")
+                    response = urllib.request.urlopen(request, timeout=6, context=utils.CTX)
+
+                    word = "" if not suffix else (suffix if suffix.startswith("/") else "/" + suffix)
+                    if word and not utils.trim(response.geturl()).endswith(word):
+                        return True, ""
+
+                    content = response.read()
+                    try:
+                        content = str(content, encoding="utf8")
+                    except:
+                        content = gzip.decompress(content).decode("utf8")
+
+                    return False, content
+                except urllib.error.HTTPError as e:
+                    if e.code == 404:
+                        return False, ""
+                except urllib.error.URLError as e:
+                    if isinstance(e.reason, (socket.gaierror, ssl.SSLError, socket.timeout)):
+                        return True, ""
+                except Exception as e:
+                    pass
+
+            return False, ""
+
+        def attempt_env() -> str:
+            status, content = request_once(suffix="/env.js")
+            if status:
+                return terminated
+
+            if not content:
+                return ""
+
+            if groups := re.findall(r"\bhost\b:(?:\s+)?[\"\'](https?://[^\s\r\t]+)[\"\']", content, flags=re.I):
+                return utils.trim(groups[0])
+
+            groups = re.findall(r"window.routerBase(?:\s+)?=(?:\s+)?['\"](https?://.*)['\"]", content, flags=re.I)
+            return groups[0].rstrip("/") if groups and groups[0] else ""
+
+        def attempt_zero() -> str:
+            status, content = request_once(suffix="/config.json")
+            if status:
+                return terminated
+
+            if not content:
+                return ""
 
             try:
-                request = urllib.request.Request(url=url, headers=utils.DEFAULT_HTTP_HEADERS, method="GET")
-                response = urllib.request.urlopen(request, timeout=6, context=utils.CTX)
+                data = json.loads(content)
+                # for https://github.com/amyouran/v2board-Zero-Theme
+                link = utils.trim(data.get("api_base", ""))
+                if not link:
+                    # for https://github.com/DyAxy/V2B-Theme-Nest
+                    link = utils.trim(data.get("apiUrl", ""))
 
-                # do not redirect
-                # opener = urllib.request.build_opener(utils.NoRedirect)
-                # response = opener.open(request, timeout=6)
+                return utils.extract_domain(url=link, include_protocal=True)
+            except:
+                return ""
 
-                if not utils.trim(response.geturl()).endswith("/env.js"):
-                    return ""
+        def attempt_buddy() -> str:
+            # for https://github.com/vlesstop/v2board-theme-buddy
+            status, content = request_once(suffix="/config.js")
+            if status:
+                return terminated
 
-                content = response.read()
-                try:
-                    content = str(content, encoding="utf8")
-                except:
-                    content = gzip.decompress(content).decode("utf8")
+            group = re.findall(r"\bhost\b:(?:\s+)?[\"\'](https?://[^\s\r\t]+)[\"\']", content, flags=re.I)
+            return "" if not group else utils.trim(group[0])
 
-                groups = re.findall(r"window.routerBase(?:\s+)?=(?:\s+)?['\"](https?://.*)['\"]", content, flags=re.I)
-                return groups[0].rstrip("/") if groups and groups[0] else domain
-            except urllib.error.HTTPError:
-                return domain
-            except urllib.error.URLError as e:
-                if isinstance(e.reason, (socket.gaierror, ssl.SSLError, socket.timeout)):
-                    return ""
-            except Exception as e:
-                pass
+        def attempt_aurora() -> str:
+            # for https://github.com/krsunm/Aurora
+            status, content = request_once(suffix="")
+            if status:
+                return terminated
+
+            group = re.findall(r"\bserverUrl\b:(?:\s+)?[\"\'](https?://[^\s\r\t]+)[\"\']", content, flags=re.I)
+            return "" if not group else utils.trim(group[0])
+
+        terminated, retry = "terminated", max(retry, 1)
+        for func in [attempt_env, attempt_zero, attempt_buddy, attempt_aurora]:
+            backend = func()
+            if terminated == backend:
+                return ""
+            if backend:
+                return backend
 
         return domain
 
     domains = crawl_channel(channel=channel, page_num=page_num, fun=extract_airport_site)
-    candidates = {} if not domains else {x: "" for x in domains}
+    candidates = {} if not domains else {utils.extract_domain(x, True): "" for x in domains}
 
     materials = dict()
     jctj = crawl_jctj(convert=False)
@@ -1666,7 +1736,12 @@ def collect_airport(
 
     # extract real routing base url
     logger.info(f"[AirPortCollector] fetched {len(domains)} airport, start extracting real routing addresses")
-    sites = utils.multi_thread_run(func=extract_real_url, tasks=domains, num_threads=num_thread, show_progress=display)
+    sites = utils.multi_thread_run(
+        func=extract_backend_url,
+        tasks=domains,
+        num_threads=num_thread,
+        show_progress=display,
+    )
 
     tasks = [[site, rigid, chuck] for site in sites if site]
     records = {sites[i]: candidates.get(domains[i], "") for i in range(len(sites)) if sites[i]}
@@ -1675,10 +1750,17 @@ def collect_airport(
     logger.info(f"[AirPortCollector] extract real base url finished, start to check it now")
     result = utils.multi_thread_run(func=validate_domain, tasks=tasks, num_threads=num_thread, show_progress=display)
 
-    availables = [tasks[i][0] for i in range(len(tasks)) if result[i]]
-    logger.info(f"[AirPortCollector] finished collect airport, availables: {len(availables)}")
+    availables = dict()
+    for i in range(len(tasks)):
+        if not result[i][0]:
+            continue
 
-    return {x: records.get(x, "") for x in availables}
+        site = tasks[i][0]
+        coupon = records.get(site, "")
+        availables[site] = {"coupon": coupon, "api_prefix": result[i][1]}
+
+    logger.info(f"[AirPortCollector] finished collect airport, availables: {len(availables)}")
+    return availables
 
 
 def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
@@ -1699,30 +1781,24 @@ def save_candidates(candidates: dict, filepath: str, delimiter: str) -> None:
         elif v and isinstance(v, dict):
             coupon = utils.trim(v.get("coupon", ""))
             invite_code = utils.trim(v.get("invite_code", ""))
+            api_prefix = utils.trim(v.get("api_prefix", ""))
 
-            if coupon or invite_code:
-                text += f"\t{delimiter}\t{coupon}"
-
-                if invite_code:
-                    text += f"\t{delimiter}\t{invite_code}"
-
+            text = f"{text}\t{delimiter}\t{coupon}\t{delimiter}\t{invite_code}\t{delimiter}\t{api_prefix}"
         lines.append(text)
 
     utils.write_file(filename=filepath, lines=lines)
 
 
-def validate_domain(url: str, rigid: bool = True, chuck: bool = False) -> bool:
+def validate_domain(url: str, rigid: bool = True, chuck: bool = False) -> tuple[bool, str]:
     try:
         if not url:
-            return False
+            return False, ""
 
         rr = airport.AirPort.get_register_require(domain=url)
-        if rr.invite or (chuck and rr.recaptcha) or (rigid and rr.whitelist and rr.verify):
-            return False
-
-        return True
+        flag = rr.invite or (chuck and rr.recaptcha) or (rigid and rr.whitelist and rr.verify)
+        return not flag, rr.api_prefix
     except:
-        return False
+        return False, ""
 
 
 def batch_call(tasks: dict) -> list[dict]:

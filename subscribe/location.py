@@ -6,6 +6,7 @@
 import json
 import math
 import os
+import random
 import re
 import socket
 import urllib
@@ -190,5 +191,9 @@ def regularize(
         for index, node in enumerate(nodes):
             node["name"] = f"{name} {str(index+1).zfill(n)}"
             results.append(node)
+
+    # shuffle
+    for _ in range(3):
+        random.shuffle(results)
 
     return results
