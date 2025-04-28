@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import time
+import traceback
 from copy import deepcopy
 from dataclasses import dataclass, field
 
@@ -299,7 +300,7 @@ def load_configs(
 
         sys.exit(e.code)
     except:
-        logger.error("occur error when load task config")
+        logger.error(f"occur error when load task config:\n{traceback.format_exc()}")
         sys.exit(0)
 
     return ProcessConfig(
