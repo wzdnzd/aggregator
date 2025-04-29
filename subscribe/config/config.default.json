@@ -162,6 +162,7 @@
     },
     "storage": {
         "engine": "xxx",
+        "token": "${PUSH_TOKEN}"，
         "base": "https://api.xxx.com",
         "domain": "https://xxx.com",
         "items": {
