@@ -81,17 +81,22 @@ def getrss(params: dict) -> list:
         return []
 
     include = params.get("include", "").strip()
-    persist = params.get("persist", {})
-    engine = params.get("engine", "")
+    storage = params.get("storage", {})
+    if not storage or type(storage) != dict:
+        logger.error(f"[V2RayFreeError] cannot fetch subscribes bcause storage config is invalidate")
+        return []
 
-    exists = load(engine=engine, persist=persist)
+    persist = storage.get("items", {})
+    push_config = push.PushConfig.from_dict(storage)
+
+    exists = load(config=push_config, persist=persist)
     emails = [x for x in emails if x not in exists.keys()]
 
     results, subscribes = utils.multi_thread_run(func=fetch, tasks=emails), []
     exists.update(filter(data=dict(zip(emails, results))))
 
     # persist subscribes
-    commons.persist(engine=engine, data=exists, persist=persist)
+    commons.persist(config=push_config, data=exists, persist=persist)
 
     results = list(exists.values())
     results.extend(config.get("sub", []))
@@ -118,12 +123,12 @@ def getrss(params: dict) -> list:
     return [config]
 
 
-def load(engine: str, persist: dict) -> dict:
-    pushtool = push.get_instance(engine=engine)
-    if not pushtool.validate(persist):
+def load(config: push.PushConfig, persist: dict) -> dict:
+    pushtool = push.get_instance(config=config)
+    if not pushtool.validate(config=persist):
         return {}
 
-    url = pushtool.raw_url(push_conf=persist)
+    url = pushtool.raw_url(config=persist)
     try:
         content = utils.http_get(url=url)
         data = json.loads(content)
