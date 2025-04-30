@@ -290,8 +290,8 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
         crawledsub = config.get("crawl", {}).get("persist", {}).get("subs", "")
         threshold = max(config.get("threshold", 1), 1)
         pushconf = config.get("groups", {}).get(crawledsub, {})
-        if push.validate(push_conf=pushconf):
-            url = push.raw_url(push_conf=pushconf)
+        if push.validate(config=pushconf):
+            url = push.raw_url(config=pushconf)
             content = utils.http_get(url=url)
             try:
                 data, count = json.loads(content), 0
@@ -308,7 +308,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
 
                 if count > 0:
                     content = json.dumps(data)
-                    push.push_to(content=content, push_conf=pushconf, group="crawled-remark")
+                    push.push_to(content=content, config=pushconf, group="crawled-remark")
                     logger.info(f"[UpdateInfo] found {count} invalid crawled subscriptions")
             except:
                 logger.error(f"[UpdateError] remark invalid crawled subscriptions failed")
@@ -318,7 +318,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
         logger.debug("[UpdateError] skip update remote config because enable=[False]")
         return
 
-    if not push.validate(push_conf=update_conf):
+    if not push.validate(config=update_conf):
         logger.error(f"[UpdateError] update config is invalidate")
         return
 
@@ -357,7 +357,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
             f.write(content)
             f.flush()
 
-    push.push_to(content=content, push_conf=update_conf, group="update")
+    push.push_to(content=content, config=update_conf, group="update")
 
 
 def standard_sub(url: str) -> bool:
