@@ -400,7 +400,7 @@ def rename(proxy: dict, reader: database.Reader) -> dict:
                 country = "Google"
 
         if country:
-            proxy["name"] = "美国" if country.lower() in ["cloudflare", "google"] else country
+            proxy["name"] = country
         else:
             logger.warning(f"cannot get geolocation and rename, address: {address}")
     except Exception as e:

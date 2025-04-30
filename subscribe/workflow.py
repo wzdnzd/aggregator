@@ -42,9 +42,6 @@ class TaskConfig:
     # 最高允许倍率
     rate: float = 20.0
 
-    # 标签
-    tag: str = ""
-
     # 套餐续期配置
     renew: dict = None
 
@@ -128,7 +125,6 @@ def execute(task_conf: TaskConfig) -> list:
         retry=task_conf.retry,
         rate=task_conf.rate,
         bin_name=task_conf.bin_name,
-        tag=task_conf.tag,
         disable_insecure=task_conf.disable_insecure,
         ignore_exclude=task_conf.ignorede,
         chatgpt=task_conf.chatgpt,

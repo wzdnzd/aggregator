@@ -347,9 +347,6 @@ def assign(
         if len(subscribe) >= 2:
             subscribe = list(set(subscribe))
 
-        # 自定义标签，追加到名称前
-        tag = site.get("tag", "").strip()
-
         # 节点倍率超过该值将会被丢弃
         rate = float(site.get("rate", 3.0))
 
@@ -442,7 +439,6 @@ def assign(
                 retry=retry,
                 rate=rate,
                 bin_name=bin_name,
-                tag=tag,
                 renew=renew,
                 rename=rename,
                 exclude=exclude,
