@@ -73,8 +73,13 @@ DOMAIN-SUFFIX,binancezh.top
 DOMAIN-SUFFIX,bnappzh.mobi
 DOMAIN-SUFFIX,bsc.getblock.io
 DOMAIN-SUFFIX,bscscan.com
+DOMAIN-SUFFIX,binancecnt.com
 PROCESS-NAME,Binance.exe
 DOMAIN-KEYWORD,binance
+
+# > Binance API
+DOMAIN-SUFFIX,binanceapi.com
+DOMAIN-SUFFIX,bnbstatic.com
 
 # > Huobi
 DOMAIN-SUFFIX,hbabit.com
@@ -102,6 +107,9 @@ DOMAIN-KEYWORD,huobi
 # > OKX
 DOMAIN-SUFFIX,okex.com
 DOMAIN-SUFFIX,okx.com
+DOMAIN-SUFFIX,okx-dns.com
+DOMAIN-SUFFIX,okx-dns1.com
+DOMAIN-SUFFIX,okx-dns2.com
 PROCESS-NAME,OKX.exe
 DOMAIN-KEYWORD,okx
 
@@ -192,7 +200,6 @@ DOMAIN-SUFFIX,coincodex.com
 DOMAIN-SUFFIX,cointrendz.com
 DOMAIN-SUFFIX,coincheckup.com
 DOMAIN-SUFFIX,thetie.io
-DOMAIN-SUFFIX,cryptorank.io
 DOMAIN-SUFFIX,tradeblock.com
 DOMAIN-SUFFIX,nyctale.io
 DOMAIN-SUFFIX,dovemetrics.com
@@ -300,3 +307,6 @@ DOMAIN-SUFFIX,1inch.io
 
 # > Chippay
 DOMAIN-SUFFIX,chippay.com
+
+# > UniSat
+DOMAIN-SUFFIX,unisat.io

@@ -11,7 +11,6 @@
             "push_to": [],
             "ignorede": true,
             "liveness": true,
-            "tag": "",
             "rate": 2.5,
             "count": 2,
             "coupon": "",
@@ -162,6 +161,8 @@
     },
     "storage": {
         "engine": "xxx",
+        "base": "https://api.xxx.com",
+        "domain": "https://xxx.com",
         "items": {
             "xxx-clash": {
                 "username": "",

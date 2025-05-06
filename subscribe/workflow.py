@@ -42,9 +42,6 @@ class TaskConfig:
     # 最高允许倍率
     rate: float = 20.0
 
-    # 标签
-    tag: str = ""
-
     # 套餐续期配置
     renew: dict = None
 
@@ -128,7 +125,6 @@ def execute(task_conf: TaskConfig) -> list:
         retry=task_conf.retry,
         rate=task_conf.rate,
         bin_name=task_conf.bin_name,
-        tag=task_conf.tag,
         disable_insecure=task_conf.disable_insecure,
         ignore_exclude=task_conf.ignorede,
         chatgpt=task_conf.chatgpt,
@@ -290,8 +286,8 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
         crawledsub = config.get("crawl", {}).get("persist", {}).get("subs", "")
         threshold = max(config.get("threshold", 1), 1)
         pushconf = config.get("groups", {}).get(crawledsub, {})
-        if push.validate(push_conf=pushconf):
-            url = push.raw_url(push_conf=pushconf)
+        if push.validate(config=pushconf):
+            url = push.raw_url(config=pushconf)
             content = utils.http_get(url=url)
             try:
                 data, count = json.loads(content), 0
@@ -308,7 +304,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
 
                 if count > 0:
                     content = json.dumps(data)
-                    push.push_to(content=content, push_conf=pushconf, group="crawled-remark")
+                    push.push_to(content=content, config=pushconf, group="crawled-remark")
                     logger.info(f"[UpdateInfo] found {count} invalid crawled subscriptions")
             except:
                 logger.error(f"[UpdateError] remark invalid crawled subscriptions failed")
@@ -318,7 +314,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
         logger.debug("[UpdateError] skip update remote config because enable=[False]")
         return
 
-    if not push.validate(push_conf=update_conf):
+    if not push.validate(config=update_conf):
         logger.error(f"[UpdateError] update config is invalidate")
         return
 
@@ -357,9 +353,9 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
             f.write(content)
             f.flush()
 
-    push.push_to(content=content, push_conf=update_conf, group="update")
+    push.push_to(content=content, config=update_conf, group="update")
 
 
 def standard_sub(url: str) -> bool:
-    regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d))"
+    regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d)|(?:/(?:s|sub)/[a-zA-Z0-9]{32}))"
     return re.match(regex, url, flags=re.I) is not None
