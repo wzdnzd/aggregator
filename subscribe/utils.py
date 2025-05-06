@@ -230,19 +230,62 @@ def encoding_url(url: str) -> str:
 
     url = url.strip()
 
-    # 正则匹配中文汉字
-    cn_chars = re.findall("[\u4e00-\u9fa5]+", url)
-    if not cn_chars:
+    # 解析URL获取各个部分
+    try:
+        result = urllib.parse.urlparse(url)
+        domain = result.netloc
+        path = result.path
+        query = result.query
+        fragment = result.fragment
+
+        # 处理域名部分（可能包含端口号）
+        if re.search("[\u4e00-\u9fa5]", domain):
+            if ":" in domain:
+                host, port = domain.split(":", 1)
+                # 对域名部分进行Punycode编码
+                host = host.encode("idna").decode("utf-8")
+                # 重新组合域名和端口
+                domain = f"{host}:{port}"
+            else:
+                # 直接对整个域名进行Punycode编码
+                domain = domain.encode("idna").decode("utf-8")
+
+        # 处理路径部分，对非ASCII字符进行URL编码
+        if re.search("[\u4e00-\u9fa5]", path):
+            # 对路径中的中文字符进行URL编码
+            path = urllib.parse.quote(path, safe="/")
+
+        # 处理查询参数部分，保留查询参数的结构
+        if query and re.search("[\u4e00-\u9fa5]", query):
+            # 解析查询参数
+            query_dict = urllib.parse.parse_qs(query)
+            # 对每个参数值进行URL编码
+            encoded_query_dict = {}
+            for key, values in query_dict.items():
+                encoded_query_dict[key] = [urllib.parse.quote(v, safe="") for v in values]
+            # 重新组合查询参数
+            query = urllib.parse.urlencode(encoded_query_dict, doseq=True)
+
+        # 处理片段部分
+        if fragment and re.search("[\u4e00-\u9fa5]", fragment):
+            fragment = urllib.parse.quote(fragment)
+
+        # 重新组装URL
+        url = urllib.parse.urlunparse(
+            (
+                result.scheme,
+                domain,
+                path,
+                result.params,
+                query,
+                fragment,
+            )
+        )
+
         return url
-
-    # 遍历进行 punycode 编码
-    punycodes = list(map(lambda x: "xn--" + x.encode("punycode").decode("utf-8"), cn_chars))
-
-    # 对原 url 进行替换
-    for c, pc in zip(cn_chars, punycodes):
-        url = url[: url.find(c)] + pc + url[url.find(c) + len(c) :]
-
-    return url
+    except Exception as e:
+        logger.error(f"Error encoding URL: {url}, error: {str(e)}")
+        return url
 
 
 def write_file(filename: str, lines: list) -> bool:
