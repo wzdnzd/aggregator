@@ -1,6 +1,3 @@
-# > Dler Cloud
-DOMAIN-SUFFIX,dler.cloud
-
 # > Apple CDN
 PROCESS-NAME,storedownloadd
 USER-AGENT,com.apple.appstored*
@@ -17,7 +14,6 @@ DOMAIN,supportdownload.apple.com
 DOMAIN,swcdn.apple.com
 DOMAIN,updates-http.cdn-apple.com
 DOMAIN-SUFFIX,ls.apple.com
-DOMAIN-SUFFIX,mzstatic.com
 
 # > Duet
 USER-AGENT,duet*
@@ -32,23 +28,20 @@ DOMAIN-SUFFIX,dl.google.com
 # > Microsoft
 USER-AGENT,Microsoft%20Remote%20Desktop*
 DOMAIN-SUFFIX,msftconnecttest.com
-DOMAIN-SUFFIX,windows.com
-DOMAIN-SUFFIX,windows.net
-DOMAIN-SUFFIX,windowsupdate.com
-DOMAIN-SUFFIX,xbox.com
-DOMAIN-SUFFIX,xboxlive.com
-
-# > Mugglepay
-DOMAIN-SUFFIX,invoice.mugglepay.com
 
 # > Proxy plugin
 PROCESS-NAME,v2ray
 PROCESS-NAME,ss-local
 
+# > PlayStation
+DOMAIN-SUFFIX,dl.playstation.net
+
 # > Steam
 USER-AGENT,Steam*
+DOMAIN,cm.steampowered.com
+DOMAIN,ol.epicgames.com
 DOMAIN-SUFFIX,steamcontent.com
-// DOMAIN,store.steampowered.com
+DOMAIN-SUFFIX,steamserver.net
 
 DOMAIN-SUFFIX,steamchina.com
 
@@ -58,6 +51,8 @@ DOMAIN,wmsjsteam.com
 
 DOMAIN,dl.steam.clngaa.com
 DOMAIN,dl.steam.ksyna.com
+
+DOMAIN,gstore.val.manlaxy.com
 
 DOMAIN,st.dl.bscstorage.net
 DOMAIN,st.dl.eccdnx.com
@@ -90,6 +85,9 @@ DOMAIN-SUFFIX,ts.la
 # > UUBooster
 PROCESS-NAME,UUBooster
 
+# > WiFiman
+DOMAIN-SUFFIX,app-measurement.com
+
 # > Xunlei
 USER-AGENT,%E8%BF%85%E9%9B%B7
 DOMAIN-SUFFIX,xunlei.com
@@ -100,6 +98,7 @@ PROCESS-NAME,fdm
 PROCESS-NAME,Folx
 PROCESS-NAME,NetTransport
 PROCESS-NAME,qbittorrent
+PROCESS-NAME,qbittorrent-nox
 PROCESS-NAME,Thunder
 PROCESS-NAME,Transmission
 PROCESS-NAME,uTorrent
@@ -107,10 +106,12 @@ PROCESS-NAME,WebTorrent
 PROCESS-NAME,WebTorrent Helper
 
 # > Private Tracker
+DOMAIN-SUFFIX,audiences.me
 DOMAIN-SUFFIX,awesome-hd.me
 DOMAIN-SUFFIX,broadcasthe.net
 DOMAIN-SUFFIX,chdbits.co
 DOMAIN-SUFFIX,classix-unlimited.co.uk
+DOMAIN-SUFFIX,dmhy.best
 DOMAIN-SUFFIX,empornium.me
 DOMAIN-SUFFIX,gazellegames.net
 DOMAIN-SUFFIX,hdchina.org
@@ -127,9 +128,16 @@ DOMAIN-SUFFIX,ourbits.club
 DOMAIN-SUFFIX,passthepopcorn.me
 DOMAIN-SUFFIX,privatehd.to
 DOMAIN-SUFFIX,redacted.ch
+DOMAIN-SUFFIX,sandai.net
 DOMAIN-SUFFIX,springsunday.net
 DOMAIN-SUFFIX,tjupt.org
 DOMAIN-SUFFIX,totheglory.im
 
 DOMAIN-SUFFIX,smtp
 URL-REGEX,(Subject|HELO|SMTP)
+
+# > UBI
+DOMAIN,uplaypc-s-ubisoft.cdn.ubi.com
+
+# > Tailscale
+IP-CIDR,100.64.0.0/10,no-resolve

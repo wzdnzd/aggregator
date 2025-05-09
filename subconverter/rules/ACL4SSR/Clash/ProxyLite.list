@@ -21,6 +21,7 @@ DOMAIN-SUFFIX,teddysun.com
 DOMAIN-SUFFIX,tumbex.com
 DOMAIN-SUFFIX,twdvd.com
 DOMAIN-SUFFIX,unsplash.com
+DOMAIN-SUFFIX,buzzsprout.com
 
 # 国外域名
 DOMAIN-SUFFIX,eu
@@ -189,9 +190,14 @@ DOMAIN-KEYWORD,uk-live
 DOMAIN-SUFFIX,bbc.co
 DOMAIN-SUFFIX,bbc.com
 
+# Claude
+DOMAIN-SUFFIX,claude.ai
+DOMAIN-SUFFIX,anthropic.com
+
 # Developer 开发者常用国外网站、镜像和论坛
 DOMAIN-SUFFIX,apache.org
 DOMAIN-SUFFIX,docker.com
+DOMAIN-SUFFIX,docker.io
 DOMAIN-SUFFIX,elastic.co
 DOMAIN-SUFFIX,elastic.com
 DOMAIN-SUFFIX,gcr.io
@@ -209,6 +215,15 @@ DOMAIN-SUFFIX,sourcegraph.com
 DOMAIN-SUFFIX,spring.io
 DOMAIN-SUFFIX,spring.net
 DOMAIN-SUFFIX,stackoverflow.com
+
+# Docker
+DOMAIN,d1q6f0aelx0por.cloudfront.net
+DOMAIN,d2wy8f7a9ursnm.cloudfront.net
+DOMAIN,d36jcksde1wxzq.cloudfront.net
+DOMAIN-SUFFIX,compose-spec.io
+DOMAIN-SUFFIX,docker.com
+DOMAIN-SUFFIX,docker.io
+DOMAIN-SUFFIX,dockerhub.com
 
 # Discord
 DOMAIN-SUFFIX,discord.co
@@ -295,6 +310,9 @@ DOMAIN-SUFFIX,cdninstagram.com
 DOMAIN-SUFFIX,instagram.com
 DOMAIN-SUFFIX,instagr.am
 
+# Iwara
+DOMAIN-SUFFIX,iwara.tv
+
 # Kakao Talk
 DOMAIN-SUFFIX,kakao.com
 DOMAIN-SUFFIX,kakao.co.kr
@@ -370,6 +388,7 @@ DOMAIN-SUFFIX,ypncdn.com
 # Pixiv
 DOMAIN-SUFFIX,pixiv.net
 DOMAIN-SUFFIX,pximg.net
+DOMAIN-SUFFIX,fanbox.cc
 
 # Spark
 DOMAIN-SUFFIX,amplitude.com
@@ -413,6 +432,7 @@ DOMAIN-SUFFIX,t.co
 DOMAIN-SUFFIX,twimg.co
 DOMAIN-SUFFIX,twimg.com
 DOMAIN-SUFFIX,twimg.org
+DOMAIN-SUFFIX,x.com
 
 # Telegram
 DOMAIN-SUFFIX,t.me
@@ -462,6 +482,10 @@ DOMAIN-SUFFIX,wikisource.org
 DOMAIN-SUFFIX,wikiversity.org
 DOMAIN-SUFFIX,wikivoyage.org
 DOMAIN-SUFFIX,wiktionary.org
+
+# Zoom
+DOMAIN-SUFFIX,zoom.us
+DOMAIN-SUFFIX,zoomgov.com
 
 #飞流直播
 DOMAIN-SUFFIX,neulion.com

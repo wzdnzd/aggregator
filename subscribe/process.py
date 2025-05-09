@@ -14,6 +14,7 @@ import re
 import subprocess
 import sys
 import time
+import traceback
 from copy import deepcopy
 from dataclasses import dataclass, field
 
@@ -69,8 +70,8 @@ def load_configs(
         crawl_conf.update(config.get("crawl", {}))
         storage.update(config.get("storage", {}))
 
-        nonlocal engine
-        engine = utils.trim(storage.get("engine", "")) or engine
+        push_conf = deepcopy(storage)
+        push_conf.pop("items", None)
 
         nonlocal delay
         delay = min(delay, max(config.get("delay", sys.maxsize), 50))
@@ -83,8 +84,7 @@ def load_configs(
 
         # persistence configuration
         persist = {k: storage.get("items", {}).get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
-        persist["engine"] = engine
-        params["persist"] = persist
+        params["storage"] = {"items": persist, **push_conf}
 
         params["config"] = crawl_conf.get("config", {})
         params["enable"] = crawl_conf.get("enable", True)
@@ -223,8 +223,8 @@ def load_configs(
             if not isinstance(task_conf, dict):
                 task_conf = {}
 
-            # record storge engine
-            task_conf["engine"] = engine
+            # record storge
+            task_conf["storage"] = {"items": task_conf.pop("persist", {}), **push_conf}
 
             scripts[path] = task_conf
         params["scripts"] = scripts
@@ -233,12 +233,12 @@ def load_configs(
         if not isinstance(storage, dict) or not isinstance(groups, dict):
             return False
 
-        pushtool = push.get_instance(engine=storage.get("engine", ""))
+        pushtool = push.get_instance(config=push.PushConfig.from_dict(storage))
         if not isinstance(storage.get("items", {}), dict):
             logger.error(f"cannot found any valid storage config")
             return False
 
-        items = pushtool.filter_push(push_conf=storage.get("items", {}))
+        items = pushtool.filter_push(config=storage.get("items", {}))
         for name, group in groups.items():
             name = utils.trim(name)
 
@@ -264,8 +264,7 @@ def load_configs(
 
         return True
 
-    tasks, delay = [], sys.maxsize
-    engine, storage, groups = "", {}, {}
+    tasks, delay, storage, groups = [], sys.maxsize, {}, {}
     params, crawl_conf, update_conf = {}, {}, {}
 
     try:
@@ -301,7 +300,7 @@ def load_configs(
 
         sys.exit(e.code)
     except:
-        logger.error("occur error when load task config")
+        logger.error(f"occur error when load task config:\n{traceback.format_exc()}")
         sys.exit(0)
 
     return ProcessConfig(
@@ -347,9 +346,6 @@ def assign(
         subscribe = [s for s in subscribe if s.strip() != ""]
         if len(subscribe) >= 2:
             subscribe = list(set(subscribe))
-
-        # 自定义标签，追加到名称前
-        tag = site.get("tag", "").strip().upper()
 
         # 节点倍率超过该值将会被丢弃
         rate = float(site.get("rate", 3.0))
@@ -443,7 +439,6 @@ def assign(
                 retry=retry,
                 rate=rate,
                 bin_name=bin_name,
-                tag=tag,
                 renew=renew,
                 rename=rename,
                 exclude=exclude,
@@ -485,8 +480,8 @@ def assign(
                 continue
 
             # get the first conversion configuration for each group
-            push_conf = pc.storage.get("items", {}).get(targets.values()[0], {})
-            subscribe = pushtool.raw_url(push_conf=push_conf)
+            config = pc.storage.get("items", {}).get(targets.values()[0], {})
+            subscribe = pushtool.raw_url(config=config)
             if k not in groups or not subscribe:
                 continue
 
@@ -524,7 +519,7 @@ def aggregate(args: argparse.Namespace) -> None:
     )
 
     storages = process_config.storage or {}
-    pushtool = push.get_instance(engine=storages.get("engine", ""))
+    pushtool = push.get_instance(config=push.PushConfig.from_dict(storages))
     retry = min(max(1, args.retry), 10)
 
     # generate tasks
@@ -703,8 +698,11 @@ def aggregate(args: argparse.Namespace) -> None:
                         continue
 
                 # save to remote server
-                push_conf = process_config.storage.get("items", {}).get(storage_name, {})
-                persisted = pushtool.push_to(content=content, push_conf=push_conf, group=f"{k}::{target}")
+                persisted = pushtool.push_to(
+                    content=content,
+                    config=process_config.storage.get("items", {}).get(storage_name, {}),
+                    group=f"{k}::{target}",
+                )
 
             # clean workspace
             workflow.cleanup(os.path.join(PATH, "subconverter"), [dest_file, "generate.ini"])
@@ -745,7 +743,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-e",
-        "--envrionment",
+        "--environment",
         type=str,
         required=False,
         default=".env",
@@ -825,6 +823,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    utils.load_dotenv(args.envrionment)
+    utils.load_dotenv(args.environment)
 
     aggregate(args=args)
