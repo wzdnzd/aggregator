@@ -531,6 +531,13 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                         return False
                     if "public-key" not in reality_opts or type(reality_opts["public-key"]) != str:
                         return False
+
+                    content = utils.trim(reality_opts["public-key"])
+                    content += "=" * (4 - len(content) % 4)
+                    public_key = base64.urlsafe_b64decode(content)
+                    if len(public_key) != 32:
+                        return False
+
                     if "short-id" in reality_opts:
                         short_id = reality_opts["short-id"]
                         if type(short_id) != str:
