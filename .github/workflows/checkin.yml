@@ -1,7 +1,7 @@
 name: Checkin
 on:
   schedule:
-    - cron: "45 02 * * *"
+    - cron: "0 0/1 * * *"
   workflow_dispatch:
 
 jobs:
