@@ -147,7 +147,7 @@ def proxies_exists(proxy: dict, hosts: dict) -> bool:
     protocol = proxy.get("type", "")
     if protocol == "http" or protocol == "socks5":
         return True
-    elif protocol == "ss" or protocol == "trojan":
+    elif protocol in ["ss", "trojan", "anytls", "hysteria2"]:
         return any(p.get("password", "") == proxy.get("password", "") for p in proxies)
     elif protocol == "ssr":
         return any(
@@ -161,8 +161,6 @@ def proxies_exists(proxy: dict, hosts: dict) -> bool:
         if proxy.get("token", ""):
             return any(p.get("token", "") == proxy.get("token", "") for p in proxies)
         return any(p.get("uuid", "") == proxy.get("uuid", "") for p in proxies)
-    elif protocol == "hysteria2":
-        return any(p.get("password", "") == proxy.get("password", "") for p in proxies)
     elif protocol == "hysteria":
         key = "auth-str" if "auth-str" in proxy else "auth_str"
         value = proxy.get(key, "")
@@ -245,7 +243,7 @@ SSR_SUPPORTED_PROTOCOL = [
 
 VMESS_SUPPORTED_CIPHERS = ["auto", "aes-128-gcm", "chacha20-poly1305", "none"]
 
-SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2"])
+SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2", "anytls"])
 
 # xtls-rprx-direct and xtls-rprx-origin are deprecated and no longer supported
 # XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
@@ -490,7 +488,15 @@ def verify(item: dict, mihomo: bool = True) -> bool:
         elif item["type"] == "http" or item["type"] == "socks5":
             authentication = "userpass"
         elif mihomo and item["type"] in SPECIAL_PROTOCOLS:
-            if item["type"] == "vless":
+            if item["type"] == "anytls":
+                if "alpn" in item and type(item["alpn"]) != list:
+                    return False
+
+                for property in ["idle-session-check-interval", "idle-session-timeout", "min-idle-session"]:
+                    if property in item and (not utils.is_number(item[property]) or int(item[property]) < 0):
+                        return False
+
+            elif item["type"] == "vless":
                 authentication = "uuid"
                 network = utils.trim(item.get("network", "tcp"))
 
@@ -501,8 +507,6 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                     return False
                 if "flow" in item:
                     flow = utils.trim(item.get("flow", ""))
-
-                    # if flow and flow not in XTLS_FLOWS:
                     if flow and flow != "xtls-rprx-vision":
                         return False
                 if "ws-opts" in item:
