@@ -367,26 +367,25 @@ def load_mmdb(
     return database.Reader(filepath)
 
 
-def locate_by_geoip(proxy: dict, reader: database.Reader) -> dict:
-    if not proxy or not isinstance(proxy, dict):
-        return None
+def query_ip_country(ip: str, reader: database.Reader) -> str:
+    """
+    Query country information for an IP address using mmdb database
 
-    address = utils.trim(proxy.get("server", ""))
-    if not address:
-        logger.warning(f"server is empty, proxy: {proxy}")
-        return proxy
+    Args:
+        ip: The IP address to query
+        reader: The mmdb database reader
+
+    Returns:
+        The country name in Chinese
+    """
+    if not ip or not reader:
+        return ""
 
     try:
-        if reader is None:
-            logger.error("MMDB reader is None, cannot query geolocation")
-            return proxy
-
-        ip = socket.gethostbyname(address)
-
         # fake ip
         if ip.startswith("198.18.0."):
-            logger.warning("cannot get geolocation and rename because IP address is faked")
-            return proxy
+            logger.warning("cannot get geolocation because IP address is faked")
+            return ""
 
         response = reader.country(ip)
 
@@ -405,6 +404,29 @@ def locate_by_geoip(proxy: dict, reader: database.Reader) -> dict:
                 country = "Cloudflare"
             elif ip.startswith("8.8.8.") or ip.startswith("8.8.4."):
                 country = "Google"
+
+        return country
+    except Exception as e:
+        logger.error(f"query ip country failed, ip: {ip}, error: {str(e)}")
+        return ""
+
+
+def locate_by_geoip(proxy: dict, reader: database.Reader) -> dict:
+    if not proxy or not isinstance(proxy, dict):
+        return None
+
+    address = utils.trim(proxy.get("server", ""))
+    if not address:
+        logger.warning(f"server is empty, proxy: {proxy}")
+        return proxy
+
+    try:
+        if reader is None:
+            logger.error("MMDB reader is None, cannot query geolocation")
+            return proxy
+
+        ip = socket.gethostbyname(address)
+        country = query_ip_country(ip, reader)
 
         if country:
             proxy["name"] = country
@@ -533,7 +555,7 @@ def scan_ports_batch(start_port: int, count: int = 100) -> dict:
         logger.warning(f"Batch port scanning failed, falling back to individual port checks: {str(e)}")
         # If batch checking fails, fall back to individual port checks
         for port in ports_to_scan:
-            in_use = _check_single_port(port)
+            in_use = check_single_port(port)
             results[port] = in_use
             _PORT_STATUS_CACHE[port] = in_use
             if not in_use:
@@ -548,7 +570,7 @@ def scan_ports_batch(start_port: int, count: int = 100) -> dict:
     }
 
 
-def _check_single_port(port: int) -> bool:
+def check_single_port(port: int) -> bool:
     """Helper function for checking a single port, checks if the port is listening"""
     try:
         # Use socket to check TCP port
@@ -588,7 +610,7 @@ def is_port_in_use(port: int) -> bool:
         return _PORT_STATUS_CACHE[port]
 
     # Otherwise check the port and cache the result
-    in_use = _check_single_port(port)
+    in_use = check_single_port(port)
     _PORT_STATUS_CACHE[port] = in_use
     if not in_use:
         _AVAILABLE_PORTS.add(port)
@@ -670,22 +692,33 @@ def generate_mihomo_config(proxies: list[dict]) -> tuple[dict, dict]:
     return config, records
 
 
-def locate_by_ipinfo(name: str, port: int) -> dict:
-    """Check the location of a single proxy by making a request through it"""
-    result = {"name": name, "country": ""}
+def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int = 10) -> tuple[bool, dict]:
+    """
+    Make an HTTP request through a proxy and return the response
 
+    Args:
+        port: The port of the proxy
+        url: The URL to request
+        max_retries: Maximum number of retry attempts
+        timeout: Timeout for the request in seconds
+
+    Returns:
+        A tuple of (success, data) where:
+        - success: Whether the request was successful
+        - data: The parsed JSON data (empty dict if request failed)
+    """
     if not port:
-        logger.warning(f"No port found for proxy {name}")
-        return result
+        logger.warning("No port provided for proxy")
+        return False, {}
 
     # Configure the proxy for the request
     proxy_url = f"http://127.0.0.1:{port}"
     proxies_config = {"http": proxy_url, "https": proxy_url}
 
-    # Random sleep to avoid being blocked by the API
-    time.sleep(random.uniform(0.01, 0.5))
-
+    # Configure proxy handler
     proxy_handler = urllib.request.ProxyHandler(proxies_config)
+
+    # Build opener with proxy handler
     opener = urllib.request.build_opener(proxy_handler)
     opener.addheaders = [
         ("User-Agent", utils.USER_AGENT),
@@ -693,35 +726,100 @@ def locate_by_ipinfo(name: str, port: int) -> dict:
         ("Connection", "close"),
     ]
 
+    # Try to get response with retry and backoff
+    attempt, success, data = 0, False, {}
+    while not success and attempt < max(max_retries, 1):
+        try:
+            # Random sleep to avoid being blocked by the API (increasing with each retry)
+            if attempt > 0:
+                wait_time = min(2**attempt * random.uniform(0.5, 1.5), 10)
+                time.sleep(wait_time)
+
+            # Make request
+            response = opener.open(url, timeout=timeout)
+            if response.getcode() == 200:
+                content = response.read().decode("utf-8")
+                data = json.loads(content)
+                success = True
+        except Exception as e:
+            logger.warning(f"Attempt {attempt+1} failed to request {url} through proxy port {port}: {str(e)}")
+
+        attempt += 1
+
+    return success, data
+
+
+def get_ipv4(port: int, max_retries: int = 5) -> str:
+    """
+    Get the IPv4 address by accessing https://api.ipify.org?format=json through a proxy
+
+    Args:
+        port: The port of the proxy
+        max_retries: Maximum number of retry attempts
+
+    Returns:
+        The IPv4 address or empty string if failed
+    """
+    if not port:
+        logger.warning("No port provided for proxy")
+        return ""
+
+    success, data = make_proxy_request(port=port, url="https://api.ipify.org?format=json", max_retries=max_retries)
+    return data.get("ip", "") if success else ""
+
+
+def locate_by_ipinfo(name: str, port: int, reader: database.Reader = None) -> dict:
+    """Check the location of a single proxy by making a request through it"""
+    result = {"name": name, "country": ""}
+
+    if not port:
+        logger.warning(f"No port found for proxy {name}")
+        return result
+
+    if reader:
+        # Get IP address through proxy
+        if ip := get_ipv4(port=port, max_retries=3):
+            country = query_ip_country(ip, reader)
+            if country:
+                result["country"] = country
+                return result
+
+    # Random sleep to avoid being blocked by the API
+    time.sleep(random.uniform(0.01, 0.5))
+
     api_services = [
         {"url": "https://ipinfo.io", "country_key": "country"},
         {"url": "https://ipapi.co/json/", "country_key": "country_code"},
         {"url": "https://ipwho.is", "country_key": "country_code"},
         {"url": "https://freeipapi.com/api/json", "country_key": "countryCode"},
         {"url": "https://api.country.is", "country_key": "country"},
-        # {"url": "https://api.ip.sb/geoip", "country_key": "country_code"},
+        {"url": "https://api.ip.sb/geoip", "country_key": "country_code"},
     ]
 
-    success, attempt, max_retries = False, 0, 5
-    while not success and attempt < max_retries:
+    max_retries = 5
+    for attempt in range(max_retries):
         service = random.choice(api_services)
-        try:
-            response = opener.open(service["url"], timeout=12)
-            if response.getcode() == 200:
-                content = response.read().decode("utf-8")
-                data = json.loads(content)
-                country_code = data.get(service["country_key"], "")
-                if country_code:
-                    # Convert ISO code to Chinese country name
-                    result["country"] = ISO_TO_CHINESE.get(country_code, country_code)
-                    success = True
-        except Exception as e:
+
+        # We're already handling retries in this loop
+        success, data = make_proxy_request(port=port, url=service["url"], max_retries=1, timeout=12)
+
+        if success:
+            # Extract country code from the response using the service-specific key
+            country_key = service["country_key"]
+            country_code = data.get(country_key, "")
+
+            if country_code:
+                # Convert ISO code to Chinese country name
+                result["country"] = ISO_TO_CHINESE.get(country_code, country_code)
+                break
+
+        # If request failed, wait before trying another service
+        if attempt < max_retries - 1:
             wait_time = min(2**attempt * random.uniform(1, 2), 10)
             logger.warning(
-                f"Attempt {attempt+1} failed for proxy {name} with {service['url']}, waiting {wait_time:.2f}s, error: {str(e)}"
+                f"Attempt {attempt+1} failed for proxy {name} with {service['url']}, waiting {wait_time:.2f}s"
             )
             time.sleep(wait_time)
-            attempt += 1
 
     return result
 
@@ -789,14 +887,19 @@ def regularize(
                 logger.info(f"Starting mihomo with configuration {config_path}")
                 try:
                     # Run mihomo in background
-                    process = subprocess.Popen([mihomo_bin, "-d", workspace, "-f", config_path])
+                    process = subprocess.Popen(
+                        [mihomo_bin, "-d", workspace, "-f", config_path],
+                        # stdin=subprocess.PIPE,
+                        # stdout=subprocess.PIPE,
+                        # stderr=subprocess.PIPE,
+                    )
 
                     # Wait longer to ensure mihomo is fully started
                     logger.info("Waiting for mihomo to start...")
                     time.sleep(8)
 
                     # Generate tasks for each proxy
-                    tasks = [(name, port) for name, port in records.items()]
+                    tasks = [(name, port, reader) for name, port in records.items()]
 
                     # Check IP location for each proxy in this batch
                     results = utils.multi_thread_run(
@@ -846,7 +949,7 @@ def rename(proxies: list[dict], digits: int = 2, shuffle: bool = False) -> list[
     for proxy in proxies:
         name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", proxy.get("name", "")).strip()
         if not name:
-            name = "Unknown Region"
+            name = "未知地域"
 
         proxy["name"] = name
         records[name].append(proxy)
