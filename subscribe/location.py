@@ -9,14 +9,21 @@ import os
 import random
 import re
 import socket
+import subprocess
+import sys
+import time
 import urllib
 from collections import defaultdict
 
 import utils
+import yaml
+from executable import which_bin
 from geoip2 import database
 from logger import logger
 
-# ISO国家代码到中文国家名称的映射
+from clash import is_mihomo
+
+# Mapping from ISO country codes to Chinese country names
 ISO_TO_CHINESE = {
     "AD": "安道尔",
     "AE": "阿联酋",
@@ -360,7 +367,7 @@ def load_mmdb(
     return database.Reader(filepath)
 
 
-def rename(proxy: dict, reader: database.Reader) -> dict:
+def locate_by_geoip(proxy: dict, reader: database.Reader) -> dict:
     if not proxy or not isinstance(proxy, dict):
         return None
 
@@ -386,10 +393,10 @@ def rename(proxy: dict, reader: database.Reader) -> dict:
         # Try to get country name in Chinese
         country = response.country.names.get("zh-CN", "")
 
-        # If Chinese name is not available, try to convert ISO code to Chinese name
+        # If Chinese name is not available, try to convert ISO code to Chinese country name
         if not country and response.country.iso_code:
             iso_code = response.country.iso_code
-            # Try to get Chinese name from ISO code mapping
+            # Try to get Chinese country name from ISO code mapping
             country = ISO_TO_CHINESE.get(iso_code, iso_code)
 
         # Special handling for well-known IPs
@@ -401,12 +408,322 @@ def rename(proxy: dict, reader: database.Reader) -> dict:
 
         if country:
             proxy["name"] = country
+            proxy["renamed"] = True
         else:
             logger.warning(f"cannot get geolocation and rename, address: {address}")
     except Exception as e:
         logger.error(f"query ip geolocation failed, address: {address}, error: {str(e)}")
 
     return proxy
+
+
+# Cache for checked port statuses
+_PORT_STATUS_CACHE = {}
+_AVAILABLE_PORTS = set()
+
+
+def get_listening_ports() -> set:
+    """Get the set of listening ports in the system, cross-platform compatible"""
+    listening_ports = set()
+
+    try:
+        # Windows system
+        if os.name == "nt":
+            try:
+                # Use 'cp437' encoding to handle Windows command line output
+                output = subprocess.check_output("netstat -an", shell=True).decode("cp437", errors="replace")
+                for line in output.split("\n"):
+                    if "LISTENING" in line:
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            addr_port = parts[1]
+                            if ":" in addr_port:
+                                try:
+                                    port = int(addr_port.split(":")[-1])
+                                    listening_ports.add(port)
+                                except ValueError:
+                                    pass
+            except Exception as e:
+                logger.warning(f"Windows netstat command failed: {str(e)}")
+                return listening_ports
+
+        # macOS system
+        elif sys.platform == "darwin":
+            try:
+                output = subprocess.check_output("lsof -i -P -n | grep LISTEN", shell=True).decode(
+                    "utf-8", errors="replace"
+                )
+                for line in output.split("\n"):
+                    if ":" in line:
+                        try:
+                            port_part = line.split(":")[-1].split(" ")[0]
+                            port = int(port_part)
+                            listening_ports.add(port)
+                        except (ValueError, IndexError):
+                            pass
+            except Exception as e:
+                logger.warning(f"macOS lsof command failed: {str(e)}")
+                return listening_ports
+
+        # Linux and other systems
+        else:
+            # Try using ss command (newer Linux systems)
+            try:
+                output = subprocess.check_output("ss -tuln", shell=True).decode("utf-8", errors="replace")
+                for line in output.split("\n"):
+                    if "LISTEN" in line:
+                        parts = line.split()
+                        for part in parts:
+                            if ":" in part:
+                                try:
+                                    port = int(part.split(":")[-1])
+                                    listening_ports.add(port)
+                                except ValueError:
+                                    pass
+            except Exception as e:
+                logger.warning(f"Linux ss command failed, trying netstat: {str(e)}")
+                # Fall back to netstat command (older Linux systems)
+                try:
+                    output = subprocess.check_output("netstat -tuln", shell=True).decode("utf-8", errors="replace")
+                    for line in output.split("\n"):
+                        if "LISTEN" in line:
+                            parts = line.split()
+                            for part in parts:
+                                if ":" in part:
+                                    try:
+                                        port = int(part.split(":")[-1])
+                                        listening_ports.add(port)
+                                    except ValueError:
+                                        pass
+                except Exception as e:
+                    logger.warning(f"Linux netstat command also failed: {str(e)}")
+                    return listening_ports
+    except Exception as e:
+        logger.warning(f"Failed to get listening ports: {str(e)}")
+
+    return listening_ports
+
+
+def scan_ports_batch(start_port: int, count: int = 100) -> dict:
+    """Batch scan port statuses, return a dictionary of port statuses"""
+    global _PORT_STATUS_CACHE, _AVAILABLE_PORTS
+
+    # Create a list of ports to scan (excluding ports with known status)
+    ports_to_scan = [p for p in range(start_port, start_port + count) if p not in _PORT_STATUS_CACHE]
+
+    if not ports_to_scan:
+        # If all ports are already cached, return cached results directly
+        return {p: _PORT_STATUS_CACHE.get(p, True) for p in range(start_port, start_port + count)}
+
+    # Use a more efficient way to check ports in batch
+    results = {}
+
+    try:
+        # Get the ports that are currently listening in the system
+        listening_ports = get_listening_ports()
+
+        # Update results
+        for port in ports_to_scan:
+            in_use = port in listening_ports
+            results[port] = in_use
+            _PORT_STATUS_CACHE[port] = in_use
+            if not in_use:
+                _AVAILABLE_PORTS.add(port)
+    except Exception as e:
+        logger.warning(f"Batch port scanning failed, falling back to individual port checks: {str(e)}")
+        # If batch checking fails, fall back to individual port checks
+        for port in ports_to_scan:
+            in_use = _check_single_port(port)
+            results[port] = in_use
+            _PORT_STATUS_CACHE[port] = in_use
+            if not in_use:
+                _AVAILABLE_PORTS.add(port)
+
+    # Merge cached and newly scanned results
+    return {
+        **{
+            p: _PORT_STATUS_CACHE.get(p, True) for p in range(start_port, start_port + count) if p in _PORT_STATUS_CACHE
+        },
+        **results,
+    }
+
+
+def _check_single_port(port: int) -> bool:
+    """Helper function for checking a single port, checks if the port is listening"""
+    try:
+        # Use socket to check TCP port
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.2)
+        result = sock.connect_ex(("127.0.0.1", port))
+        sock.close()
+        if result == 0:
+            return True
+
+        # Also check IPv6
+        try:
+            sock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            sock.settimeout(0.2)
+            result = sock.connect_ex(("::1", port))
+            sock.close()
+            return result == 0
+        except:
+            pass
+
+        return False
+    except:
+        # Assume port is not in use when an error occurs
+        return False
+
+
+def is_port_in_use(port: int) -> bool:
+    """Check if a port is in use (using cache)"""
+    global _PORT_STATUS_CACHE, _AVAILABLE_PORTS
+
+    # If port is known to be available, return directly
+    if port in _AVAILABLE_PORTS:
+        return False
+
+    # If port status is already cached, return directly
+    if port in _PORT_STATUS_CACHE:
+        return _PORT_STATUS_CACHE[port]
+
+    # Otherwise check the port and cache the result
+    in_use = _check_single_port(port)
+    _PORT_STATUS_CACHE[port] = in_use
+    if not in_use:
+        _AVAILABLE_PORTS.add(port)
+    return in_use
+
+
+def generate_mihomo_config(proxies: list[dict]) -> tuple[dict, dict]:
+    """Generate mihomo configuration for the given proxies"""
+    # Base configuration
+    config = {
+        "mixed-port": 7890,
+        "allow-lan": True,
+        "mode": "global",
+        "log-level": "info",
+        "proxies": proxies,
+        "dns": {
+            "enable": True,
+            "enhanced-mode": "fake-ip",
+            "fake-ip-range": "198.18.0.1/16",
+            "default-nameserver": ["114.114.114.114", "223.5.5.5", "8.8.8.8"],
+            "nameserver": ["https://doh.pub/dns-query"],
+        },
+        "listeners": [],
+    }
+
+    # Record the port assigned to each proxy
+    records = dict()
+
+    # If there are no proxies, return directly
+    if not proxies:
+        return config, records
+
+    # Pre-scan ports in batch to improve efficiency
+    start_port = 32001
+
+    # Scan enough ports to ensure there are sufficient available ports
+    port_count = len(proxies) * 2
+    port_status = scan_ports_batch(start_port, port_count)
+
+    # Find all available ports
+    available_ports = [p for p, in_use in port_status.items() if not in_use]
+
+    # If available ports are insufficient, scan more ports
+    if len(available_ports) < len(proxies):
+        additional_ports = scan_ports_batch(start_port + port_count, port_count * 2)
+        available_ports.extend([p for p, in_use in additional_ports.items() if not in_use])
+
+    # Assign an available port to each proxy
+    for index, proxy in enumerate(proxies):
+        if index < len(available_ports):
+            port = available_ports[index]
+        else:
+            # If available ports are insufficient, use traditional method to find available ports
+            port = start_port + port_count + index
+            max_attempts = 1000
+            attempts = 0
+
+            while is_port_in_use(port) and attempts < max_attempts:
+                port += 1
+                attempts += 1
+
+            if attempts >= max_attempts:
+                logger.warning(
+                    f"Could not find an available port for proxy {proxy['name']} after {max_attempts} attempts"
+                )
+                continue
+
+        listener = {
+            "name": f"http-{index}",
+            "type": "http",
+            "port": port,
+            "proxy": proxy["name"],
+            "listen": "127.0.0.1",
+            "users": [],
+        }
+        config["listeners"].append(listener)
+        records[proxy["name"]] = port
+
+    return config, records
+
+
+def locate_by_ipinfo(name: str, port: int) -> dict:
+    """Check the location of a single proxy by making a request through it"""
+    result = {"name": name, "country": ""}
+
+    if not port:
+        logger.warning(f"No port found for proxy {name}")
+        return result
+
+    # Configure the proxy for the request
+    proxy_url = f"http://127.0.0.1:{port}"
+    proxies_config = {"http": proxy_url, "https": proxy_url}
+
+    # Random sleep to avoid being blocked by the API
+    time.sleep(random.uniform(0.01, 0.5))
+
+    proxy_handler = urllib.request.ProxyHandler(proxies_config)
+    opener = urllib.request.build_opener(proxy_handler)
+    opener.addheaders = [
+        ("User-Agent", utils.USER_AGENT),
+        ("Accept", "application/json"),
+        ("Connection", "close"),
+    ]
+
+    api_services = [
+        {"url": "https://ipinfo.io", "country_key": "country"},
+        {"url": "https://ipapi.co/json/", "country_key": "country_code"},
+        {"url": "https://ipwho.is", "country_key": "country_code"},
+        {"url": "https://freeipapi.com/api/json", "country_key": "countryCode"},
+        {"url": "https://api.country.is", "country_key": "country"},
+        # {"url": "https://api.ip.sb/geoip", "country_key": "country_code"},
+    ]
+
+    success, attempt, max_retries = False, 0, 5
+    while not success and attempt < max_retries:
+        service = random.choice(api_services)
+        try:
+            response = opener.open(service["url"], timeout=12)
+            if response.getcode() == 200:
+                content = response.read().decode("utf-8")
+                data = json.loads(content)
+                country_code = data.get(service["country_key"], "")
+                if country_code:
+                    # Convert ISO code to Chinese country name
+                    result["country"] = ISO_TO_CHINESE.get(country_code, country_code)
+                    success = True
+        except Exception as e:
+            wait_time = min(2**attempt * random.uniform(1, 2), 10)
+            logger.warning(
+                f"Attempt {attempt+1} failed for proxy {name} with {service['url']}, waiting {wait_time:.2f}s, error: {str(e)}"
+            )
+            time.sleep(wait_time)
+            attempt += 1
+
+    return result
 
 
 def regularize(
@@ -428,19 +745,108 @@ def regularize(
 
         repo, filename = "Loyalsoldier/geoip", "Country.mmdb"
 
-        # load mmdb
+        # Load mmdb
         reader = load_mmdb(repo=repo, directory=directory, filename=filename, update=update)
         if reader:
             tasks = [[p, reader] for p in proxies if p and isinstance(p, dict)]
-            proxies = utils.multi_thread_run(rename, tasks, num_threads, show_progress, "")
+            proxies = utils.multi_thread_run(locate_by_geoip, tasks, num_threads, show_progress, "")
         else:
             logger.error(f"skip rename proxies due to cannot load mmdb: {filename}")
+
+        confirmed, unconfirmed = [], []
+        for proxy in proxies:
+            # Filter out proxies that are correctly located or have country as China, Cloudflare, or Google
+            if proxy.pop("renamed", False) and proxy["name"] not in ["中国", "Cloudflare", "Google"]:
+                confirmed.append(proxy)
+            else:
+                unconfirmed.append(proxy)
+
+        # For proxies that are not correctly located or have country as China, Cloudflare, or Google, generate clash listeners configuration to access https://api.ip.sb/geoip with the proxy to get the final landing ip address country or region
+        if unconfirmed and is_mihomo():
+            # Rename unconfirmed proxies
+            unconfirmed = rename(unconfirmed, digits, False)
+
+            logger.info(f"generate clash listeners configuration for {len(unconfirmed)} proxies")
+            # Generate mihomo configuration for unconfirmed proxies
+            mihomo_config, records = generate_mihomo_config(unconfirmed)
+
+            # Save the configuration to clash/config.yaml in the project directory
+            workspace = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "clash")
+            # Path to config.yaml in the clash directory
+            config_path = os.path.join(workspace, "config.yaml")
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(mihomo_config, f, allow_unicode=True)
+
+            logger.info(f"Mihomo configuration saved to {config_path}")
+
+            # Check if we can find the mihomo binary
+            mihomo_bin = os.path.join(workspace, which_bin()[0])
+            if os.path.exists(mihomo_bin) and os.path.isfile(mihomo_bin):
+                # Make the binary executable
+                utils.chmod(mihomo_bin)
+
+                # Start mihomo with the configuration
+                logger.info(f"Starting mihomo with configuration {config_path}")
+                try:
+                    # Run mihomo in background
+                    process = subprocess.Popen([mihomo_bin, "-d", workspace, "-f", config_path])
+
+                    # Wait longer to ensure mihomo is fully started
+                    logger.info("Waiting for mihomo to start...")
+                    time.sleep(8)
+
+                    # Generate tasks for each proxy
+                    tasks = [(name, port) for name, port in records.items()]
+
+                    # Check IP location for each proxy in this batch
+                    results = utils.multi_thread_run(
+                        func=locate_by_ipinfo,
+                        tasks=tasks,
+                        show_progress=True,
+                        description=f"Checking",
+                    )
+
+                    # Kill the mihomo process
+                    process.terminate()
+                    process.wait(timeout=5)
+
+                    # Create a mapping from proxy names to countries
+                    country_map = {item["name"]: item["country"] for item in results if item.get("country")}
+
+                    successed, total = len(country_map), len(unconfirmed)
+                    logger.info(
+                        f"Finished checking proxy locations, successed: {successed}, total: {total}, failed: {total - successed}"
+                    )
+
+                    # Update the unconfirmed proxies with the new location information
+                    for proxy in unconfirmed:
+                        if proxy["name"] in country_map:
+                            proxy["name"] = country_map[proxy["name"]]
+
+                    # Combine confirmed and unconfirmed proxies into a single list
+                    proxies = confirmed + unconfirmed
+                except Exception as e:
+                    logger.error(f"Error checking proxy locations: {str(e)}")
+
+                    try:
+                        process.terminate()
+                    except:
+                        pass
+            else:
+                logger.error("Mihomo binary not found, skipping proxy location check")
+
+    return rename(proxies=proxies, digits=digits, shuffle=True)
+
+
+def rename(proxies: list[dict], digits: int = 2, shuffle: bool = False) -> list[dict]:
+    if not proxies or not isinstance(proxies, list):
+        return []
 
     records = defaultdict(list)
     for proxy in proxies:
         name = re.sub(r"-?(\d+|(\d+|\s+|(\d+)?-\d+)[A-Z])$", "", proxy.get("name", "")).strip()
         if not name:
-            name = "未知地域"
+            name = "Unknown Region"
 
         proxy["name"] = name
         records[name].append(proxy)
@@ -455,8 +861,8 @@ def regularize(
             node["name"] = f"{name} {str(index+1).zfill(n)}"
             results.append(node)
 
-    # shuffle
-    for _ in range(3):
-        random.shuffle(results)
+    if shuffle:
+        for _ in range(3):
+            random.shuffle(results)
 
     return results
