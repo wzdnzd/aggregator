@@ -699,7 +699,7 @@ class AirPort:
     @staticmethod
     def check_protocol(link: str) -> bool:
         return re.match(
-            r"^(vmess|trojan|ss|ssr|vless|hysteria|hysteria2|tuic|snell)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}",
+            r"^(vmess|trojan|ss|ssr|vless|hysteria|hysteria2|tuic|snell|anytls)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}",
             utils.trim(link).replace("\r", ""),
             flags=re.I,
         )
