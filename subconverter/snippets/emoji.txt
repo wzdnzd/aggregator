@@ -7,6 +7,11 @@
 (?i:\bK[O]?R\b|Korea|首尔|春川|韩|韓),🇰🇷
 (?i:\bUS[A]?\b|America|United.*?States|美国|美國|[^-]美|美西|美东|波特兰|达拉斯|俄勒冈|凤凰城|费利蒙|硅谷|拉斯维加斯|洛杉矶|洛杉磯|圣何塞|圣克拉拉|西雅图|芝加哥|纽约|旧金山),🇺🇸
 (Ascension|阿森松),🇦🇨
+(Seychelles|塞舌尔),🇸🇨
+(\\bTogo\\b|Togolese|多哥),🇹🇬
+(Liechtenstein|列支敦士登),🇱🇮
+(Gibraltar|直布罗陀),🇬🇮
+(Saint|Kitts|Nevis|圣基茨和尼维斯),🇰🇳
 (?i:\bUAE\b|Dubai|阿联酋|迪拜),🇦🇪
 (阿尔巴尼亚|Albania),🇦🇱
 (Argentina|阿根廷),🇦🇷
