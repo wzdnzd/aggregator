@@ -514,7 +514,6 @@ class AirPort:
         retry: int,
         rate: float,
         bin_name: str,
-        tag: str,
         disable_insecure: bool = False,
         udp: bool = True,
         ignore_exclude: bool = False,
@@ -675,10 +674,6 @@ class AirPort:
                 name = re.sub(r"\s+(\d+)[\s_\-\|]+([A-Za-z])\b", r"-\1\2", name)
                 item["name"] = re.sub(r"(-\d+[A-Za-z])+$", "", name).upper()
 
-                tag = utils.trim(tag)
-                if tag:
-                    item["name"] = f"{tag} {item['name']}"
-
                 # 方便过滤无效订阅
                 item["sub"] = self.sub
                 item["liveness"] = self.liveness
@@ -704,7 +699,7 @@ class AirPort:
     @staticmethod
     def check_protocol(link: str) -> bool:
         return re.match(
-            r"^(vmess|trojan|ss|ssr|vless|hysteria|hysteria2|tuic|snell)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}",
+            r"^(vmess|trojan|ss|ssr|vless|hysteria|hysteria2|tuic|snell|anytls)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}",
             utils.trim(link).replace("\r", ""),
             flags=re.I,
         )

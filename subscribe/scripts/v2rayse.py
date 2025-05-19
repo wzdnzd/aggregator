@@ -29,7 +29,7 @@ import subconverter
 from clash import QuotedStr, quoted_scalar
 
 # outbind type
-SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "vless", "hysteria2", "hysteria", "http", "socks5"]
+SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "vless", "hysteria2", "hysteria", "http", "socks5", "anytls"]
 
 # date format
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"

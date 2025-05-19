@@ -369,10 +369,40 @@ emoji = "🇲🇺"
 
 
 [[emoji]]
+match = "(Guatemala|危地马拉)"
+emoji = "🇬🇹"
+
+
+[[emoji]]
+match = "(Seychelles|塞舌尔)"
+emoji = "🇸🇨"
+
+
+[[emoji]]
+match = "(\\bTogo\\b|Togolese|多哥)"
+emoji = "🇹🇬"
+
+
+[[emoji]]
+match = "(Liechtenstein|列支敦士登)"
+emoji = "🇱🇮"
+
+
+[[emoji]]
+match = "(Gibraltar|直布罗陀)"
+emoji = "🇬🇮"
+
+
+[[emoji]]
+match = "(Saint|Kitts|Nevis|圣基茨和尼维斯)"
+emoji = "🇰🇳"
+
+
+[[emoji]]
 match = "(?i:\\bC[H]?N\\b|China|back|回国|中国[^-]|江苏[^-]|北京[^-]|上海[^-]|广州[^-]|深圳[^-]|杭州[^-]|常州[^-]|徐州[^-]|青岛[^-]|宁波[^-]|镇江[^-]|成都[^-]|河北[^-]|山西[^-]|辽宁[^-]|吉林[^-]|黑龙江[^-]|江苏[^-]|浙江[^-]|安徽[^-]|福建[^-]|江西[^-]|山东[^-]|河南[^-]|湖北[^-]|湖南[^-]|广东[^-]|海南[^-]|四川[^-]|贵州[^-]|云南[^-]|陕西[^-]|甘肃[^-]|青海[^-]|内蒙古[^-]|广西[^-]|西藏[^-]|宁夏[^-]|新疆[^-])"
 emoji = "🇨🇳"
 
 
 [[emoji]]
-match = "(未知地域|UNKNOWN)"
+match = "((未知|其他)地[区域]|UNKNOWN)"
 emoji = "👽"
