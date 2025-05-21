@@ -467,7 +467,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                 return False
         elif item["type"] == "snell":
             authentication = "psk"
-            if "version" in item and not item["version"].isdigit():
+            if "version" in item and not utils.is_number(item["version"]):
                 return False
 
             version = int(item.get("version", 1))
