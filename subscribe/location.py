@@ -732,7 +732,7 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
         try:
             # Random sleep to avoid being blocked by the API (increasing with each retry)
             if attempt > 0:
-                wait_time = min(2**attempt * random.uniform(0.5, 1.5), 10)
+                wait_time = min(2**attempt * random.uniform(0.5, 1.5), 6)
                 time.sleep(wait_time)
 
             # Make request
@@ -778,7 +778,7 @@ def locate_by_ipinfo(name: str, port: int, reader: database.Reader = None) -> di
 
     if reader:
         # Get IP address through proxy
-        if ip := get_ipv4(port=port, max_retries=3):
+        if ip := get_ipv4(port=port, max_retries=2):
             country = query_ip_country(ip, reader)
             if country:
                 result["country"] = country
@@ -796,7 +796,7 @@ def locate_by_ipinfo(name: str, port: int, reader: database.Reader = None) -> di
         {"url": "https://api.ip.sb/geoip", "country_key": "country_code"},
     ]
 
-    max_retries = 5
+    max_retries = 3
     for attempt in range(max_retries):
         service = random.choice(api_services)
 
@@ -815,7 +815,7 @@ def locate_by_ipinfo(name: str, port: int, reader: database.Reader = None) -> di
 
         # If request failed, wait before trying another service
         if attempt < max_retries - 1:
-            wait_time = min(2**attempt * random.uniform(1, 2), 10)
+            wait_time = min(2**attempt * random.uniform(1, 2), 6)
             logger.warning(
                 f"Attempt {attempt+1} failed for proxy {name} with {service['url']}, waiting {wait_time:.2f}s"
             )
@@ -907,6 +907,7 @@ def regularize(
                     results = utils.multi_thread_run(
                         func=locate_by_ipinfo,
                         tasks=tasks,
+                        num_threads=num_threads,
                         show_progress=True,
                         description=f"Checking",
                     )
