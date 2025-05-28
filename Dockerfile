@@ -4,33 +4,43 @@ FROM python:3.12.3-slim
 
 LABEL maintainer="wzdnzd"
 
-# github personal access token
-ENV GIST_PAT=""
-
-# github gist info, format: username/gist_id
-ENV GIST_LINK=""
-
-# customize airport listing url address
-ENV CUSTOMIZE_LINK=""
-
-# pip default index url
 ARG PIP_INDEX_URL="https://pypi.org/simple"
 
-WORKDIR /aggregator
+# Install system dependencies (as root)
+RUN apt-get update && apt-get install -y cronie tzdata --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
-# copy files, only linux related files are needed
-COPY requirements.txt /aggregator
-COPY subscribe /aggregator/subscribe 
-COPY clash/clash-linux-amd clash/Country.mmdb /aggregator/clash
+# User Setup
+RUN useradd -m -u 1000 user
+USER user
+ENV PATH="/home/user/.local/bin:$PATH"
 
-COPY subconverter /aggregator/subconverter
-RUN rm -rf subconverter/subconverter-darwin-amd \
-    && rm -rf subconverter/subconverter-darwin-arm \
-    && rm -rf subconverter/subconverter-linux-arm \
-    && rm -rf subconverter/subconverter-windows.exe
+WORKDIR /app
 
-# install dependencies
+# Environment variables
+ENV GIST_LINK=""
+ENV CUSTOMIZE_LINK=""
+ENV APP_SCHEDULE="0 3 * * *"
+ENV APP_ARGS="--all --overwrite --skip"
+ENV GIST_PAT=""
+
+# File Copying and Python Dependencies (as user)
+COPY --chown=user ./requirements.txt requirements.txt
 RUN pip install -i ${PIP_INDEX_URL} --no-cache-dir -r requirements.txt
 
+COPY --chown=user subscribe /app/subscribe
+COPY --chown=user clash/clash-linux-amd /app/clash/clash-linux-amd
+COPY --chown=user clash/Country.mmdb /app/clash/Country.mmdb
+COPY --chown=user subconverter /app/subconverter
+
+# Remove unnecessary platform-specific binaries from subconverter
+RUN rm -rf /app/subconverter/subconverter-darwin-amd \
+    && rm -rf /app/subconverter/subconverter-darwin-arm \
+    && rm -rf /app/subconverter/subconverter-linux-arm \
+    && rm -rf /app/subconverter/subconverter-windows.exe
+
+# Copy and set permissions for the cron script
+COPY --chown=user scripts/run-cron.sh /app/run-cron.sh
+RUN chmod +x /app/run-cron.sh
+
 # start and run
-CMD ["python", "-u", "subscribe/collect.py", "--all", "--overwrite", "--skip"]
+CMD ["/app/run-cron.sh"]
