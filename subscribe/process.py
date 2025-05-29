@@ -480,7 +480,8 @@ def assign(
                 continue
 
             # get the first conversion configuration for each group
-            config = pc.storage.get("items", {}).get(targets.values()[0], {})
+            values = list(targets.values())
+            config = pc.storage.get("items", {}).get(values[0], {})
             subscribe = pushtool.raw_url(config=config)
             if k not in groups or not subscribe:
                 continue
