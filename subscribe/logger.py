@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 
-DEFAULT_LOG_LEVEL = logging.INFO
+DEFAULT_LOG_LEVEL = logging.DEBUG if os.getenv("LOG_LEVEL_DEBUG", "").lower() in ["true", "1"] else logging.INFO
 DEFAULT_LOG_FMT = "%(asctime)s %(filename)s [line:%(lineno)d] %(levelname)s: %(message)s"
 DEFAULT_LOG_DATETIME_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEFAULT_LOG_FILENAME = "workflow.log"
