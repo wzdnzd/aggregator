@@ -677,7 +677,7 @@ def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, st
     try:
         proxy_name = urllib.parse.quote(proxy.get("name", ""), safe="")
     except:
-        logger.debug(f"encoding proxy name error, proxy: {proxy.get("name", "")}")
+        logger.debug(f"encoding proxy name error, proxy: {proxy.get('name', '')}")
         return False
 
     base_url = f"http://{api_url}/proxies/{proxy_name}/delay?timeout={str(timeout)}&url="
@@ -692,10 +692,12 @@ def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, st
         targets.append(random.choice(DOWNLOAD_URL))
     try:
         alive, allowed = True, False
+        trace = os.getenv("LOG_LEVEL_DEBUG", "").lower() in ["true", "1"]
+
         for target in targets:
             target = urllib.parse.quote(target)
             url = f"{base_url}{target}"
-            content = utils.http_get(url=url, retry=2, interval=interval)
+            content = utils.http_get(url=url, retry=2, interval=interval, trace=trace)
             try:
                 data = json.loads(content)
             except:
@@ -731,11 +733,11 @@ def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, st
                         if data.get("delay", -1) > 0:
                             proxy["name"] = f"{proxy_name}{utils.CHATGPT_FLAG}"
                 except Exception:
-                    logger.debug(f"check for OpenAI failed, proxy: {proxy.get("name")}, message: {str(e)}")
+                    logger.debug(f"check for OpenAI failed, proxy: {proxy.get('name')}, message: {str(e)}")
 
         return alive
     except Exception as e:
-        logger.debug(f"check failed, proxy: {proxy.get("name")}, message: {str(e)}")
+        logger.debug(f"check failed, proxy: {proxy.get('name')}, message: {str(e)}")
         return False
 
 
