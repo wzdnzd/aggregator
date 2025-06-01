@@ -4,6 +4,7 @@
 # @Time    : 2022-07-15
 
 import base64
+import ipaddress
 import itertools
 import json
 import os
@@ -304,6 +305,11 @@ def verify(item: dict, mihomo: bool = True) -> bool:
         server = str(item.get("server", "")).strip().lower()
         if not server:
             return False
+
+        if server.startswith("::"):
+            # ipv6 addresses starting with ":::" cause yaml loading errors, need to expand to full format
+            server = ipaddress.IPv6Address(server).exploded
+
         item["server"] = server
 
         # port must be valid port number
