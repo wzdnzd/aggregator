@@ -304,7 +304,11 @@ def verify(item: dict, mihomo: bool = True) -> bool:
         server = str(item.get("server", "")).strip().lower()
         if not server:
             return False
-        item["server"] = server
+
+        if server.startswith(":"):
+            item["server"] = QuotedStr(server)
+        else:
+            item["server"] = server
 
         # port must be valid port number
         if not check_ports(item.get("port", ""), item.get("ports", None), item.get("type", "")):
