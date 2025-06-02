@@ -698,7 +698,11 @@ def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, st
         targets.append(random.choice(DOWNLOAD_URL))
     try:
         alive, allowed = True, False
-        trace = os.getenv("LOG_LEVEL_DEBUG", "").lower() in ["true", "1"]
+        trace = os.getenv("FOOL_PROOF", "").lower() in ["true", "1"]
+
+        if trace:
+            # prevents liveness check from being terminated due to a long period of time with no output
+            logger.info(f"start liveness check, proxy: {proxy.get('name', '')}")
 
         for target in targets:
             target = urllib.parse.quote(target)
