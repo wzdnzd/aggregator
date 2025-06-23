@@ -636,6 +636,7 @@ def aggregate(args: argparse.Namespace) -> None:
         regularize = group_conf.get("regularize", {})
         if regularize and isinstance(regularize, dict) and regularize.get("enable", False):
             locate = regularize.get("locate", False)
+            residential = regularize.get("residential", False)
             try:
                 bits = max(1, int(regularize.get("bits", 2)))
             except:
@@ -646,6 +647,7 @@ def aggregate(args: argparse.Namespace) -> None:
                 num_threads=args.num,
                 show_progress=display,
                 locate=locate,
+                residential=residential,
                 digits=bits,
             )
 
