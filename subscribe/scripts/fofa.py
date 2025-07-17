@@ -101,7 +101,7 @@ def extract_one(url: str) -> list[str]:
         providers, key = None, "proxy-providers"
         try:
             providers = yaml.load(content, Loader=yaml.SafeLoader).get(key, [])
-        except yaml.constructor.ConstructorError:
+        except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
             yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             providers = yaml.load(content, Loader=yaml.FullLoader).get(key, [])
         except Exception as e:

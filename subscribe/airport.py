@@ -706,7 +706,13 @@ class AirPort:
 
     @staticmethod
     def decode(
-        text: str, program: str, artifact: str = "", ignore: bool = False, special: bool = False, throw: bool = False
+        text: str,
+        program: str,
+        artifact: str = "",
+        ignore: bool = False,
+        special: bool = False,
+        throw: bool = False,
+        use_subconverter: bool = True,
     ) -> list:
         def clean_text(document: str) -> str:
             document = utils.trim(text=document)
@@ -729,11 +735,12 @@ class AirPort:
         if not text:
             return []
 
-        is_b64encode, is_json = False, False
+        is_b64encode, is_json, is_yaml = False, False, False
         if (
-            (is_b64encode := utils.isb64encode(text))
+            use_subconverter
+            or (is_b64encode := utils.isb64encode(text))
             or (is_json := (text.startswith("{") and text.endswith("}")))
-            or not re.search(r"^proxies:([\s\r\n]+)?$", text, flags=re.MULTILINE)
+            or not (is_yaml := (re.search(r"^proxies:([\s\r\n]+)?$", text, flags=re.MULTILINE) is not None))
         ):
             artifact = utils.trim(text=artifact)
             if not artifact:
@@ -743,7 +750,12 @@ class AirPort:
             clash_file = os.path.join(PATH, "subconverter", f"{artifact}.yaml")
 
             # base64 encoding if all lines start with valid protocol
-            if not is_b64encode and not is_json and all(AirPort.check_protocol(x) for x in text.split("\n") if x):
+            if (
+                not is_b64encode
+                and not is_json
+                and not is_yaml
+                and all(AirPort.check_protocol(x) for x in text.split("\n") if x)
+            ):
                 text = base64.b64encode(text.encode(encoding="UTF8")).decode(encoding="UTF8")
 
             try:
@@ -784,7 +796,7 @@ class AirPort:
                 config = None
                 try:
                     config = yaml.load(reader, Loader=yaml.SafeLoader)
-                except yaml.constructor.ConstructorError:
+                except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
                     reader.seek(0, 0)
                     yaml.add_multi_constructor(
                         "str",
@@ -809,7 +821,7 @@ class AirPort:
             except yaml.scanner.ScannerError:
                 text = clean_text(document=text)
                 nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
-            except yaml.constructor.ConstructorError:
+            except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
                 yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
                 nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
             except Exception as e:

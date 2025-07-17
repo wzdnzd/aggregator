@@ -178,7 +178,7 @@ def main(args: argparse.Namespace) -> None:
     with open(filepath, "r", encoding="utf8") as f:
         try:
             nodes = yaml.load(f, Loader=yaml.SafeLoader).get("proxies", [])
-        except yaml.constructor.ConstructorError:
+        except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
             f.seek(0, 0)
             yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
             nodes = yaml.load(f, Loader=yaml.SafeLoader).get("proxies", [])

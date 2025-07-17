@@ -28,6 +28,7 @@ from clash import is_mihomo
 @dataclass
 class ProxyInfo:
     """Proxy query result information"""
+
     name: str = ""
     country: str = ""
     is_residential: bool = False
@@ -36,9 +37,11 @@ class ProxyInfo:
 @dataclass
 class ProxyQueryResult:
     """Complete proxy query result"""
+
     proxy: dict
     result: ProxyInfo
     success: bool
+
 
 # Mapping from ISO country codes to Chinese country names
 ISO_TO_CHINESE = {
@@ -872,11 +875,7 @@ def locate_by_ipinfo(proxy: dict, port: int, reader: database.Reader = None) -> 
         name = proxy.get("name", "")
         if reason:
             logger.warning(f"Location query failed for proxy {name}: {reason}")
-        return ProxyQueryResult(
-            proxy=proxy,
-            result=ProxyInfo(name=name),
-            success=False
-        )
+        return ProxyQueryResult(proxy=proxy, result=ProxyInfo(name=name), success=False)
 
     def _create_success_result(country: str) -> ProxyQueryResult:
         """Helper to create successful query result"""
@@ -903,12 +902,7 @@ def locate_by_ipinfo(proxy: dict, port: int, reader: database.Reader = None) -> 
             service = random.choice(LOCATION_API_SERVICES)
 
             # Make the API request
-            success, data = make_proxy_request(
-                port=port,
-                url=service["url"],
-                max_retries=1,
-                timeout=12
-            )
+            success, data = make_proxy_request(port=port, url=service["url"], max_retries=1, timeout=12)
 
             if success and data:
                 # Parse country code from response
@@ -959,7 +953,16 @@ def locate_by_ipinfo(proxy: dict, port: int, reader: database.Reader = None) -> 
         return _create_failed_result(f"Exception: {str(e)}")
 
 
-def batch_query(proxies: list[dict], func: callable, num_threads: int = 0, show_progress: bool = True, description: str = "Querying", digits: int = 2, reader: database.Reader = None, api_key: str = "") -> list[ProxyQueryResult]:
+def batch_query(
+    proxies: list[dict],
+    func: callable,
+    num_threads: int = 0,
+    show_progress: bool = True,
+    description: str = "Querying",
+    digits: int = 2,
+    reader: database.Reader = None,
+    api_key: str = "",
+) -> list[ProxyQueryResult]:
     """
     Run mihomo to query proxies information using the specified function
 
@@ -1079,7 +1082,7 @@ def process_query_results(results: list[ProxyQueryResult], strategy: str) -> tup
                 name = item.result.country
                 if item.result.is_residential:
                     name += "家宽"
-                    
+
                 proxy["name"] = name
                 successes.append(proxy)
             elif strategy == "location":
@@ -1130,12 +1133,12 @@ def regularize(
             show_progress=show_progress,
             description="Checking residential",
             digits=digits,
-            api_key=api_key
+            api_key=api_key,
         )
 
         # Process residential check results
         successes, fails = process_query_results(results, "residential")
-        logger.info(f"Residential check completed: {len(successes)} residential, {len(fails)} remaining")
+        logger.info(f"Residential check completed: {len(successes)} successful, {len(fails)} failed")
     else:
         fails = proxies
 
@@ -1185,7 +1188,7 @@ def regularize(
                 show_progress=show_progress,
                 description="Querying location",
                 digits=digits,
-                reader=reader
+                reader=reader,
             )
 
             # Process location check results and handle CDN proxies
