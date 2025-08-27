@@ -1500,10 +1500,10 @@ def collect_airport(
         )
 
     def crawl_ygpy() -> dict:
-        def get_links(url: str, prefix: str) -> list[str]:
+        def get_links(url: str, prefix: str, regex: str = r'href="(/vpn/\d{4}/\d{2}.html)"') -> list[str]:
             content = utils.http_get(url=url)
 
-            groups = re.findall(r'href="(/vpn/\d{4}/\d{2}.html)"', content, flags=re.I)
+            groups = re.findall(regex, content, flags=re.I)
             if not groups:
                 logger.warning(f"[AirPortCollector] cannot fetch article from url: {url}")
                 return []
@@ -1533,6 +1533,32 @@ def collect_airport(
         for item in items:
             if item and isinstance(item, dict):
                 result.update(item)
+
+        # Extract javascript link from peer page and then parse airport urls and coupons
+        javascripts = utils.multi_thread_run(
+            func=get_links,
+            tasks=[[x, base, r'href="(/assets/vpn_\d+_\d+.md.[A-Za-z0-9_\-]+.lean.js)"'] for x in articles],
+        )
+
+        airports = utils.multi_thread_run(
+            func=run_crawl,
+            tasks=[
+                [
+                    x[0],
+                    r'"详细信息"|测试报告"|"官方(群组|频道)|"更新于|"联系方式',
+                    r'{href:"(https?://[^\s]+/(?:#/register|auth)\?(?:code|invite)=[^\s]+)"}',
+                    r'{code:"([^\r\n\s]+)"}',
+                ]
+                for x in javascripts
+                if x and isinstance(x, list)
+            ],
+        )
+
+        for item in airports:
+            if not item or not isinstance(item, dict):
+                continue
+
+            result.update(item)
 
         return result
 
@@ -1592,6 +1618,9 @@ def collect_airport(
                 return {}
 
             for group in groups:
+                if not group or not isinstance(group, str):
+                    continue
+
                 words = re.findall(utils.trim(address_regex), group, flags=re.M)
                 address = words[0] if words else ""
                 if not address:
