@@ -632,8 +632,13 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                     authentication = "password"
                     if "obfs" in item:
                         obfs = utils.trim(item.get("obfs", ""))
-                        if obfs != "salamander":
-                            return False
+                        if obfs:
+                            if obfs != "salamander":
+                                return False
+                            obfs_password = utils.trim(item.get("obfs-password", ""))
+                            if not obfs_password:
+                                return False
+
                     if "obfs-password" in item and type(item["obfs-password"]) != str:
                         return False
                 else:
