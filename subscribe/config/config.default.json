@@ -75,6 +75,15 @@
         "google": {
             "enable": false,
             "exclude": "",
+            "limits": 100,
+            "notinurl": [],
+            "push_to": []
+        },
+        "yandex": {
+            "enable": false,
+            "exclude": "",
+            "within": 3,
+            "pages": 5,
             "notinurl": [],
             "push_to": []
         },
@@ -117,6 +126,10 @@
                 "url": "",
                 "include": "",
                 "exclude": "",
+                "multiple": true,
+                "placeholder": "",
+                "start": 1,
+                "end": 10,
                 "config": {
                     "rename": ""
                 },
@@ -155,6 +168,7 @@
             "regularize": {
                 "enable": false,
                 "locate": true,
+                "residential": true,
                 "bits": 2
             }
         }
