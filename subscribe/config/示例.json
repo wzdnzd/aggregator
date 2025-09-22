@@ -1,0 +1,232 @@
+{
+    "domains": [
+        {
+            "name": "",
+            "sub": [],
+            "domain": "",
+            "enable": true,
+            "rename": "",
+            "include": "",
+            "exclude": "",
+            "push_to": [],
+            "ignorede": true,
+            "liveness": true,
+            "rate": 2.5,
+            "count": 2,
+            "coupon": "",
+            "secure": false,
+            "renew": {
+                "account": [
+                    {
+                        "email": "",
+                        "passwd": "",
+                        "ticket": {
+                            "enable": true,
+                            "autoreset": false,
+                            "subject": "",
+                            "message": "",
+                            "level": 1
+                        }
+                    }
+                ],
+                "plan_id": 3,
+                "package": "",
+                "method": 1,
+                "coupon_code": "",
+                "chatgpt": {
+                    "enable": true,
+                    "regex": "",
+                    "operate": "IN"
+                }
+            }
+        }
+    ],
+    "crawl": {
+        "enable": true,
+        "exclude": "",
+        "threshold": 5,
+        "singlelink": true,
+        "persist": {
+            "subs": "crawledsubs",
+            "proxies": "crawledproxies"
+        },
+        "config": {
+            "rename": "",
+            "include": "",
+            "exclude": "",
+            "xxxxxxx": ""
+        },
+        "telegram": {
+            "enable": true,
+            "pages": 5,
+            "exclude": "",
+            "users": {
+                "channel": {
+                    "include": "",
+                    "exclude": "",
+                    "config": {
+                        "rename": "",
+                        "xxxxxx": ""
+                    },
+                    "push_to": []
+                }
+            }
+        },
+        "google": {
+            "enable": false,
+            "exclude": "",
+            "limits": 100,
+            "notinurl": [],
+            "push_to": []
+        },
+        "yandex": {
+            "enable": false,
+            "exclude": "",
+            "within": 3,
+            "pages": 5,
+            "notinurl": [],
+            "push_to": []
+        },
+        "github": {
+            "enable": true,
+            "pages": 2,
+            "push_to": [],
+            "exclude": "",
+            "spams": []
+        },
+        "twitter": {
+            "enable": true,
+            "users": {
+                "username": {
+                    "enable": true,
+                    "num": 30,
+                    "include": "",
+                    "exclude": "",
+                    "config": {
+                        "rename": "",
+                        "xxxxxx": ""
+                    },
+                    "push_to": []
+                }
+            }
+        },
+        "repositories": [
+            {
+                "enable": false,
+                "username": "",
+                "repo_name": "",
+                "commits": 3,
+                "exclude": "",
+                "push_to": []
+            }
+        ],
+        "pages": [
+            {
+                "enable": true,
+                "url": "",
+                "include": "",
+                "exclude": "",
+                "multiple": true,
+                "placeholder": "",
+                "start": 1,
+                "end": 10,
+                "config": {
+                    "rename": ""
+                },
+                "push_to": []
+            }
+        ],
+        "scripts": [
+            {
+                "enable": false,
+                "script": "file#function",
+                "params": {
+                    "persist": {
+                        "fileid": ""
+                    },
+                    "any": "xxx",
+                    "config": {
+                        "enable": true,
+                        "liveness": true,
+                        "exclude": "",
+                        "rename": "",
+                        "push_to": []
+                    }
+                }
+            }
+        ]
+    },
+    "groups": {
+        "premium": {
+            "emoji": true,
+            "list": true,
+            "targets": {
+                "clash": "premium-clash",
+                "v2ray": "premium-v2ray",
+                "singbox": "premium-singbox"
+            },
+            "regularize": {
+                "enable": true,
+                "locate": true,
+                "residential": false,
+                "bits": 2
+            }
+        },
+        "free": {
+            "emoji": true,
+            "list": false,
+            "targets": {
+                "clash": "free-clash",
+                "v2ray": "free-v2ray"
+            }
+        },
+        "backup": {
+            "emoji": false,
+            "list": true,
+            "targets": {
+                "singbox": "backup-singbox"
+            }
+        }
+    },
+    "storage": {
+        "engine": "xxx",
+        "base": "https://api.xxx.com",
+        "domain": "https://xxx.com",
+        "items": {
+            "premium-clash": {
+                "username": "",
+                "folderid": "",
+                "fileid": ""
+            },
+            "premium-singbox": {
+                "fileid": ""
+            },
+            "premium-v2ray": {
+                "username": "",
+                "fileid": ""
+            },
+            "free-clash": {
+                "username": "",
+                "folderid": "",
+                "fileid": ""
+            },
+            "free-v2ray": {
+                "username": "",
+                "fileid": ""
+            },
+            "backup-singbox": {
+                "fileid": ""
+            },
+            "crawledsubs": {
+                "username": "",
+                "folderid": "",
+                "fileid": ""
+            },
+            "crawledproxies": {
+                "username": "",
+                "folderid": "",
+                "fileid": ""
+            }
+        }
+    }
+}

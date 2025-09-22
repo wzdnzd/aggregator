@@ -148,6 +148,7 @@ class AirPort:
         rename: str = "",
         exclude: str = "",
         include: str = "",
+        node_include: str = "",  # 新增: 用于节点名称过滤
         liveness: bool = True,
         coupon: str = "",
         api_prefix: str = "/api/v1/",
@@ -179,6 +180,7 @@ class AirPort:
         self.rename = rename
         self.exclude = exclude
         self.include = include
+        self.node_include = node_include  # 新增属性
         self.liveness = liveness
         self.coupon = "" if utils.isblank(coupon) else coupon
         self.headers = {
@@ -590,14 +592,13 @@ class AirPort:
                         item["server"] = hostname
 
                 try:
-                    if self.include and not re.search(self.include, name, re.I):
+                    if self.node_include and not re.search(self.node_include, name, re.I):
                         continue
-                    else:
-                        if self.exclude and re.search(self.exclude, name, re.I):
+                    if self.exclude and re.search(self.exclude, name, re.I):
                             continue
-                except:
+                except re.error as e:
                     logger.error(
-                        f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
+                        f"filter proxies error, node_include={self.node_include}, exclude={self.exclude}, err={e}"
                     )
 
                 try:
