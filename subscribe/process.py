@@ -374,6 +374,9 @@ def assign(
         # 仅保留匹配到的节点，支持正则表达式
         include = site.get("include", "").strip()
 
+        # 新增：节点名称过滤，支持正则表达式  
+        node_include = site.get("node_include", "").strip()
+        
         # 是否检查 ChatGPT 的连通性
         chatgpt = site.get("chatgpt", {})
 
@@ -443,6 +446,7 @@ def assign(
                 rename=rename,
                 exclude=exclude,
                 include=include,
+                node_include=node_include,  # 新增
                 chatgpt=chatgpt,
                 liveness=liveness,
                 coupon=coupon,
