@@ -320,13 +320,6 @@ def fetch(params: dict) -> list:
         yaml.add_representer(QuotedStr, quoted_scalar)
         content = yaml.dump(data=data, allow_unicode=True)
     else:
-        # 🔹 调试输出：打印 generate.ini 内容
-        if os.path.exists(generate):
-            with open(generate, "r", encoding="utf8") as f:
-                gen_content = f.read()
-                logger.info(f"[DEBUG] generate.ini content after generate_conf:\n{gen_content}")
-        else:
-            logger.warning(f"[WARN] generate.ini not found: {generate}")
         _, program = which_bin()
         if subconverter.convert(binname=program, artifact=artifact):
             filepath = os.path.join(datapath, dest)
