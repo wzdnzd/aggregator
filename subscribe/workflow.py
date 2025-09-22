@@ -54,7 +54,7 @@ class TaskConfig:
     # 节点排除规则
     exclude: str = ""
     include: str = ""
-
+    node_include: str = ""  # 新增：用于节点名称过滤
     # ChatGPT连通性测试节点过滤规则
     chatgpt: dict = None
 
@@ -94,6 +94,7 @@ def execute(task_conf: TaskConfig) -> list:
         rename=task_conf.rename,
         exclude=task_conf.exclude,
         include=task_conf.include,
+        node_include=task_conf.node_include,  # 新增
         liveness=task_conf.liveness,
         coupon=task_conf.coupon,
         api_prefix=task_conf.api_prefix,
