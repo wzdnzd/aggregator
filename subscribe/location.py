@@ -712,7 +712,14 @@ def generate_mihomo_config(proxies: list[dict]) -> tuple[dict, dict]:
     return config, records
 
 
-def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int = 10) -> tuple[bool, dict]:
+def make_proxy_request(
+    port: int,
+    url: str,
+    max_retries: int = 5,
+    timeout: int = 10,
+    headers: dict = None,
+    deserialize: bool = True,
+) -> tuple[bool, dict]:
     """
     Make an HTTP request through a proxy and return the response
 
@@ -721,6 +728,7 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
         url: The URL to request
         max_retries: Maximum number of retry attempts
         timeout: Timeout for the request in seconds
+
 
     Returns:
         A tuple of (success, data) where:
@@ -740,14 +748,17 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
 
     # Build opener with proxy handler
     opener = urllib.request.build_opener(proxy_handler)
-    opener.addheaders = [
-        ("User-Agent", utils.USER_AGENT),
-        ("Accept", "application/json"),
-        ("Connection", "close"),
-    ]
+    if headers and isinstance(headers, dict):
+        opener.addheaders = [(k, v) for k, v in headers.items() if k]
+    else:
+        opener.addheaders = [
+            ("User-Agent", utils.USER_AGENT),
+            ("Accept", "application/json"),
+            ("Connection", "close"),
+        ]
 
     # Try to get response with retry and backoff
-    attempt, success, data = 0, False, {}
+    attempt, success, data = 0, False, None
     while not success and attempt < max(max_retries, 1):
         try:
             # Random sleep to avoid being blocked by the API (increasing with each retry)
@@ -759,7 +770,7 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
             response = opener.open(url, timeout=timeout)
             if response.getcode() == 200:
                 content = response.read().decode("utf-8")
-                data = json.loads(content)
+                data = json.loads(content) if deserialize else content
                 success = True
         except Exception as e:
             logger.warning(f"Attempt {attempt+1} failed to request {url} through proxy port {port}: {str(e)}")
@@ -807,18 +818,48 @@ def random_delay(min_delay: float = 0.01, max_delay: float = 0.5):
     time.sleep(random.uniform(min_delay, max_delay))
 
 
-def check_residential(proxy: dict, port: int, api_key: str = "") -> ProxyQueryResult:
+def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: bool = True) -> ProxyQueryResult:
     """
-    Check if a proxy is residential by making a request to ipapi.is through it
+    Check if a proxy is residential by making a request through it
 
     Args:
         proxy: The proxy information dict
         port: The port of the proxy
         api_key: Optional API key for ipapi.is. Uses free tier if not provided
+        use_ipinfo: Whether to use ipinfo.io instead of ipapi.is, defaults to True
 
     Returns:
         ProxyQueryResult: Complete proxy query result
     """
+
+    def _get_ipapi_url(key: str = "") -> str:
+        url, key = "https://api.ipapi.is", utils.trim(key)
+        if key:
+            url += f"?key={key}"
+        return url
+
+    def _get_ipinfo_url(port: int, name: str) -> str:
+        # First, get the IP address
+        success, content = make_proxy_request(
+            port=port,
+            url="https://ipinfo.io/ip",
+            max_retries=2,
+            timeout=15,
+            deserialize=False,
+        )
+        if not success or not content:
+            logger.warning(f"Failed to get IP from ipinfo.io for proxy {name}")
+            return ""
+
+        # Extract IP from response
+        ip = utils.trim(content)
+        if not ip:
+            logger.warning(f"Invalid IP address from ipinfo.io for proxy {name}")
+            return ""
+
+        # Now get detailed information using the IP
+        return f"https://ipinfo.io/widget/demo/{ip}"
+
     name = proxy.get("name", "")
     result = ProxyInfo(name=name)
 
@@ -830,21 +871,28 @@ def check_residential(proxy: dict, port: int, api_key: str = "") -> ProxyQueryRe
     random_delay()
 
     try:
-        # Construct API URL with or without API key
-        api_url = "https://api.ipapi.is"
-        if api_key and api_key.strip():
-            api_url += f"?key={api_key.strip()}"
-            logger.debug(f"Using ipapi.is with API key for proxy {name}")
-        else:
-            logger.debug(f"Using ipapi.is free tier for proxy {name}")
+        url = ""
+        if use_ipinfo:
+            url = _get_ipinfo_url(port=port, name=name)
 
-        # Call ipapi.is API through the proxy
-        success, data = make_proxy_request(port=port, url=api_url, max_retries=2, timeout=12)
+        if not url:
+            url = _get_ipapi_url(key=api_key)
+            use_ipinfo = False
 
+        # Call API for IP information through the proxy
+        success, response = make_proxy_request(port=port, url=url, max_retries=2, timeout=12)
+
+        # Parse data from response
         if success:
             try:
-                # Extract data from ipapi.is response
-                country_code = data.get("location", {}).get("country_code", "")
+                data = response.get("data", {}) if use_ipinfo else response
+
+                # Extract country code from data
+                if use_ipinfo:
+                    country_code = data.get("country", "")
+                else:
+                    country_code = data.get("location", {}).get("country_code", "")
+
                 result.country = ISO_TO_CHINESE.get(country_code, "") if country_code else ""
 
                 company_type = data.get("company", {}).get("type", "")
@@ -854,9 +902,9 @@ def check_residential(proxy: dict, port: int, api_key: str = "") -> ProxyQueryRe
                 result.is_residential = company_type == "isp" and asn_type == "isp"
 
             except Exception as e:
-                logger.error(f"Error parsing ipapi.is response for proxy {name}: {str(e)}")
+                logger.error(f"Error parsing {url} response for proxy {name}: {str(e)}")
         else:
-            logger.warning(f"Failed to query ipapi.is for proxy {name}")
+            logger.warning(f"Failed to query {url} for proxy {name}")
 
         # Determine if query was successful
         flag = result.country != "" or result.is_residential
