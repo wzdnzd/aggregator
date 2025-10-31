@@ -265,7 +265,7 @@ def fetch(params: dict) -> list:
     else:
         logger.info(f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]")
 
-    base, starttime = f"{domain}/share", time.time()
+    base, starttime = f"{domain}/public", time.time()
     partitions = [[base, date, maxsize, last] for date in dates]
 
     links = utils.multi_thread_run(func=list_files, tasks=partitions)

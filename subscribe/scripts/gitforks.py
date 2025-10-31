@@ -108,7 +108,7 @@ def query_forks(username: str, repository: str, page: int, peer: int = 100, sort
 
 def collect_subs(params: dict) -> list[dict]:
     def update_conf(config: dict, sub: str, name: str = "") -> dict:
-        name = crawl.naming_task(url=url) if not name else name
+        name = crawl.naming_task(url=sub) if not name else name
 
         item = deepcopy(config)
         item.update({"name": name, "sub": sub, "saved": True})
