@@ -5,6 +5,7 @@
 
 import re
 from copy import deepcopy
+from datetime import datetime, timedelta
 
 import crawl
 import utils
@@ -18,11 +19,8 @@ GITHUB_CONTENT_API = "https://raw.githubusercontent.com"
 # default branch
 DEFAULT_BRANCH = "main"
 
-import re
-from datetime import datetime
 
-
-def format(text: str) -> str:
+def format(text: str, date: datetime = None) -> str:
     """
     Replace all time placeholders in text with current time values
 
@@ -47,7 +45,8 @@ def format(text: str) -> str:
         return text
 
     # Get current time
-    now = datetime.now()
+    if not date or not isinstance(date, datetime):
+        date = datetime.now()
 
     def replace(match):
         # YYYY, mm, dd, HH, MM, SS
@@ -58,20 +57,20 @@ def format(text: str) -> str:
 
         # Get corresponding time value
         if placeholder == "YYYY":
-            value = now.year
+            value = date.year
             return str(value)
         elif placeholder == "YY":
-            return str(now.year)[-2:]
+            return str(date.year)[-2:]
         elif placeholder == "mm":
-            value = now.month
+            value = date.month
         elif placeholder == "dd":
-            value = now.day
+            value = date.day
         elif placeholder == "HH":
-            value = now.hour
+            value = date.hour
         elif placeholder == "MM":
-            value = now.minute
+            value = date.minute
         elif placeholder == "SS":
-            value = now.second
+            value = date.second
 
         # Add leading zero only when format_type is '2' and value < 10
         if categroy == "2" and value < 10:
@@ -120,39 +119,45 @@ def collect_subs(params: dict) -> list[dict]:
             continue
 
         branch = utils.trim(item.get("branch", "")) or DEFAULT_BRANCH
-        subpath = format(utils.trim(item.get("subpath", "")))
         prefix = f"{GITHUB_CONTENT_API}/{repository}/refs/heads/{branch}"
 
-        if subpath.startswith("/"):
-            url = f"{prefix}{subpath}"
-        else:
-            url = f"{prefix}/{subpath}"
-
-        if ghproxy and url.startswith(GITHUB_CONTENT_API):
-            url = f"{ghproxy}/{url}"
-
         single = item.get("single", False)
-        if single:
-            target = deepcopy(config)
-            target.update({"sub": url, "saved": True})
-            materials[url] = target
-        else:
-            include = utils.trim(item.get("include", ""))
-            exclude = utils.trim(item.get("exclude", ""))
+        include = utils.trim(item.get("include", ""))
+        exclude = utils.trim(item.get("exclude", ""))
 
-            sources.append([url, push_to, include, exclude, config, None, Origin.PAGE])
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
 
-    results = utils.multi_thread_run(func=crawl.crawl_single_page, tasks=sources)
-    for result in results:
-        if not result or not isinstance(result, dict):
-            continue
+        subpath = utils.trim(item.get("subpath", ""))
+        texts = set([format(text=subpath, date=date) for date in [now, yesterday]])
 
-        for k, v in result.items():
-            if not k or not v or not isinstance(v, dict):
+        for text in texts:
+            url = f"{prefix}{text}" if text.startswith("/") else f"{prefix}/{text}"
+            if ghproxy and url.startswith(GITHUB_CONTENT_API):
+                url = f"{ghproxy}/{url}"
+
+            if single:
+                target = deepcopy(config)
+                target.update({"sub": url, "saved": True})
+                materials[url] = target
+            else:
+                sources.append([url, push_to, include, exclude, config, None, Origin.PAGE])
+
+    if sources:
+        urls = [x[0] for x in sources]
+        logger.info(f"[CollectSub] start to collect subscriptions from {len(urls)} urls: {urls}")
+
+        results = utils.multi_thread_run(func=crawl.crawl_single_page, tasks=sources)
+        for result in results:
+            if not result or not isinstance(result, dict):
                 continue
 
-            v.update({"sub": k, "saved": True})
-            materials[k] = v
+            for k, v in result.items():
+                if not k or not v or not isinstance(v, dict):
+                    continue
+
+                v.update({"sub": k, "saved": True})
+                materials[k] = v
 
     # filter conditions
     try:
