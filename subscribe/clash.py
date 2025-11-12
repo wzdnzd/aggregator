@@ -557,7 +557,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                             else:
                                 return False
 
-                        if len(short_id) != 8 or not is_hex(short_id):
+                        if len(short_id) != 8 or not is_hex(short_id) or re.match(r"\d+e\d+", short_id, flags=re.I):
                             return False
 
                         reality_opts["short-id"] = QuotedStr(short_id)
