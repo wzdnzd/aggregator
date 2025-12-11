@@ -409,6 +409,66 @@ emoji = "🇧🇭"
 
 
 [[emoji]]
+match = "(Laos|老挝)"
+emoji = "🇱🇦"
+
+
+[[emoji]]
+match = "(Myanmar|缅甸)"
+emoji = "🇲🇲"
+
+
+[[emoji]]
+match = "(Malta|马耳他)"
+emoji = "🇲🇹"
+
+
+[[emoji]]
+match = "(Bolivia|玻利维亚)"
+emoji = "🇧🇴"
+
+
+[[emoji]]
+match = "(Lebanon|黎巴嫩)"
+emoji = "🇱🇧"
+
+
+[[emoji]]
+match = "(Iraq|伊拉克)"
+emoji = "🇮🇶"
+
+
+[[emoji]]
+match = "(Uzbekistan|乌兹别克斯坦)"
+emoji = "🇺🇿"
+
+
+[[emoji]]
+match = "(Tajikistan|塔吉克斯坦)"
+emoji = "🇹🇯"
+
+
+[[emoji]]
+match = "(Algeria|阿尔及利亚)"
+emoji = "🇩🇿"
+
+
+[[emoji]]
+match = "(Angola|安哥拉)"
+emoji = "🇦🇴"
+
+
+[[emoji]]
+match = "(French Guiana|法属圭亚那)"
+emoji = "🇬🇫"
+
+
+[[emoji]]
+match = "(Guiana|圭亚那)"
+emoji = "🇬🇾"
+
+
+[[emoji]]
 match = "(?i:\\bC[H]?N\\b|China|back|回国|中国[^-]|江苏[^-]|北京[^-]|上海[^-]|广州[^-]|深圳[^-]|杭州[^-]|常州[^-]|徐州[^-]|青岛[^-]|宁波[^-]|镇江[^-]|成都[^-]|河北[^-]|山西[^-]|辽宁[^-]|吉林[^-]|黑龙江[^-]|江苏[^-]|浙江[^-]|安徽[^-]|福建[^-]|江西[^-]|山东[^-]|河南[^-]|湖北[^-]|湖南[^-]|广东[^-]|海南[^-]|四川[^-]|贵州[^-]|云南[^-]|陕西[^-]|甘肃[^-]|青海[^-]|内蒙古[^-]|广西[^-]|西藏[^-]|宁夏[^-]|新疆[^-])"
 emoji = "🇨🇳"
 
