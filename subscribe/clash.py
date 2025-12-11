@@ -616,6 +616,10 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                         continue
 
                     traffic = item.get(property, "")
+                    if traffic == "null":
+                        item.pop(property)
+                        continue
+
                     if traffic and utils.is_number(traffic):
                         traffic = str(traffic)
 
