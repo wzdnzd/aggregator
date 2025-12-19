@@ -31,7 +31,7 @@ class ProxyInfo:
 
     name: str = ""
     country: str = ""
-    is_residential: bool = False
+    ip_type: str = ""
 
 
 @dataclass
@@ -899,7 +899,10 @@ def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: boo
                 asn_type = data.get("asn", {}).get("type", "")
 
                 # Check if it's residential (both company and asn type should be "isp")
-                result.is_residential = company_type == "isp" and asn_type == "isp"
+                if company_type == "isp" and asn_type == "isp":
+                    result.ip_type = "isp"
+                elif company_type == "business" and asn_type == "business":
+                    result.ip_type = "business"
 
             except Exception as e:
                 logger.error(f"Error parsing {url} response for proxy {name}: {str(e)}")
@@ -907,7 +910,7 @@ def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: boo
             logger.warning(f"Failed to query {url} for proxy {name}")
 
         # Determine if query was successful
-        flag = result.country != "" or result.is_residential
+        flag = result.country != "" or result.ip_type != ""
         return ProxyQueryResult(proxy=proxy, result=result, success=flag)
 
     except Exception as e:
@@ -1128,8 +1131,10 @@ def process_query_results(results: list[ProxyQueryResult], strategy: str) -> tup
             if strategy == "residential":
                 # Residential IP check strategy
                 name = item.result.country
-                if item.result.is_residential:
+                if item.result.ip_type == "isp":
                     name += "家宽"
+                elif item.result.ip_type == "business":
+                    name += "商宽"
 
                 proxy["name"] = name
                 successes.append(proxy)
