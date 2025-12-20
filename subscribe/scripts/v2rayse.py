@@ -182,7 +182,9 @@ def fetchone(
             subscriptions = [utils.url_complete(x) for x in groups if x]
 
         try:
-            parts = re.findall(r"(?m)^#!MANAGED-CONFIG[^\n]*?(https?://[^\s\"'<>]+)", content, flags=re.I)
+            parts = re.findall(
+                r"(?m)^#(?:\s+)?(?:!MANAGED-CONFIG|订阅链接)[^\n]*?(https?://[^\s\"'<>]+)", content, flags=re.I
+            )
             if parts:
                 subscriptions.extend([utils.trim(p) for p in parts])
         except:

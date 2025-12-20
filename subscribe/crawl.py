@@ -1105,7 +1105,9 @@ def extract_subscribes(
             subscribes = re.findall(regex, content, flags=re.I)
 
         try:
-            parts = re.findall(r"(?m)^#!MANAGED-CONFIG[^\n]*?(https?://[^\s\"'<>]+)", content, flags=re.I)
+            parts = re.findall(
+                r"(?m)^#(?:\s+)?(?:!MANAGED-CONFIG|订阅链接)[^\n]*?(https?://[^\s\"'<>]+)", content, flags=re.I
+            )
             if parts:
                 subscribes.extend([utils.trim(p) for p in parts])
         except:
