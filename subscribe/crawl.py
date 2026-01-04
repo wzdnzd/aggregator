@@ -1521,19 +1521,21 @@ def collect_airport(
             return list(set([urllib.parse.urljoin(prefix, x) for x in groups if x]))
 
         base = "https://ygpy.net"
-        links = get_links(url=base, prefix=base)
+        links = get_links(url=f"{base}/vpn/free", prefix=base, regex=r"/assets/chunks/free.data\.[^\r\n\s]+\.js")
         if not links:
             logger.warning(f"[AirPortCollector] cannot get article from url: {base}")
             return {}
 
-        articles = get_links(url=links[0], prefix=base)
+        articles = get_links(
+            url=links[0], prefix="", regex=r'"(https://ygpy.net/vpn/free/\d{4}/\d{2}/[^\r\n\s">]+\.html)"'
+        )
         if not articles:
             logger.warning(f"[AirPortCollector] cannot get articles from url: {links[0]}")
             return {}
 
         separator = r'<h2 id="\d+" tabindex="-1">'
         address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer nofollow">前往注册</a>'
-        coupon_regex = r"使用优惠码(?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0(?:\s+)?元购买"
+        coupon_regex = r"使用优惠[码券](?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0(?:\s+)?元购买"
 
         tasks = [[x, separator, address_regex, coupon_regex] for x in sorted(articles)]
         items = utils.multi_thread_run(func=run_crawl, tasks=tasks)
@@ -1546,7 +1548,10 @@ def collect_airport(
         # Extract javascript link from peer page and then parse airport urls and coupons
         javascripts = utils.multi_thread_run(
             func=get_links,
-            tasks=[[x, base, r'href="(/assets/vpn_\d+_\d+.md.[A-Za-z0-9_\-]+.lean.js)"'] for x in articles],
+            tasks=[
+                [x, base, r'href="(/assets/vpn_free_\d+_\d+_[^\r\n\s\"]+.md.[A-Za-z0-9_\-]+.lean.js)"']
+                for x in articles
+            ],
         )
 
         airports = utils.multi_thread_run(
@@ -1555,7 +1560,7 @@ def collect_airport(
                 [
                     x[0],
                     r'"详细信息"|测试报告"|"官方(群组|频道)|"更新于|"联系方式',
-                    r'{href:"(https?://[^\s]+/(?:#/register|auth)\?(?:code|invite)=[^\s]+)"}',
+                    r'"hyperlink":"(https?://[^\s]+/(?:#/register|auth)\?(?:code|invite)=[^\s]+)"',
                     r'{code:"([^\r\n\s]+)"}',
                 ]
                 for x in javascripts
