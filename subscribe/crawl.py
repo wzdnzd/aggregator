@@ -1262,6 +1262,11 @@ def check_status(
     remain: minimum remaining traffic flow
     spare_time: minimum remaining time
     tolerance: waiting time after expiration
+
+    Returns:
+        tuple[bool, bool]: (available, expired)
+        - First bool: whether the subscription is available
+        - Second bool: whether the subscription has expired
     """
     if not url or retry <= 0:
         return False, connectable
@@ -1274,7 +1279,7 @@ def check_status(
             return False, connectable
 
         # in order to avoid the request to the speed test site causing constant data downloads, limit the maximum read to 15MB
-        content = str(response.read(15 * 1024 * 2014), encoding="utf8")
+        content = str(response.read(15 * 1024 * 1024), encoding="utf8")
 
         # response text is too short, ignore
         if len(content) < 32:
@@ -1283,23 +1288,22 @@ def check_status(
         # 订阅流量信息
         subscription = response.getheader("subscription-userinfo")
 
+        # 情况1: base64 编码格式（v2ray）
         if utils.isb64encode(content):
-            # parse and detect whether the subscription has expired
             return is_expired(header=subscription, remain=remain, spare_time=spare_time, tolerance=tolerance)
 
-        try:
-            proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
-        except ConstructorError:
-            yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
-            proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
-        except:
+        # 情况2: YAML 格式（clash）
+        proxies = _parse_yaml_proxies(content)
+
+        if proxies is None:
+            # 情况3: 纯协议链接格式
             if all(airport.AirPort.check_protocol(x) for x in content.split("\n") if x):
                 return True, False
-
             # TODO: 如果配置文件为 singbox、quanx、loon、surge等，需要解析出代理节点信息，并判断是否过期
-            proxies = []
+            return False, True
 
-        if proxies is None or len(proxies) == 0:
+        # 情况4: 节点列表为空
+        if len(proxies) == 0:
             return False, True
 
         # 根据订阅信息判断是否有效
@@ -1331,6 +1335,18 @@ def check_status(
             tolerance=tolerance,
             connectable=connectable,
         )
+
+
+def _parse_yaml_proxies(content: str) -> list | None:
+
+    try:
+        return yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
+    except ConstructorError:
+        yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
+        return yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
+    except Exception:
+        # 解析失败，返回 None 表示不是 YAML 格式
+        return None
 
 
 def is_expired(header: str, remain: float = 0, spare_time: float = 0, tolerance: float = 0) -> tuple[bool, bool]:
