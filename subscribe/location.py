@@ -901,7 +901,7 @@ def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: boo
                 # Check if it's residential (both company and asn type should be "isp")
                 if company_type == "isp" and asn_type == "isp":
                     result.ip_type = "isp"
-                elif company_type == "business" and asn_type == "business":
+                elif company_type in ["business", "isp"] and asn_type in ["business", "isp"]:
                     result.ip_type = "business"
 
             except Exception as e:
