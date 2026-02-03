@@ -493,7 +493,23 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                     if mode not in ["http", "tls"]:
                         return False
         elif item["type"] == "http" or item["type"] == "socks5":
-            authentication = "userpass"
+            for field in ["username", "password"]:
+                value = item.get(field, None)
+                if not value:
+                    continue
+
+                if not isinstance(value, str) and not utils.is_number(value):
+                    return False
+
+                if utils.is_number(value):
+                    value = QuotedStr(value)
+                else:
+                    value = utils.trim(value)
+
+                item[field] = value
+
+            return True
+
         elif mihomo and item["type"] in SPECIAL_PROTOCOLS:
             if item["type"] == "anytls":
                 if "alpn" in item and type(item["alpn"]) != list:
