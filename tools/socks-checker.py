@@ -22,7 +22,6 @@ from urllib.parse import urlparse
 import aiohttp
 from aiohttp_socks import ProxyConnector
 
-
 COUNTRY_NAME_ZH = {
     "AD": "安道尔",
     "AE": "阿联酋",
@@ -118,7 +117,7 @@ COUNTRY_NAME_ZH = {
     "GU": "关岛",
     "GW": "几内亚比绍",
     "GY": "圭亚那",
-    "HK": "中国香港",
+    "HK": "香港",
     "HM": "赫德岛和麦克唐纳群岛",
     "HN": "洪都拉斯",
     "HR": "克罗地亚",
@@ -171,7 +170,7 @@ COUNTRY_NAME_ZH = {
     "ML": "马里",
     "MM": "缅甸",
     "MN": "蒙古",
-    "MO": "中国澳门",
+    "MO": "澳门",
     "MP": "北马里亚纳群岛",
     "MQ": "马提尼克",
     "MR": "毛里塔尼亚",
@@ -251,7 +250,7 @@ COUNTRY_NAME_ZH = {
     "TR": "土耳其",
     "TT": "特立尼达和多巴哥",
     "TV": "图瓦卢",
-    "TW": "中国台湾",
+    "TW": "台湾",
     "TZ": "坦桑尼亚",
     "UA": "乌克兰",
     "UG": "乌干达",
@@ -274,6 +273,7 @@ COUNTRY_NAME_ZH = {
     "ZM": "赞比亚",
     "ZW": "津巴布韦",
 }
+
 
 @dataclass
 class ProxyInfo:
@@ -314,6 +314,7 @@ class ProxyChecker:
         timeout: int = 10,
         format_pattern: Optional[str] = None,
         default_port: int = 1080,
+        include_asn_name: bool = False,
     ):
         """
         初始化代理检测器
@@ -329,6 +330,7 @@ class ProxyChecker:
         self.timeout = timeout
         self.format_pattern = format_pattern
         self.default_port = default_port
+        self.include_asn_name = include_asn_name
         self.results: List[TestResult] = []
         self.summary: Optional[Dict[str, float]] = None
 
@@ -517,7 +519,7 @@ class ProxyChecker:
                 result.status = "success"
                 result.response_time = round((datetime.now() - start_time).total_seconds(), 2)
                 result.error = None
-                result.proxy = self._format_v2ray(proxy_info, remark)
+                result.proxy = self._format_standard(proxy_info, remark)
                 proxy_info.remark = remark
 
                 return result
@@ -599,7 +601,7 @@ class ProxyChecker:
             return ""
         return COUNTRY_NAME_ZH.get(country_code.upper(), "")
 
-    def _format_v2ray(self, proxy_info: ProxyInfo, remark: str) -> str:
+    def _format_standard(self, proxy_info: ProxyInfo, remark: str) -> str:
         auth = ""
         if proxy_info.username or proxy_info.password:
             auth = f"{proxy_info.username}:{proxy_info.password}@"
@@ -610,9 +612,9 @@ class ProxyChecker:
 
     def _yaml_quote(self, value: str) -> str:
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-        return f"\"{escaped}\""
+        return f'"{escaped}"'
 
-    def _format_clash_line(self, result: TestResult) -> str:
+    def _format_yaml_line(self, result: TestResult) -> str:
         name = result.remark or result.host
         parts = [
             f"name: {self._yaml_quote(name)}",
@@ -636,9 +638,9 @@ class ProxyChecker:
         asn_type = (asn_info.get("type") or "").lower()
         company_type = (company_info.get("type") or "").lower()
 
-        asn_name = (asn_info.get("name") or "").strip()
-        if not asn_name or len(asn_name.split()) > 5:
-            asn_name = (asn_info.get("domain") or "").strip()
+        asn_name = (asn_info.get("domain") or "").strip()
+        if not asn_name:
+            asn_name = (asn_info.get("name") or "").strip()
 
         if asn_name:
             parts = [p for p in re.split(r"[\s,\.]+", asn_name) if p]
@@ -647,13 +649,61 @@ class ProxyChecker:
             company_name = "UNKNOWN"
 
         if asn_type == "isp" and company_type == "isp":
-            return f"{flag} {country_display}家宽 [{company_name}]".strip()
+            label = "家宽"
         elif asn_type == "isp" or company_type == "isp":
-            return f"{flag} {country_display}商宽 [{company_name}]".strip()
+            label = "商宽"
         elif asn_type == "edu" or company_type == "edu":
-            return f"{flag} {country_display}教育 [{company_name}]".strip()
-        
-        return f"{flag} {country_display} [{company_name}]".strip()
+            label = "教育"
+        else:
+            label = ""
+
+        base = f"{flag} {country_display}{label}".strip()
+        if self.include_asn_name and company_name:
+            return f"{base} [{company_name}]".strip()
+        return base
+
+    def _renumber_output_file(self, output_file: str, output_format: str, digits: int = 2) -> None:
+        proxies = read_proxies_from_file(output_file)
+        if not proxies:
+            return
+
+        proxy_infos: List[ProxyInfo] = []
+        for proxy in proxies:
+            info = self.parse_proxy(proxy)
+            if info:
+                proxy_infos.append(info)
+
+        if not proxy_infos:
+            return
+
+        groups: Dict[str, List[ProxyInfo]] = {}
+        for info in proxy_infos:
+            name = (info.remark or "").strip()
+            if name:
+                name = re.sub(r"\s+\d+$", "", name).strip()
+            if not name:
+                name = info.host or "UNKNOWN"
+            info.remark = name
+            groups.setdefault(name, []).append(info)
+
+        lines: List[str] = []
+        for name, nodes in groups.items():
+            width = max(digits, len(str(len(nodes))))
+            for index, info in enumerate(nodes):
+                content = f"{name} {str(index + 1).zfill(width)}"
+                info.remark = content
+                if output_format == "clash":
+                    result = TestResult.from_proxy(info)
+                    result.remark = content
+                    lines.append(self._format_yaml_line(result))
+                else:
+                    lines.append(self._format_standard(info, content))
+
+        with open(output_file, "w", encoding="utf-8") as f:
+            if output_format == "clash":
+                f.write("proxies:\n")
+            for line in lines:
+                f.write(line + "\n")
 
     async def check_proxies(
         self,
@@ -740,11 +790,7 @@ class ProxyChecker:
                 if result.status == "success":
                     print(f"{status_icon} {result.original[:60]}... | {result.response_time}s | IP: {result.ip}")
                     if write_queue:
-                        line = (
-                            self._format_clash_line(result)
-                            if output_format == "clash"
-                            else result.proxy
-                        )
+                        line = self._format_yaml_line(result) if output_format == "clash" else result.proxy
                         await write_queue.put(line + "\n")
                 else:
                     print(f"{status_icon} {result.original[:60]}... | {result.error}")
@@ -782,6 +828,9 @@ class ProxyChecker:
             "avg_time": (stats["total_time"] / stats["success"]) if stats["success"] > 0 else 0.0,
         }
 
+        if output_file and stats["success"] > 0:
+            self._renumber_output_file(output_file, output_format)
+
         if output_file:
             self.results = []
             return []
@@ -800,11 +849,7 @@ class ProxyChecker:
             total = len(self.results)
             success = sum(1 for r in self.results if r.status == "success")
             failed = total - success
-            avg_time = (
-                sum(r.response_time for r in self.results if r.response_time) / success
-                if success > 0
-                else 0.0
-            )
+            avg_time = sum(r.response_time for r in self.results if r.response_time) / success if success > 0 else 0.0
         else:
             return
 
@@ -833,7 +878,7 @@ class ProxyChecker:
             if output_format == "clash":
                 f.write("proxies:\n")
                 for result in results_to_save:
-                    f.write(self._format_clash_line(result) + "\n")
+                    f.write(self._format_yaml_line(result) + "\n")
             else:
                 for result in results_to_save:
                     f.write(result.proxy + "\n")
@@ -1055,6 +1100,12 @@ async def main():
     parser.add_argument(
         "--default-port", dest="default_port", type=valid_port, default=1080, help="默认端口 (1-65535，默认: 1080)"
     )
+    parser.add_argument(
+        "--asn-name",
+        dest="include_asn_name",
+        action="store_true",
+        help="在备注中追加 ASN 名称 (默认不追加)",
+    )
 
     args = parser.parse_args()
 
@@ -1082,6 +1133,7 @@ async def main():
         timeout=args.timeout,
         format_pattern=args.format_pattern,
         default_port=args.default_port,
+        include_asn_name=args.include_asn_name,
     )
 
     await checker.check_proxies(
