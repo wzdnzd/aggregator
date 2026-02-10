@@ -694,6 +694,9 @@ class ProxyChecker:
         for name in names:
             nodes = groups.get(name, [])
 
+            # 按类型排序
+            nodes.sort(key=lambda x: x.protocol)
+
             width = max(digits, len(str(len(nodes))))
             for index, info in enumerate(nodes):
                 content = f"{name} {str(index + 1).zfill(width)}"
