@@ -699,6 +699,9 @@ class ProxyChecker:
                 else:
                     lines.append(self._format_standard(info, content))
 
+        # 按名称排序
+        lines.sort()
+
         with open(output_file, "w", encoding="utf-8") as f:
             if output_format == "clash":
                 f.write("proxies:\n")
@@ -802,6 +805,14 @@ class ProxyChecker:
                             stats["total_time"] += result.response_time
                     else:
                         stats["failed"] += 1
+
+                    completed = stats["success"] + stats["failed"]
+                    if completed % 100 == 0 or completed == stats["total"]:
+                        remaining = stats["total"] - completed
+                        progress = (completed / stats["total"] * 100) if stats["total"] else 0.0
+                        print(
+                            f"💡 测试进度: {progress:.1f}% | 总数: {stats['total']} | 已完成: {completed} | 待测试: {remaining} | 可用: {stats['success']}"
+                        )
 
                 return result
 
