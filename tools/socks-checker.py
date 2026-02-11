@@ -276,6 +276,32 @@ COUNTRY_NAME_ZH = {
 }
 
 
+def country_flag_emoji(country_code: str) -> str:
+    if not country_code or len(country_code) != 2:
+        return ""
+
+    code = country_code.upper()
+    if not code.isalpha():
+        return ""
+
+    return chr(0x1F1E6 + ord(code[0]) - ord("A")) + chr(0x1F1E6 + ord(code[1]) - ord("A"))
+
+
+def country_name_zh(country_code: str) -> str:
+    if not country_code:
+        return ""
+
+    return COUNTRY_NAME_ZH.get(country_code.upper(), "")
+
+
+def short_company_name(value: str) -> str:
+    if not value:
+        return "UNKNOWN"
+
+    parts = [part for part in re.split(r"[\s,\.\-_@;:]+", value.strip()) if part]
+    return parts[0].upper() if parts else "UNKNOWN"
+
+
 @dataclass
 class ProxyInfo:
     protocol: str
@@ -309,6 +335,204 @@ class TestResult(ProxyInfo):
         )
 
 
+@dataclass
+class IpLookupResult:
+    ip: Optional[str]
+    data: Optional[Dict]
+    error: Optional[str] = None
+
+
+class IpLibrary:
+    name: str = ""
+
+    async def lookup(
+        self, session: aiohttp.ClientSession, proxy_info: ProxyInfo, retries: int, timeout: int
+    ) -> IpLookupResult:
+        raise NotImplementedError
+
+    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+        raise NotImplementedError
+
+    async def _fetch_data(
+        self, session: aiohttp.ClientSession, url: str, retries: int, timeout: int
+    ) -> Tuple[Optional[Dict], Optional[str]]:
+        error = None
+        for attempt in range(1, retries + 1):
+            try:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if isinstance(data, dict):
+                            return data, None
+
+                        error = "Invalid JSON response"
+                    else:
+                        error = f"HTTP {response.status}"
+            except asyncio.TimeoutError:
+                error = "Timeout"
+            except Exception as e:
+                error = str(e)[:100]
+
+            if attempt < retries:
+                await asyncio.sleep(attempt)
+
+        return None, error
+
+
+class IpinfoLibrary(IpLibrary):
+    name = "ipinfo"
+
+    async def lookup(
+        self, session: aiohttp.ClientSession, proxy_info: ProxyInfo, retries: int, timeout: int
+    ) -> IpLookupResult:
+        host = proxy_info.host if proxy_info else ""
+        address = await self._resolve_ip(session, host, retries, timeout)
+        if not address:
+            return IpLookupResult(None, None, f"Failed to get IP from ipinfo.io/ip, host: {host}")
+
+        data, error = await self._fetch_ipinfo(session, address, retries, timeout)
+        if not data:
+            return IpLookupResult(address, None, error or f"Failed to get IP info from ipinfo.io, ip: {address}")
+
+        return IpLookupResult(address, data, None)
+
+    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+        country_code = (data.get("country") or "").upper()
+        flag = country_flag_emoji(country_code)
+
+        asn_info = data.get("asn", {}) or {}
+        company_info = data.get("company", {}) or {}
+        asn_type = (asn_info.get("type") or "").lower()
+        company_type = (company_info.get("type") or "").lower()
+
+        asn_name = (asn_info.get("domain") or "").strip()
+        if not asn_name or re.match(r"^as\d+\.", asn_name, flags=re.I):
+            asn_name = (asn_info.get("name") or "").strip()
+
+        company_name = short_company_name(asn_name)
+
+        if asn_type == "isp" and company_type == "isp":
+            label = "家宽"
+        elif asn_type == "isp" or company_type == "isp":
+            label = "商宽"
+        elif asn_type == "edu" or company_type == "edu":
+            label = "教育"
+        else:
+            label = ""
+
+        country = country_name_zh(country_code) or country_code or "未知"
+        base = f"{flag} {country}{label}".strip()
+        if include_asn_name and company_name:
+            return f"{base} [{company_name}]".strip()
+
+        return base
+
+    @staticmethod
+    def _is_ipv4(host: str) -> bool:
+        if not host:
+            return False
+        try:
+            return isinstance(ipaddress.ip_address(host), ipaddress.IPv4Address)
+        except ValueError:
+            return False
+
+    async def _resolve_ip(self, session: aiohttp.ClientSession, host: str, retries: int, timeout: int) -> Optional[str]:
+        if self._is_ipv4(host):
+            return host
+
+        url = "https://ipinfo.io/ip"
+        for attempt in range(1, retries + 1):
+            try:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as response:
+                    if response.status == 200:
+                        text = (await response.text()).strip()
+                        try:
+                            ipaddress.ip_address(text)
+                            return text
+                        except ValueError:
+                            pass
+            except asyncio.TimeoutError:
+                pass
+            except Exception:
+                pass
+
+            if attempt < retries:
+                await asyncio.sleep(attempt)
+
+        return None
+
+    async def _fetch_ipinfo(
+        self, session: aiohttp.ClientSession, address: str, retries: int, timeout: int
+    ) -> Tuple[Optional[Dict], Optional[str]]:
+        url = f"https://ipinfo.io/widget/demo/{address}"
+        data, error = await self._fetch_data(session, url, retries, timeout)
+        if not data:
+            return None, error
+
+        return data.get("data", data), None
+
+
+class IppureLibrary(IpLibrary):
+    name = "ippure"
+
+    async def lookup(
+        self, session: aiohttp.ClientSession, proxy_info: ProxyInfo, retries: int, timeout: int
+    ) -> IpLookupResult:
+        data, error = await self._fetch_ippure(session, retries, timeout)
+        if not data:
+            host = "" if not proxy_info else proxy_info.host
+            return IpLookupResult(None, None, error or f"Failed to get IP info from ippure, host: {host}")
+
+        address = (data.get("ip") or "").strip()
+        if not address:
+            return IpLookupResult(None, None, "Invalid IP from ippure")
+
+        try:
+            ipaddress.ip_address(address)
+        except ValueError:
+            return IpLookupResult(None, None, f"Invalid IP from ippure, ip: {address}")
+
+        return IpLookupResult(address, data, None)
+
+    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+        country_code = (data.get("countryCode") or "").upper()
+        flag = country_flag_emoji(country_code)
+
+        residential = data.get("isResidential")
+        label = "家宽" if residential is True else ""
+        company_name = short_company_name(data.get("asOrganization") or "")
+
+        country = country_name_zh(country_code) or (data.get("country") or "未知")
+        base = f"{flag} {country}{label}".strip()
+        if include_asn_name and company_name:
+            score = str(data.get("fraudScore")).zfill(3) if "fraudScore" in data else "NUL"
+            return f"{base} [{company_name}::{score}]".strip()
+
+        return base
+
+    async def _fetch_ippure(
+        self, session: aiohttp.ClientSession, retries: int, timeout: int
+    ) -> Tuple[Optional[Dict], Optional[str]]:
+        url = "https://my.ippure.com/v1/info"
+        return await self._fetch_data(session, url, retries, timeout)
+
+
+IP_LIBRARIES = {
+    "ipinfo": IpinfoLibrary,
+    "ippure": IppureLibrary,
+}
+
+
+def get_ip_library(name: str) -> IpLibrary:
+    key = (name or "ipinfo").strip().lower()
+    library = IP_LIBRARIES.get(key)
+    if not library:
+        supported = ", ".join(sorted(IP_LIBRARIES.keys()))
+        raise ValueError(f"Unsupported ip library: {name}. Supported: {supported}")
+
+    return library()
+
+
 class ProxyChecker:
     def __init__(
         self,
@@ -316,6 +540,7 @@ class ProxyChecker:
         format_pattern: Optional[str] = None,
         default_port: int = 1080,
         include_asn_name: bool = False,
+        ip_library: str = "ipinfo",
     ):
         """
         初始化代理检测器
@@ -332,6 +557,7 @@ class ProxyChecker:
         self.format_pattern = format_pattern
         self.default_port = default_port
         self.include_asn_name = include_asn_name
+        self.ip_library = get_ip_library(ip_library)
         self.results: List[TestResult] = []
         self.summary: Optional[Dict[str, float]] = None
 
@@ -504,19 +730,14 @@ class ProxyChecker:
         try:
             connector = ProxyConnector.from_url(proxy_url)
             async with aiohttp.ClientSession(connector=connector) as session:
-                ip_address = await self._resolve_ip_with_proxy(session, proxy_info.host, retries)
-                if not ip_address:
-                    result.error = "Failed to get IP from ipinfo.io/ip"
+                lookup = await self.ip_library.lookup(session, proxy_info, retries, self.timeout)
+                if not lookup.ip or not lookup.data:
+                    result.error = lookup.error or f"Failed to get IP info from {self.ip_library.name}"
                     return result
 
-                ip_data, ip_error = await self._fetch_ipinfo(session, ip_address, retries)
-                if not ip_data:
-                    result.error = ip_error or "Failed to get IP info from ipinfo.io"
-                    return result
-
-                remark = self._build_remark_from_ipinfo(ip_data)
+                remark = self.ip_library.build_remark(lookup.data, self.include_asn_name)
                 result.remark = remark
-                result.ip = ip_address
+                result.ip = lookup.ip
                 result.status = "success"
                 result.response_time = round((datetime.now() - start_time).total_seconds(), 2)
                 result.error = None
@@ -530,77 +751,6 @@ class ProxyChecker:
         except Exception as e:
             result.error = str(e)[:100]
             return result
-
-    def _is_ipv4(self, host: str) -> bool:
-        if not host:
-            return False
-        try:
-            return isinstance(ipaddress.ip_address(host), ipaddress.IPv4Address)
-        except ValueError:
-            return False
-
-    async def _resolve_ip_with_proxy(self, session: aiohttp.ClientSession, host: str, retries: int) -> Optional[str]:
-        if self._is_ipv4(host):
-            return host
-
-        url = "https://ipinfo.io/ip"
-        for attempt in range(1, retries + 1):
-            try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.timeout)) as response:
-                    if response.status == 200:
-                        text = (await response.text()).strip()
-                        try:
-                            ipaddress.ip_address(text)
-                            return text
-                        except ValueError:
-                            pass
-            except asyncio.TimeoutError:
-                pass
-            except Exception:
-                pass
-
-            if attempt < retries:
-                await asyncio.sleep(attempt)
-
-        return None
-
-    async def _fetch_ipinfo(
-        self, session: aiohttp.ClientSession, ip_address: str, retries: int
-    ) -> Tuple[Optional[Dict], Optional[str]]:
-        url = f"https://ipinfo.io/widget/demo/{ip_address}"
-        last_error = None
-        for attempt in range(1, retries + 1):
-            try:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=self.timeout)) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        if isinstance(data, dict):
-                            return data.get("data", data), None
-                        last_error = "Invalid JSON response"
-                    else:
-                        last_error = f"HTTP {response.status}"
-            except asyncio.TimeoutError:
-                last_error = "Timeout"
-            except Exception as e:
-                last_error = str(e)[:100]
-
-            if attempt < retries:
-                await asyncio.sleep(attempt)
-
-        return None, last_error
-
-    def _country_flag_emoji(self, country_code: str) -> str:
-        if not country_code or len(country_code) != 2:
-            return ""
-        code = country_code.upper()
-        if not code.isalpha():
-            return ""
-        return chr(0x1F1E6 + ord(code[0]) - ord("A")) + chr(0x1F1E6 + ord(code[1]) - ord("A"))
-
-    def _country_name_zh(self, country_code: str) -> str:
-        if not country_code:
-            return ""
-        return COUNTRY_NAME_ZH.get(country_code.upper(), "")
 
     def _format_standard(self, proxy_info: ProxyInfo, remark: str) -> str:
         auth = ""
@@ -628,40 +778,6 @@ class ProxyChecker:
         if result.password:
             parts.append(f"password: {self._yaml_quote(result.password)}")
         return "  - {" + ", ".join(parts) + "}"
-
-    def _build_remark_from_ipinfo(self, ip_data: Dict) -> str:
-        country_code = (ip_data.get("country") or "").upper()
-        flag = self._country_flag_emoji(country_code)
-        country_display = self._country_name_zh(country_code) or "未知"
-
-        asn_info = ip_data.get("asn", {}) or {}
-        company_info = ip_data.get("company", {}) or {}
-        asn_type = (asn_info.get("type") or "").lower()
-        company_type = (company_info.get("type") or "").lower()
-
-        asn_name = (asn_info.get("domain") or "").strip()
-        if not asn_name:
-            asn_name = (asn_info.get("name") or "").strip()
-
-        if asn_name:
-            parts = [p for p in re.split(r"[\s,\.]+", asn_name) if p]
-            company_name = parts[0].upper() if parts else "UNKNOWN"
-        else:
-            company_name = "UNKNOWN"
-
-        if asn_type == "isp" and company_type == "isp":
-            label = "家宽"
-        elif asn_type == "isp" or company_type == "isp":
-            label = "商宽"
-        elif asn_type == "edu" or company_type == "edu":
-            label = "教育"
-        else:
-            label = ""
-
-        base = f"{flag} {country_display}{label}".strip()
-        if self.include_asn_name and company_name:
-            return f"{base} [{company_name}]".strip()
-        return base
 
     def _convert(self, input_file: str, output_file: str, output_format: str, digits: int = 2) -> None:
         proxies = read_proxies(input_file)
@@ -765,7 +881,7 @@ class ProxyChecker:
         output_handle = None
 
         if not output_file:
-            output_file = f'{output_format}.{"txt" if output_format == "v2ray" else "yaml"}'
+            output_file = f'{output_format}-{self.ip_library}.{"txt" if output_format == "v2ray" else "yaml"}'
 
         output_handle = open(output_file, "w", encoding="utf-8")
         if output_format == "clash":
@@ -797,7 +913,7 @@ class ProxyChecker:
                 # 实时输出结果
                 status_icon = "✓" if result.status == "success" else "✗"
                 if result.status == "success":
-                    print(f"{status_icon} {result.original[:60]}... | {result.response_time}s | IP: {result.ip}")
+                    print(f"{status_icon} {result.original[:60]}... | {result.response_time}s | Export IP: {result.ip}")
                     if write_queue:
                         line = self._format_yaml_line(result) if output_format == "clash" else result.proxy
                         await write_queue.put(line + "\n")
@@ -1089,6 +1205,14 @@ async def main():
         help="在备注中追加 ASN 名称 (默认不追加)",
     )
 
+    parser.add_argument(
+        "--ip-library",
+        dest="ip_library",
+        choices=sorted(IP_LIBRARIES.keys()),
+        default="ipinfo",
+        help="IP地址数据库服务商: ipinfo 或 ippure (默认: ipinfo)",
+    )
+
     args = parser.parse_args()
 
     # 获取代理列表
@@ -1116,6 +1240,7 @@ async def main():
         format_pattern=args.format_pattern,
         default_port=args.default_port,
         include_asn_name=args.include_asn_name,
+        ip_library=args.ip_library,
     )
 
     await checker.check_proxies(
