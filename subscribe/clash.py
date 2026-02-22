@@ -521,6 +521,20 @@ def verify(item: dict, mihomo: bool = True) -> bool:
 
             elif item["type"] == "vless":
                 authentication = "uuid"
+
+                # see: https://github.com/MetaCubeX/mihomo/blob/Alpha/transport/vless/encryption/factory.go#L12
+                encryption = utils.trim(item.get("encryption", ""))
+                if encryption not in ["", "none"]:
+                    parts = encryption.split(".")
+
+                    # Must be: mlkem768x25519plus.<mode>.<...>.<...> (len >= 4)
+                    if (
+                        len(parts) < 4
+                        or parts[0] != "mlkem768x25519plus"
+                        or parts[1] not in ("native", "xorpub", "random")
+                    ):
+                        return False
+
                 network = utils.trim(item.get("network", "tcp"))
 
                 # mihomo: https://wiki.metacubex.one/config/proxies/vless/#network
