@@ -62,6 +62,7 @@ def load_configs(
     only_check: bool = False,
     num_threads: int = 0,
     display: bool = True,
+    retry: int = 3,
 ) -> ProcessConfig:
     def parse_config(config: dict) -> None:
         tasks.extend(config.get("domains", []))
@@ -273,7 +274,7 @@ def load_configs(
             url,
         ):
             headers = {"User-Agent": utils.USER_AGENT, "Referer": url}
-            content = utils.http_get(url=url, headers=headers)
+            content = utils.http_get(url=url, headers=headers, retry=max(retry, 1), timeout=120)
             if not content:
                 logger.error(f"cannot fetch config from remote, url: {utils.hide(url=url)}")
             else:
@@ -509,6 +510,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
     clash_bin, subconverter_bin = executable.which_bin()
     display = not args.invisible
+    retry = min(max(1, args.retry), 10)
 
     # parse config
     server = utils.trim(args.server) or os.environ.get("SUBSCRIBE_CONF", "").strip()
@@ -517,11 +519,11 @@ def aggregate(args: argparse.Namespace) -> None:
         only_check=args.check,
         num_threads=args.num,
         display=display,
+        retry=retry,
     )
 
     storages = process_config.storage or {}
     pushtool = push.get_instance(config=push.PushConfig.from_dict(storages))
-    retry = min(max(1, args.retry), 10)
 
     # generate tasks
     tasks, groups, sites = assign(
