@@ -913,12 +913,22 @@ class ProxyChecker:
                 # 实时输出结果
                 status_icon = "✓" if result.status == "success" else "✗"
                 if result.status == "success":
-                    print(f"{status_icon} {result.original[:60]}... | {result.response_time}s | Export IP: {result.ip}")
+                    print(
+                        f"{status_icon} {result.original[:60]}... | {result.response_time}s | Export IP: {result.ip}".encode(
+                            "utf-8", errors="ignore"
+                        ).decode(
+                            "utf-8"
+                        )
+                    )
                     if write_queue:
                         line = self._format_yaml_line(result) if output_format == "clash" else result.proxy
                         await write_queue.put(line + "\n")
                 else:
-                    print(f"{status_icon} {result.original[:60]}... | {result.error}")
+                    print(
+                        f"{status_icon} {result.original[:60]}... | {result.error}".encode(
+                            "utf-8", errors="ignore"
+                        ).decode("utf-8")
+                    )
 
                 async with stats_lock:
                     if result.status == "success":
