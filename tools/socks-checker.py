@@ -353,7 +353,7 @@ class IpLibrary:
     def build_remark(self, data: Dict, include_asn_name: bool) -> str:
         raise NotImplementedError
 
-    async def _fetch_data(
+    async def _make_request(
         self, session: aiohttp.ClientSession, url: str, retries: int, timeout: int
     ) -> Tuple[Optional[Dict], Optional[str]]:
         error = None
@@ -377,6 +377,55 @@ class IpLibrary:
                 await asyncio.sleep(attempt)
 
         return None, error
+
+    async def _query(
+        self,
+        session: aiohttp.ClientSession,
+        proxy_info: ProxyInfo,
+        retries: int,
+        timeout: int,
+        source: str,
+        fetcher,
+    ) -> IpLookupResult:
+        data, error = await fetcher(session, retries, timeout)
+        if not data:
+            host = "" if not proxy_info else proxy_info.host
+            return IpLookupResult(None, None, error or f"Failed to get IP info from {source}, host: {host}")
+
+        return self._verify(data, source)
+
+    @staticmethod
+    def _verify(data: Dict, source: str) -> IpLookupResult:
+        address = (data.get("ip") or "").strip()
+        if not address:
+            return IpLookupResult(None, None, f"Invalid IP from {source}")
+
+        try:
+            ipaddress.ip_address(address)
+        except ValueError:
+            return IpLookupResult(None, None, f"Invalid IP from {source}, ip: {address}")
+
+        return IpLookupResult(address, data, None)
+
+    @staticmethod
+    def _format_remark(
+        country_code: str,
+        country: str,
+        label: str,
+        include_asn_name: bool,
+        company_name: str,
+        detail: str = "",
+    ) -> str:
+        flag = country_flag_emoji(country_code)
+        base = f"{flag} {country}{label}".strip()
+
+        if include_asn_name and company_name:
+            if detail:
+                return f"{base} [{company_name}::{detail}]".strip()
+
+            return f"{base} [{company_name}]".strip()
+
+        return base
 
 
 class IpinfoLibrary(IpLibrary):
@@ -465,7 +514,7 @@ class IpinfoLibrary(IpLibrary):
         self, session: aiohttp.ClientSession, address: str, retries: int, timeout: int
     ) -> Tuple[Optional[Dict], Optional[str]]:
         url = f"https://ipinfo.io/widget/demo/{address}"
-        data, error = await self._fetch_data(session, url, retries, timeout)
+        data, error = await self._make_request(session, url, retries, timeout)
         if not data:
             return None, error
 
@@ -478,53 +527,101 @@ class IppureLibrary(IpLibrary):
     async def lookup(
         self, session: aiohttp.ClientSession, proxy_info: ProxyInfo, retries: int, timeout: int
     ) -> IpLookupResult:
-        data, error = await self._fetch_ippure(session, retries, timeout)
-        if not data:
-            host = "" if not proxy_info else proxy_info.host
-            return IpLookupResult(None, None, error or f"Failed to get IP info from ippure, host: {host}")
-
-        address = (data.get("ip") or "").strip()
-        if not address:
-            return IpLookupResult(None, None, "Invalid IP from ippure")
-
-        try:
-            ipaddress.ip_address(address)
-        except ValueError:
-            return IpLookupResult(None, None, f"Invalid IP from ippure, ip: {address}")
-
-        return IpLookupResult(address, data, None)
+        return await self._query(
+            session=session,
+            proxy_info=proxy_info,
+            retries=retries,
+            timeout=timeout,
+            source=self.name,
+            fetcher=self._fetch_ippure,
+        )
 
     def build_remark(self, data: Dict, include_asn_name: bool) -> str:
-        country_code = (data.get("countryCode") or "").upper()
-        flag = country_flag_emoji(country_code)
-
         residential = data.get("isResidential")
         label = "家宽" if residential is True else ""
-        company_name = short_company_name(data.get("asOrganization") or "")
 
+        country_code = (data.get("countryCode") or "").upper()
         country = country_name_zh(country_code) or (data.get("country") or "未知")
-        base = f"{flag} {country}{label}".strip()
-        if include_asn_name and company_name:
-            score = str(data.get("fraudScore")).zfill(3) if "fraudScore" in data else "NUL"
-            return f"{base} [{company_name}::{score}]".strip()
 
-        return base
+        company_name = short_company_name(data.get("asOrganization") or "")
+        score = str(data.get("fraudScore")).zfill(3) if "fraudScore" in data else "NUL"
+
+        return self._format_remark(
+            country_code=country_code,
+            country=country,
+            label=label,
+            include_asn_name=include_asn_name,
+            company_name=company_name,
+            detail=score,
+        )
 
     async def _fetch_ippure(
         self, session: aiohttp.ClientSession, retries: int, timeout: int
     ) -> Tuple[Optional[Dict], Optional[str]]:
         url = "https://my.ippure.com/v1/info"
-        return await self._fetch_data(session, url, retries, timeout)
+        return await self._make_request(session, url, retries, timeout)
+
+
+class IPLarkLibrary(IpLibrary):
+    name = "iplark"
+
+    async def lookup(
+        self, session: aiohttp.ClientSession, proxy_info: ProxyInfo, retries: int, timeout: int
+    ) -> IpLookupResult:
+        return await self._query(
+            session=session,
+            proxy_info=proxy_info,
+            retries=retries,
+            timeout=timeout,
+            source=self.name,
+            fetcher=self._fetch_iplark,
+        )
+
+    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+        node_type = (data.get("type") or "").strip().lower()
+        if node_type == "isp":
+            label = "家宽"
+        elif node_type == "business":
+            label = "商宽"
+        elif node_type == "education":
+            label = "教育"
+        else:
+            label = ""
+
+        country_code = (data.get("country_code") or "").upper()
+        country = country_name_zh(country_code) or (data.get("country_zh") or data.get("country") or "未知")
+
+        # asn = str(data.get("asn") or "").strip()
+        # detail = f"AS{asn}" if asn else "NUL"
+        detail = ""
+
+        company_name = short_company_name(data.get("organization") or "")
+
+        return self._format_remark(
+            country_code=country_code,
+            country=country,
+            label=label,
+            include_asn_name=include_asn_name,
+            company_name=company_name,
+            detail=detail,
+        )
+
+    async def _fetch_iplark(
+        self, session: aiohttp.ClientSession, retries: int, timeout: int
+    ) -> Tuple[Optional[Dict], Optional[str]]:
+        url = "https://iplark.com/ipapi/public/ipinfo"
+        return await self._make_request(session, url, retries, timeout)
 
 
 IP_LIBRARIES = {
+    "iplark": IPLarkLibrary,
     "ipinfo": IpinfoLibrary,
     "ippure": IppureLibrary,
 }
 
 
 def get_ip_library(name: str) -> IpLibrary:
-    key = (name or "ipinfo").strip().lower()
+    key = (name or "iplark").strip().lower()
     library = IP_LIBRARIES.get(key)
     if not library:
         supported = ", ".join(sorted(IP_LIBRARIES.keys()))
@@ -540,7 +637,7 @@ class ProxyChecker:
         format_pattern: Optional[str] = None,
         default_port: int = 1080,
         include_asn_name: bool = False,
-        ip_library: str = "ipinfo",
+        ip_library: str = "iplark",
     ):
         """
         初始化代理检测器
@@ -1219,8 +1316,8 @@ async def main():
         "--ip-library",
         dest="ip_library",
         choices=sorted(IP_LIBRARIES.keys()),
-        default="ipinfo",
-        help="IP地址数据库服务商: ipinfo 或 ippure (默认: ipinfo)",
+        default="iplark",
+        help="IP地址数据库服务商: iplark、ipinfo 或 ippure (默认: iplark)",
     )
 
     args = parser.parse_args()
