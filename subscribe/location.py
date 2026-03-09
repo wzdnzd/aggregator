@@ -804,8 +804,7 @@ LOCATION_API_SERVICES = [
     {"url": "https://ipinfo.io", "country_key": "country"},
     {"url": "https://ipapi.co/json/", "country_key": "country_code"},
     {"url": "https://ipwho.is", "country_key": "country_code"},
-    {"url": "https://freeipapi.com/api/json", "country_key": "countryCode"},
-    {"url": "https://api.country.is", "country_key": "country"},
+    {"url": "https://free.freeipapi.com/api/json", "country_key": "countryCode"},
     {"url": "https://api.ip.sb/geoip", "country_key": "country_code"},
 ]
 
