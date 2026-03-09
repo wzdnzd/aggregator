@@ -817,7 +817,7 @@ def random_delay(min_delay: float = 0.01, max_delay: float = 0.5):
     time.sleep(random.uniform(min_delay, max_delay))
 
 
-def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: bool = True) -> ProxyQueryResult:
+def check_residential(proxy: dict, port: int, api_key: str = "", ip_library: str = "iplark") -> ProxyQueryResult:
     """
     Check if a proxy is residential by making a request through it
 
@@ -825,11 +825,22 @@ def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: boo
         proxy: The proxy information dict
         port: The port of the proxy
         api_key: Optional API key for ipapi.is. Uses free tier if not provided
-        use_ipinfo: Whether to use ipinfo.io instead of ipapi.is, defaults to True
+        ip_library: IP query provider, supported: iplark/ipinfo/ipapi (default: iplark)
 
     Returns:
         ProxyQueryResult: Complete proxy query result
     """
+
+    def _get_provider(library: str) -> str:
+        providers = set(["iplark", "ipinfo", "ipapi"])
+        name = utils.trim(library).lower()
+        if name in providers:
+            return name
+
+        if name:
+            logger.warning(f"Unsupported ip library: {name}, fallback to iplark")
+
+        return "iplark"
 
     def _get_ipapi_url(key: str = "") -> str:
         url, key = "https://api.ipapi.is", utils.trim(key)
@@ -859,6 +870,50 @@ def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: boo
         # Now get detailed information using the IP
         return f"https://ipinfo.io/widget/demo/{ip}"
 
+    def _get_iplark_url() -> str:
+        return "https://iplark.com/ipapi/public/ipinfo"
+
+    def _build_query_url(provider: str, port: int, name: str, api_key: str) -> tuple[str, str]:
+        if provider == "ipinfo":
+            url = _get_ipinfo_url(port=port, name=name)
+            if url:
+                return url, provider
+
+            logger.warning(f"Fallback to ipapi for proxy {name} because ipinfo URL generation failed")
+            return _get_ipapi_url(key=api_key), "ipapi"
+
+        if provider == "ipapi":
+            return _get_ipapi_url(key=api_key), provider
+
+        return _get_iplark_url(), "iplark"
+
+    def _extract_provider_data(provider: str, response: dict) -> tuple[dict, str, str, str]:
+        data, country_code, company_type, asn_type = {}, "", "", ""
+
+        if provider == "ipinfo":
+            data = response.get("data", {}) if isinstance(response, dict) else {}
+            country_code = data.get("country", "")
+            company_type = data.get("company", {}).get("type", "")
+            asn_type = data.get("asn", {}).get("type", "")
+        elif provider == "ipapi":
+            data = response if isinstance(response, dict) else {}
+            country_code = data.get("location", {}).get("country_code", "")
+            company_type = data.get("company", {}).get("type", "")
+            asn_type = data.get("asn", {}).get("type", "")
+        else:
+            data = response if isinstance(response, dict) else {}
+
+            country_code = data.get("country_code", "")
+            node_type = utils.trim(data.get("type", "")).lower()
+            if node_type == "isp":
+                company_type, asn_type = "isp", "isp"
+            elif node_type == "business":
+                company_type, asn_type = "business", "business"
+            else:
+                company_type, asn_type = "hosting", "hosting"
+
+        return data, utils.trim(country_code).upper(), utils.trim(company_type).lower(), utils.trim(asn_type).lower()
+
     name = proxy.get("name", "")
     result = ProxyInfo(name=name)
 
@@ -870,13 +925,10 @@ def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: boo
     random_delay()
 
     try:
-        url = ""
-        if use_ipinfo:
-            url = _get_ipinfo_url(port=port, name=name)
-
+        url, provider = _build_query_url(provider=_get_provider(ip_library), port=port, name=name, api_key=api_key)
         if not url:
-            url = _get_ipapi_url(key=api_key)
-            use_ipinfo = False
+            logger.warning(f"Failed to build query URL for proxy {name} with ip-library: {provider}")
+            return ProxyQueryResult(proxy=proxy, result=result, success=False)
 
         # Call API for IP information through the proxy
         success, response = make_proxy_request(port=port, url=url, max_retries=2, timeout=12)
@@ -884,18 +936,13 @@ def check_residential(proxy: dict, port: int, api_key: str = "", use_ipinfo: boo
         # Parse data from response
         if success:
             try:
-                data = response.get("data", {}) if use_ipinfo else response
+                data, country_code, company_type, asn_type = _extract_provider_data(provider, response)
 
-                # Extract country code from data
-                if use_ipinfo:
-                    country_code = data.get("country", "")
-                else:
-                    country_code = data.get("location", {}).get("country_code", "")
+                if country_code:
+                    result.country = ISO_TO_CHINESE.get(country_code, "")
 
-                result.country = ISO_TO_CHINESE.get(country_code, "") if country_code else ""
-
-                company_type = data.get("company", {}).get("type", "")
-                asn_type = data.get("asn", {}).get("type", "")
+                if not result.country:
+                    result.country = utils.trim(data.get("country_zh", "") or data.get("country", ""))
 
                 # Check if it's residential (both company and asn type should be "isp")
                 if company_type == "isp" and asn_type == "isp":
