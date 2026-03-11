@@ -777,6 +777,7 @@ class AirPort:
                 f"{artifact}.yaml",
                 "clash",
                 True,
+                True,
                 ignore,
             )
             if not success:

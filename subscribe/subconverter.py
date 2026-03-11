@@ -103,7 +103,7 @@ def generate_conf(
             lines.extend(["emoji=false", "add_emoji=false"])
 
         if ignore_exclude:
-            lines.append("exclude=流量|过期|剩余|时间|Expire|Traffic")
+            lines.append("exclude=[到过]期|Expire|Traffic|剩余流量|时间|官网|产品|联系")
 
         lines.append("\n")
         content = "\n".join(lines)
