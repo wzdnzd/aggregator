@@ -533,7 +533,8 @@ class AirPort:
             with open(self.sub, "r", encoding="UTF8") as f:
                 text = f.read()
         else:
-            headers = {"User-Agent": "Clash.Meta; Mihomo"}
+            client = f"{utils.USER_AGENT}; Clash.Meta; Mihomo; Shadowrocket;"
+            headers = {"User-Agent": client}
             trace = os.environ.get("TRACE_ENABLE", "false").lower() in ["true", "1"]
 
             text = utils.http_get(

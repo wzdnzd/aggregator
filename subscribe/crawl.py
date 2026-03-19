@@ -1272,7 +1272,7 @@ def check_status(
         return False, connectable
 
     try:
-        headers = {"User-Agent": "clash.meta"}
+        headers = {"User-Agent": f"{utils.USER_AGENT}; Clash.Meta; Mihomo; Shadowrocket;"}
         request = urllib.request.Request(url=url, headers=headers)
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() != 200:
