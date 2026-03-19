@@ -700,7 +700,7 @@ class AirPort:
     @staticmethod
     def check_protocol(link: str) -> bool:
         return re.match(
-            r"^(vmess|trojan|ss|ssr|vless|hysteria|hysteria2|tuic|snell|anytls)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}",
+            r"^(vmess|trojan|ss|ssr|vless|hysteria|hysteria2|tuic|snell|anytls|socks5|https?)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}",
             utils.trim(link).replace("\r", ""),
             flags=re.I,
         )
@@ -755,7 +755,7 @@ class AirPort:
                 not is_b64encode
                 and not is_json
                 and not is_yaml
-                and all(AirPort.check_protocol(x) for x in text.split("\n") if x)
+                and all(AirPort.check_protocol(x) for x in text.split("\n") if x and not x.startswith("#"))
             ):
                 text = base64.b64encode(text.encode(encoding="UTF8")).decode(encoding="UTF8")
 
