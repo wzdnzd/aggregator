@@ -884,7 +884,7 @@ def check_residential(proxy: dict, port: int, api_key: str = "", ip_library: str
         return "https://iplark.com/ipapi/public/ipinfo"
 
     def _get_providers(preferred: str) -> list[str]:
-        candidates = ["ip2location", "iplark", "ipinfo", "ippure", "ipapi"]
+        candidates = ["ip2location", "iplark", "ippure", "ipinfo", "ipapi"]
 
         library = utils.trim(preferred).lower()
         if library not in candidates:
