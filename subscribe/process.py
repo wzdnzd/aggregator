@@ -639,6 +639,7 @@ def aggregate(args: argparse.Namespace) -> None:
         if regularize and isinstance(regularize, dict) and regularize.get("enable", False):
             locate = regularize.get("locate", False)
             residential = regularize.get("residential", False)
+            ip_library = regularize.get("library", "")
             try:
                 bits = max(1, int(regularize.get("bits", 2)))
             except:
@@ -650,6 +651,7 @@ def aggregate(args: argparse.Namespace) -> None:
                 show_progress=display,
                 locate=locate,
                 residential=residential,
+                ip_library=ip_library,
                 digits=bits,
             )
 

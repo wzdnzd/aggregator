@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 from collections import defaultdict
 from dataclasses import dataclass
+from functools import partial
 
 import utils
 import yaml
@@ -1295,6 +1296,7 @@ def regularize(
     show_progress: bool = True,
     locate: bool = False,
     residential: bool = False,
+    ip_library: str = "",
     digits: int = 2,
 ) -> list[dict]:
     if not proxies or not isinstance(proxies, list):
@@ -1315,7 +1317,7 @@ def regularize(
         # Use mihomo to check for residential proxies
         results = batch_query(
             proxies=proxies,
-            func=check_residential,
+            func=partial(check_residential, ip_library=ip_library),
             num_threads=num_threads,
             show_progress=show_progress,
             description="Checking residential",
