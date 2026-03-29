@@ -925,7 +925,10 @@ def check_residential(proxy: dict, port: int, api_key: str = "", ip_library: str
             country_code = data.get("country_code", "")
 
             usage_type = utils.trim(data.get("usage_type", "")).lower()
-            if usage_type.startswith("isp") or usage_type == "mob":
+            as_usage_type = utils.trim(data.get("as_info", {}).get("as_usage_type", "")).lower()
+
+            check = lambda usage: usage.startswith("isp") or usage == "mob"
+            if check(usage_type) and check(as_usage_type):
                 company_type, asn_type = "isp", "isp"
             else:
                 company_type, asn_type = "hosting", "hosting"

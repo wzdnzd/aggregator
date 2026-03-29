@@ -592,8 +592,13 @@ class IP2LocationLibrary(IPLibrary):
     name = "ip2location"
 
     def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+        as_info = data.get("as_info") or {}
+
         usage_type = (data.get("usage_type") or "").strip().lower()
-        label = "家宽" if (usage_type.startswith("isp") or usage_type == "mob") else ""
+        as_usage_type = ((as_info.get("as_usage_type") if isinstance(as_info, dict) else "") or "").strip().lower()
+
+        check = lambda usage: usage.startswith("isp") or usage == "mob"
+        label = "家宽" if check(usage_type) and check(as_usage_type) else ""
 
         country_code = (data.get("country_code") or "").upper()
         country = (
@@ -604,10 +609,8 @@ class IP2LocationLibrary(IPLibrary):
         )
 
         provider = (data.get("as", "") or data.get("isp", "") or "").strip()
-        if not provider and "as_info" in data:
-            as_info = data.get("as_info", {})
-            if as_info and isinstance(as_info, dict):
-                provider = (as_info.get("as_name", "") or as_info.get("as_domain", "")).strip()
+        if not provider and as_info and isinstance(as_info, dict):
+            provider = (as_info.get("as_name", "") or as_info.get("as_domain", "")).strip()
         if not provider:
             provider = data.get("domain", "").strip() or ""
 
