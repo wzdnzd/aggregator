@@ -572,13 +572,16 @@ class IPPureLibrary(IPLibrary):
         company_name = short_company_name(data.get("asOrganization") or "")
         score = str(data.get("fraudScore")).zfill(3) if "fraudScore" in data else "NUL"
 
+        # broadcast or native
+        categroy = "NUL" if "isBroadcast" not in data else "B" if data.get("isBroadcast") else "N"
+
         return self._format_remark(
             country_code=country_code,
             country=country,
             label=label,
             include_asn_name=include_asn_name,
             company_name=company_name,
-            detail=score,
+            detail=f"{score}::{categroy}",
         )
 
     async def _fetch(
@@ -690,9 +693,11 @@ class IPLarkLibrary(IPLibrary):
         country_code = (data.get("country_code") or "").upper()
         country = country_name_zh(country_code) or (data.get("country_zh") or data.get("country") or "未知")
 
-        # asn = str(data.get("asn") or "").strip()
-        # detail = f"AS{asn}" if asn else "NUL"
-        detail = ""
+        # native if registered country code equals country code else broadcast
+        categroy = "N" if (data.get("registered_country_code") or "").upper() == country_code else "B"
+
+        asn = str(data.get("asn") or "").strip()
+        detail = f"{'AS'+asn if asn else 'NUL'}::{categroy}"
 
         company_name = short_company_name(data.get("organization") or "")
 
