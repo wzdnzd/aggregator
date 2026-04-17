@@ -1,71 +1,40 @@
-name: Collect
+name: Auto Collect Nodes
+
 on:
-  # executed once a week on Sundays at 00:00
   schedule:
-    - cron: "0 0 * * 1"
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
-concurrency:
-  group: ${{ github.repository }}
-  cancel-in-progress: true
-
-env:
-  # time zone
-  TZ: Asia/Shanghai
-
-  # github access token
-  GIST_PAT: ${{ secrets.GIST_PAT }}
-
-  # github username and gist id, separated by '/'
-  GIST_LINK: ${{ secrets.GIST_LINK }}
-
-  # the url to the list of airports that you maintain yourself
-  # each line include domain, coupon and invitation code, the domain must be included, and the latter two items are optional
-  CUSTOMIZE_LINK: ${{ secrets.CUSTOMIZE_LINK }}
-
-  # include special protocols, such as vless hysteria2 and hysteria
-  ENABLE_SPECIAL_PROTOCOLS: ${{ vars.ENABLE_SPECIAL_PROTOCOLS }}
-
 jobs:
-  process:
+  collect:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          ref: main
+          python-version: '3.9'
 
-      - name: Prepare
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-          architecture: "x64"
-          cache: "pip"
-
-      - name: Install
-        run: pip3 install -r requirements.txt
-
-      - name: Check
+      - name: Run Script
+        env:
+          GIST_ID: ${{ secrets.MY_GIST_ID }}
+          GH_TOKEN: ${{ secrets.MY_GH_TOKEN }}
         run: |
-          if [ -z "$GIST_PAT" ]; then
-              echo "Error: environment 'GIST_PAT' cannot be empty"
-              exit 1
+          # 自动寻找入口文件
+          TARGET_FILE=$(find . -name "collect.py" -o -name "main.py" | head -n 1)
+          
+          if [ -z "$TARGET_FILE" ]; then
+            echo "错误：仓库里没找到 python 脚本！"
+            exit 1
           fi
-
-          if [ -z "$GIST_LINK" ]; then
-              echo "Error: environment 'GIST_LINK' cannot be empty"
-              exit 1
-          fi
-
-          LINK_PARTS=$(echo "$GIST_LINK" | awk -F'/' 'NF==2 && $1!="" && $2!=""')
-          if [ -z "$LINK_PARTS" ]; then
-              echo "Error: environment 'GIST_LINK' is not valid, should be 'username/gist_id' format"
-              exit 1
-          fi
-
-      - name: Collect
-        run: python -u subscribe/collect.py --all --overwrite --skip
-
-      - name: Timestamp
-        run: date
+          
+          TARGET_DIR=$(dirname "$TARGET_FILE")
+          FILENAME=$(basename "$TARGET_FILE")
+          
+          cd "$TARGET_DIR"
+          [ -f "requirements.txt" ] && pip install -r requirements.txt
+          
+          # 运行程序
+          python "$FILENAME" -g $GIST_ID -k $GH_TOKEN -t clash v2ray singbox
