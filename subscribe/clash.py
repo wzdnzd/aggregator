@@ -538,7 +538,7 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                 network = utils.trim(item.get("network", "tcp"))
 
                 # mihomo: https://wiki.metacubex.one/config/proxies/vless/#network
-                network_opts = ["ws", "tcp", "grpc", "http", "h2"] if mihomo else ["ws", "tcp", "grpc"]
+                network_opts = ["ws", "tcp", "grpc", "http", "h2", "xhttp"] if mihomo else ["ws", "tcp", "grpc"]
 
                 if network not in network_opts:
                     return False
@@ -600,6 +600,24 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                         return False
 
                     reality_opts["short-id"] = QuotedStr(short_id)
+                if "xhttp-opts" in item:
+                    if network != "xhttp":
+                        return False
+
+                    xhttp_opts = item.get("xhttp-opts", {})
+                    if not xhttp_opts or type(xhttp_opts) != dict:
+                        return False
+                    if "path" in xhttp_opts and type(xhttp_opts["path"]) != str:
+                        return False
+                    if "host" in xhttp_opts and type(xhttp_opts["host"]) != str:
+                        return False
+
+                    if "mode" in xhttp_opts:
+                        xhttp_mode = utils.trim(xhttp_opts.get("mode", ""))
+                        if xhttp_mode and xhttp_mode not in ["stream-one", "stream-up", "packet-up"]:
+                            return False
+                    if "headers" in xhttp_opts and type(xhttp_opts["headers"]) != dict:
+                        return False
             elif item["type"] == "tuic":
                 # mihomo: https://wiki.metacubex.one/config/proxies/tuic
                 token = wrap(item.get("token", ""))
