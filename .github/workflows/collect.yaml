@@ -1,8 +1,8 @@
 name: Collect
-on:
+于:
   # executed once a week on Sundays at 00:00
   schedule:
-    - cron: "0 0 * * 1"
+    - cron: '10 3 * * *'  # 上海时间11:10（UTC 03:10）
   workflow_dispatch:
 
 concurrency:
