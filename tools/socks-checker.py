@@ -296,6 +296,18 @@ def country_name_zh(country_code: str) -> str:
     return COUNTRY_NAME_ZH.get(country_code.upper(), "")
 
 
+MEITUAN_IP_LOCATE_URL = "https://apimobile.meituan.com/locate/v2/ip/loc?rgeo=true&ip={ip}"
+CHINA_PROVINCE_SUFFIXES = (
+    "特别行政区",
+    "维吾尔自治区",
+    "壮族自治区",
+    "回族自治区",
+    "自治区",
+    "省",
+    "市",
+)
+
+
 def short_company_name(value: str) -> str:
     if not value:
         return "UNKNOWN"
@@ -347,6 +359,9 @@ class IpLookupResult:
 class IPLibrary:
     name: str = ""
 
+    def __init__(self):
+        self._caches: Dict[str, str] = {}
+
     async def lookup(
         self, session: aiohttp.ClientSession, proxy_info: ProxyInfo, retries: int, timeout: int
     ) -> IpLookupResult:
@@ -357,7 +372,15 @@ class IPLibrary:
 
         return self._verify(data, self.name)
 
-    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+    async def build_remark(
+        self,
+        session: aiohttp.ClientSession,
+        ip: str,
+        data: Dict,
+        include_asn_name: bool,
+        retries: int,
+        timeout: int,
+    ) -> str:
         raise NotImplementedError
 
     async def _fetch(
@@ -470,11 +493,74 @@ class IPLibrary:
 
         return base
 
+    async def _resolve_country(
+        self,
+        session: aiohttp.ClientSession,
+        ip: str,
+        country_code: str,
+        country: str,
+        retries: int,
+        timeout: int,
+    ) -> str:
+        country_code = (country_code or "").upper()
+        if country_code != "CN" or not ip:
+            return country
+
+        if ip in self._caches:
+            return self._caches[ip]
+
+        province = await self._lookup_province(session, ip, retries, timeout)
+        resolved = f"中国{province}" if province else "中国"
+        self._caches[ip] = resolved
+        return resolved
+
+    async def _lookup_province(self, session: aiohttp.ClientSession, ip: str, retries: int, timeout: int) -> str:
+        url = MEITUAN_IP_LOCATE_URL.format(ip=quote(ip, safe=""))
+        data, _ = await self._make_request(
+            session=session,
+            url=url,
+            retries=max(1, min(retries, 2)),
+            timeout=max(1, min(timeout, 3)),
+        )
+        if not isinstance(data, dict):
+            return ""
+
+        payload = data.get("data")
+        if not isinstance(payload, dict):
+            return ""
+
+        rgeo = payload.get("rgeo")
+        if not isinstance(rgeo, dict):
+            return ""
+
+        country = (rgeo.get("country") or "").strip()
+        if country and country != "中国":
+            return ""
+
+        return self._normalize_province(rgeo.get("province") or "")
+
+    @staticmethod
+    def _normalize_province(province: str) -> str:
+        province = (province or "").strip()
+        for suffix in CHINA_PROVINCE_SUFFIXES:
+            if province.endswith(suffix):
+                return province[: -len(suffix)].strip()
+
+        return province
+
 
 class IPInfoLibrary(IPLibrary):
     name = "ipinfo"
 
-    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+    async def build_remark(
+        self,
+        session: aiohttp.ClientSession,
+        ip: str,
+        data: Dict,
+        include_asn_name: bool,
+        retries: int,
+        timeout: int,
+    ) -> str:
         country_code = (data.get("country") or "").upper()
         flag = country_flag_emoji(country_code)
 
@@ -498,7 +584,14 @@ class IPInfoLibrary(IPLibrary):
         else:
             label = ""
 
-        country = country_name_zh(country_code) or country_code or "未知"
+        country = await self._resolve_country(
+            session=session,
+            ip=ip,
+            country_code=country_code,
+            country=country_name_zh(country_code) or country_code or "未知",
+            retries=retries,
+            timeout=timeout,
+        )
         base = f"{flag} {country}{label}".strip()
         if include_asn_name and company_name:
             return f"{base} [{company_name}]".strip()
@@ -562,12 +655,27 @@ class IPInfoLibrary(IPLibrary):
 class IPPureLibrary(IPLibrary):
     name = "ippure"
 
-    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+    async def build_remark(
+        self,
+        session: aiohttp.ClientSession,
+        ip: str,
+        data: Dict,
+        include_asn_name: bool,
+        retries: int,
+        timeout: int,
+    ) -> str:
         residential = data.get("isResidential")
         label = "家宽" if residential is True else ""
 
         country_code = (data.get("countryCode") or "").upper()
-        country = country_name_zh(country_code) or (data.get("country") or "未知")
+        country = await self._resolve_country(
+            session=session,
+            ip=ip,
+            country_code=country_code,
+            country=country_name_zh(country_code) or (data.get("country") or "未知"),
+            retries=retries,
+            timeout=timeout,
+        )
 
         company_name = short_company_name(data.get("asOrganization") or "")
         score = str(data.get("fraudScore")).zfill(3) if "fraudScore" in data else "NUL"
@@ -594,7 +702,15 @@ class IPPureLibrary(IPLibrary):
 class IP2LocationLibrary(IPLibrary):
     name = "ip2location"
 
-    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+    async def build_remark(
+        self,
+        session: aiohttp.ClientSession,
+        ip: str,
+        data: Dict,
+        include_asn_name: bool,
+        retries: int,
+        timeout: int,
+    ) -> str:
         as_info = data.get("as_info") or {}
 
         usage_type = (data.get("usage_type") or "").strip().lower()
@@ -604,11 +720,16 @@ class IP2LocationLibrary(IPLibrary):
         label = "家宽" if check(usage_type) and check(as_usage_type) else ""
 
         country_code = (data.get("country_code") or "").upper()
-        country = (
-            country_name_zh(country_code)
+        country = await self._resolve_country(
+            session=session,
+            ip=ip,
+            country_code=country_code,
+            country=country_name_zh(country_code)
             or data.get("country_name")
             or data.get("country", {}).get("name", "")
-            or "未知"
+            or "未知",
+            retries=retries,
+            timeout=timeout,
         )
 
         provider = (data.get("as", "") or data.get("isp", "") or "").strip()
@@ -679,7 +800,15 @@ class IP2LocationLibrary(IPLibrary):
 class IPLarkLibrary(IPLibrary):
     name = "iplark"
 
-    def build_remark(self, data: Dict, include_asn_name: bool) -> str:
+    async def build_remark(
+        self,
+        session: aiohttp.ClientSession,
+        ip: str,
+        data: Dict,
+        include_asn_name: bool,
+        retries: int,
+        timeout: int,
+    ) -> str:
         node_type = (data.get("type") or "").strip().lower()
         if node_type == "isp":
             label = "家宽"
@@ -691,7 +820,14 @@ class IPLarkLibrary(IPLibrary):
             label = ""
 
         country_code = (data.get("country_code") or "").upper()
-        country = country_name_zh(country_code) or (data.get("country_zh") or data.get("country") or "未知")
+        country = await self._resolve_country(
+            session=session,
+            ip=ip,
+            country_code=country_code,
+            country=country_name_zh(country_code) or (data.get("country_zh") or data.get("country") or "未知"),
+            retries=retries,
+            timeout=timeout,
+        )
 
         # native if registered country code equals country code else broadcast
         categroy = "N" if (data.get("registered_country_code") or "").upper() == country_code else "B"
@@ -931,7 +1067,14 @@ class ProxyChecker:
                     result.error = lookup.error or f"Failed to get IP info from {self.ip_library.name}"
                     return result
 
-                remark = self.ip_library.build_remark(lookup.data, self.include_asn_name)
+                remark = await self.ip_library.build_remark(
+                    session=session,
+                    ip=lookup.ip,
+                    data=lookup.data,
+                    include_asn_name=self.include_asn_name,
+                    retries=retries,
+                    timeout=self.timeout,
+                )
                 result.remark = remark
                 result.ip = lookup.ip
                 result.status = "success"
