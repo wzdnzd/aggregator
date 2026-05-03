@@ -90,7 +90,20 @@ class PushTo(object):
                 )
                 return False
 
-        except Exception:
+        except Exception as e:
+            try:
+                if isinstance(e, urllib.error.HTTPError):
+                    code = getattr(e, "code", None)
+                    try:
+                        message = e.read().decode("utf-8", errors="replace")
+                    except Exception:
+                        message = "cannot read error messgae from response"
+                    logger.error(
+                        f"[PushError] request failed, code: {code}, url: {url}, message: {message}, data: {data}"
+                    )
+            except Exception:
+                logger.error(f"[PushError] failed to process exception: {traceback.format_exc()}")
+
             self._error_handler(group=group)
 
             retry -= 1

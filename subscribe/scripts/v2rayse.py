@@ -29,7 +29,20 @@ import subconverter
 from clash import QuotedStr, quoted_scalar
 
 # outbind type
-SUPPORT_TYPE = ["ss", "ssr", "vmess", "trojan", "snell", "vless", "hysteria2", "hysteria", "http", "socks5", "anytls"]
+SUPPORT_TYPE = [
+    "ss",
+    "ssr",
+    "vmess",
+    "trojan",
+    "tuic",
+    "snell",
+    "vless",
+    "hysteria2",
+    "hysteria",
+    "http",
+    "socks5",
+    "anytls",
+]
 
 # date format
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -176,10 +189,19 @@ def fetchone(
     proxies, subscriptions = [], []
 
     if not utils.isb64encode(content=content):
-        regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d)|(?:/(?:s|sub)/[a-zA-Z0-9]{32}))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
+        regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?::\d+)?(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d)|(?:/(?:s|sub)/[a-zA-Z0-9]{32}))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
         groups = re.findall(regex, content, flags=re.I)
         if groups:
-            subscriptions = list(set([utils.url_complete(x) for x in groups if x]))
+            subscriptions = [utils.url_complete(x) for x in groups if x]
+
+        try:
+            parts = re.findall(
+                r"(?m)^#(?:\s+)?(?:!MANAGED-CONFIG|订阅链接)[^\n]*?(https?://[^\s\"'<>]+)", content, flags=re.I
+            )
+            if parts:
+                subscriptions.extend([utils.trim(p) for p in parts])
+        except:
+            pass
 
     if not noproxies:
         try:
@@ -218,7 +240,7 @@ def fetchone(
         except:
             logger.error(f"[V2RaySE] parse proxies failed, url: {url}, message: \n{traceback.format_exc()}")
 
-    return proxies, subscriptions
+    return proxies, list(set(subscriptions)) if subscriptions else []
 
 
 def fetch(params: dict) -> list:
@@ -246,6 +268,8 @@ def fetch(params: dict) -> list:
     repeat = max(1, int(params.get("repeat", 1)))
     noproxies = params.get("noproxies", False) == True
     maxsize = min(max(524288, int(params.get("maxsize", 524288))), sys.maxsize)
+    mixed = utils.trim(params.get("format", "clash")).lower() != "clash"
+    display = params.get("display", False)
 
     # storage config
     proxies_store = persist.get("proxies", {})
@@ -265,10 +289,10 @@ def fetch(params: dict) -> list:
     else:
         logger.info(f"[V2RaySE] begin crawl data from [{last.strftime(DATE_FORMAT)}] to [{begin}]")
 
-    base, starttime = f"{domain}/share", time.time()
+    base, starttime = f"{domain}/public", time.time()
     partitions = [[base, date, maxsize, last] for date in dates]
 
-    links = utils.multi_thread_run(func=list_files, tasks=partitions)
+    links = utils.multi_thread_run(func=list_files, tasks=partitions, show_progress=display, description="ListSub")
     files = list(set(itertools.chain.from_iterable(links)))
     array = [[x, nopublic, exclude, ignore, repeat, noproxies] for x in files if x]
 
@@ -279,7 +303,7 @@ def fetch(params: dict) -> list:
     logger.info(f"[V2RaySE] start to fetch shared files, count: {len(array)}")
 
     tasks, proxies, subscriptions = [], [], set()
-    results = utils.multi_process_run(func=fetchone, tasks=array)
+    results = utils.multi_thread_run(func=fetchone, tasks=array, show_progress=display, description="FetchSub")
 
     for result in results:
         proxies.extend([p for p in result[0] if p and p.get("name", "") and p.get("type", "") in support])
@@ -302,8 +326,8 @@ def fetch(params: dict) -> list:
         tasks.append(config)
 
     data, content = {"proxies": proxies}, " "
-    datapath, artifact = subconverter.getpath(), "v2ray"
-    source, dest = "proxies.yaml", "v2ray.txt"
+    datapath, artifact = subconverter.getpath(), "v2rayse"
+    source, dest = "proxies.yaml", "v2rayse.txt"
     filepath = os.path.join(datapath, source)
     generate = os.path.join(datapath, "generate.ini")
 
@@ -314,7 +338,7 @@ def fetch(params: dict) -> list:
     if os.path.exists(generate) and os.path.isfile(generate):
         os.remove(generate)
 
-    success = subconverter.generate_conf(generate, artifact, source, dest, "mixed")
+    success = subconverter.generate_conf(generate, artifact, source, dest, "mixed" if mixed else "clash")
     if not success:
         logger.error(f"[V2RaySE] cannot generate subconverter config file")
         yaml.add_representer(QuotedStr, quoted_scalar)
@@ -329,7 +353,7 @@ def fetch(params: dict) -> list:
 
             with open(filepath, "r", encoding="utf8") as f:
                 content = f.read()
-            if not utils.isb64encode(content=content):
+            if mixed and not utils.isb64encode(content=content):
                 try:
                     content = base64.b64encode(content.encode(encoding="UTF8")).decode(encoding="UTF8")
                 except Exception as e:
@@ -339,12 +363,12 @@ def fetch(params: dict) -> list:
         # clean workspace
         workflow.cleanup(datapath, filenames=[source, dest, "generate.ini"])
 
+    # persist to a local file first to prevent data loss
+    filename = os.path.join(os.path.dirname(datapath), "data", "v2rayse.txt")
+    utils.write_file(filename=filename, lines=content)
+
     success = pushtool.push_to(content=content or " ", config=proxies_store, group="v2rayse")
     if not success:
-        filename = os.path.join(os.path.dirname(datapath), "data", "v2rayse.txt")
-        logger.error(f"[V2RaySE] failed to storage {len(proxies)} proxies, will save it to local file {filename}")
-
-        utils.write_file(filename=filename, lines=content)
         return tasks
 
     # save last modified time

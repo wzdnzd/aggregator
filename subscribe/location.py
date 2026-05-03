@@ -3,6 +3,7 @@
 # @Author  : wzdnzd
 # @Time    : 2024-07-12
 
+import html
 import json
 import math
 import os
@@ -13,7 +14,11 @@ import subprocess
 import sys
 import time
 import urllib
+import urllib.parse
+import urllib.request
 from collections import defaultdict
+from dataclasses import dataclass
+from functools import partial
 
 import utils
 import yaml
@@ -22,6 +27,25 @@ from geoip2 import database
 from logger import logger
 
 from clash import is_mihomo
+
+
+@dataclass
+class ProxyInfo:
+    """Proxy query result information"""
+
+    name: str = ""
+    country: str = ""
+    ip_type: str = ""
+
+
+@dataclass
+class ProxyQueryResult:
+    """Complete proxy query result"""
+
+    proxy: dict
+    result: ProxyInfo
+    success: bool
+
 
 # Mapping from ISO country codes to Chinese country names
 ISO_TO_CHINESE = {
@@ -692,7 +716,14 @@ def generate_mihomo_config(proxies: list[dict]) -> tuple[dict, dict]:
     return config, records
 
 
-def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int = 10) -> tuple[bool, dict]:
+def make_proxy_request(
+    port: int,
+    url: str,
+    max_retries: int = 5,
+    timeout: int = 10,
+    headers: dict = None,
+    deserialize: bool = True,
+) -> tuple[bool, dict]:
     """
     Make an HTTP request through a proxy and return the response
 
@@ -701,6 +732,7 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
         url: The URL to request
         max_retries: Maximum number of retry attempts
         timeout: Timeout for the request in seconds
+
 
     Returns:
         A tuple of (success, data) where:
@@ -711,6 +743,23 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
         logger.warning("No port provided for proxy")
         return False, {}
 
+    def _build_headers(url: str) -> dict:
+        result = urllib.parse.urlparse(url)
+        base = f"{result.scheme}://{result.netloc}" if result.scheme and result.netloc else ""
+
+        headers = {
+            "User-Agent": utils.USER_AGENT,
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+            "Connection": "close",
+            "Referer": f"{base}/" if base else url,
+            "Origin": base if base else url,
+        }
+
+        return headers
+
     # Configure the proxy for the request
     proxy_url = f"http://127.0.0.1:{port}"
     proxies_config = {"http": proxy_url, "https": proxy_url}
@@ -718,16 +767,15 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
     # Configure proxy handler
     proxy_handler = urllib.request.ProxyHandler(proxies_config)
 
-    # Build opener with proxy handler
-    opener = urllib.request.build_opener(proxy_handler)
-    opener.addheaders = [
-        ("User-Agent", utils.USER_AGENT),
-        ("Accept", "application/json"),
-        ("Connection", "close"),
-    ]
+    # Build opener with proxy handler and custom SSL context.
+    # Using explicit Request(headers=...) is more stable than opener.addheaders for proxy HTTPS requests.
+    opener = urllib.request.build_opener(proxy_handler, urllib.request.HTTPSHandler(context=utils.CTX))
+    default_headers = _build_headers(url)
+    if headers and isinstance(headers, dict):
+        default_headers.update({k: v for k, v in headers.items() if k and v is not None})
 
     # Try to get response with retry and backoff
-    attempt, success, data = 0, False, {}
+    attempt, success, data = 0, False, None
     while not success and attempt < max(max_retries, 1):
         try:
             # Random sleep to avoid being blocked by the API (increasing with each retry)
@@ -736,10 +784,11 @@ def make_proxy_request(port: int, url: str, max_retries: int = 5, timeout: int =
                 time.sleep(wait_time)
 
             # Make request
-            response = opener.open(url, timeout=timeout)
+            request = urllib.request.Request(url=url, headers=default_headers, method="GET")
+            response = opener.open(request, timeout=timeout)
             if response.getcode() == 200:
                 content = response.read().decode("utf-8")
-                data = json.loads(content)
+                data = json.loads(content) if deserialize else content
                 success = True
         except Exception as e:
             logger.warning(f"Attempt {attempt+1} failed to request {url} through proxy port {port}: {str(e)}")
@@ -768,60 +817,478 @@ def get_ipv4(port: int, max_retries: int = 5) -> str:
     return data.get("ip", "") if success else ""
 
 
-def locate_by_ipinfo(name: str, port: int, reader: database.Reader = None) -> dict:
-    """Check the location of a single proxy by making a request through it"""
-    result = {"name": name, "country": ""}
+# Online API services for IP location
+LOCATION_API_SERVICES = [
+    {"url": "https://ipinfo.io", "country_key": "country"},
+    {"url": "https://api.ip2location.io", "country_key": "country_code"},
+    {"url": "https://ipapi.co/json/", "country_key": "country_code"},
+    {"url": "https://ipwho.is", "country_key": "country_code"},
+    {"url": "https://free.freeipapi.com/api/json", "country_key": "countryCode"},
+    {"url": "https://api.ip.sb/geoip", "country_key": "country_code"},
+]
+
+# Pattern for CDN providers
+CDN_PATTERN = r"cloudflare|cloudfront|fastly|google"
+
+
+def random_delay(min_delay: float = 0.01, max_delay: float = 0.5):
+    """Random delay to avoid API rate limiting"""
+    time.sleep(random.uniform(min_delay, max_delay))
+
+
+def check_residential(proxy: dict, port: int, api_key: str = "", ip_library: str = "ip2location") -> ProxyQueryResult:
+    """
+    Check if a proxy is residential by making a request through it
+
+    Args:
+        proxy: The proxy information dict
+        port: The port of the proxy
+        api_key: Optional API key for ipapi.is. Uses free tier if not provided
+        ip_library: IP query provider, supported: ip2location/iplark/ipinfo/ippure/ipapi (default: ip2location)
+
+    Returns:
+        ProxyQueryResult: Complete proxy query result
+    """
+
+    def _build_url(provider: str, port: int, name: str, api_key: str) -> str:
+        if provider == "ipinfo":
+            # First, get the IP address
+            success, content = make_proxy_request(
+                port=port,
+                url="https://ipinfo.io/ip",
+                max_retries=2,
+                timeout=15,
+                deserialize=False,
+            )
+            if not success or not content:
+                logger.warning(f"Failed to get IP from ipinfo.io for proxy {name}")
+                return ""
+
+            # Extract IP from response
+            ip = utils.trim(content)
+            if not ip:
+                logger.warning(f"Invalid IP address from ipinfo.io for proxy {name}")
+                return ""
+
+            # Now get detailed information using the IP
+            return f"https://ipinfo.io/widget/demo/{ip}"
+        elif provider == "ipapi":
+            url, key = "https://api.ipapi.is", utils.trim(api_key)
+            if key:
+                url += f"?key={key}"
+            return url
+        elif provider == "ippure":
+            return "https://my.ippure.com/v1/info"
+        elif provider == "ip2location":
+            return "https://www.ip2location.com/demo"
+
+        return "https://iplark.com/ipapi/public/ipinfo"
+
+    def _get_providers(preferred: str) -> list[str]:
+        candidates = ["ip2location", "iplark", "ippure", "ipinfo", "ipapi"]
+
+        library = utils.trim(preferred).lower()
+        if library not in candidates:
+            library = "ip2location"
+
+        providers = [library]
+        for item in candidates:
+            if item not in providers:
+                providers.append(item)
+
+        return providers
+
+    def _parse_data(provider: str, response: dict) -> tuple[dict, str, str, str]:
+        data, country_code, company_type, asn_type = {}, "", "", ""
+
+        if provider == "ipinfo":
+            data = response.get("data", {}) if isinstance(response, dict) else {}
+            country_code = data.get("country", "")
+            company_type = data.get("company", {}).get("type", "")
+            asn_type = data.get("asn", {}).get("type", "")
+        elif provider == "ipapi":
+            data = response if isinstance(response, dict) else {}
+            country_code = data.get("location", {}).get("country_code", "")
+            company_type = data.get("company", {}).get("type", "")
+            asn_type = data.get("asn", {}).get("type", "")
+        elif provider == "ippure":
+            data = response if isinstance(response, dict) else {}
+            country_code = data.get("countryCode", "")
+
+            flag = data.get("isResidential", False)
+            if flag:
+                company_type, asn_type = "isp", "isp"
+            else:
+                company_type, asn_type = "hosting", "hosting"
+        elif provider == "ip2location":
+            data = response if isinstance(response, dict) else {}
+            country_code = data.get("country_code", "")
+
+            usage_type = utils.trim(data.get("usage_type", "")).lower()
+            as_usage_type = utils.trim(data.get("as_info", {}).get("as_usage_type", "")).lower()
+
+            check = lambda usage: usage.startswith("isp") or usage == "mob"
+            if check(usage_type) and check(as_usage_type):
+                company_type, asn_type = "isp", "isp"
+            else:
+                company_type, asn_type = "hosting", "hosting"
+        else:
+            data = response if isinstance(response, dict) else {}
+            country_code = data.get("country_code", "")
+
+            node_type = utils.trim(data.get("type", "")).lower()
+            if node_type == "isp":
+                company_type, asn_type = "isp", "isp"
+            elif node_type == "business":
+                company_type, asn_type = "business", "business"
+            else:
+                company_type, asn_type = "hosting", "hosting"
+
+        return data, utils.trim(country_code).upper(), utils.trim(company_type).lower(), utils.trim(asn_type).lower()
+
+    def _extract_ip2location_data(content: str) -> dict:
+        """Extract JSON payload from ip2location demo HTML response."""
+        if not content or not isinstance(content, str):
+            return {}
+
+        pattern = r'<code\b[^>]*class=["\'][^"\']*\blanguage-json\b[^"\']*["\'][^>]*>(.*?)</code>\s*</pre>'
+        groups = re.findall(pattern, content, flags=re.I | re.S)
+        if not groups:
+            return {}
+
+        for group in groups:
+            payload = utils.trim(group)
+            if not payload:
+                continue
+
+            # Some syntax highlighters may inject tags into the JSON block.
+            payload = re.sub(r"<[^>]+>", "", payload, flags=re.I | re.S)
+            payload = html.unescape(payload)
+
+            try:
+                return json.loads(payload)
+            except Exception:
+                continue
+
+        return {}
+
+    name = proxy.get("name", "")
+    result = ProxyInfo(name=name)
 
     if not port:
         logger.warning(f"No port found for proxy {name}")
-        return result
+        return ProxyQueryResult(proxy=proxy, result=result, success=False)
 
-    if reader:
-        # Get IP address through proxy
-        if ip := get_ipv4(port=port, max_retries=2):
-            country = query_ip_country(ip, reader)
-            if country:
-                result["country"] = country
-                return result
+    # Random delay to avoid being blocked by the API
+    random_delay()
 
-    # Random sleep to avoid being blocked by the API
-    time.sleep(random.uniform(0.01, 0.5))
+    try:
+        providers = _get_providers(ip_library)
+        success, response, provider = False, None, ""
 
-    api_services = [
-        {"url": "https://ipinfo.io", "country_key": "country"},
-        {"url": "https://ipapi.co/json/", "country_key": "country_code"},
-        {"url": "https://ipwho.is", "country_key": "country_code"},
-        {"url": "https://freeipapi.com/api/json", "country_key": "countryCode"},
-        {"url": "https://api.country.is", "country_key": "country"},
-        {"url": "https://api.ip.sb/geoip", "country_key": "country_code"},
-    ]
+        for idx, item in enumerate(providers):
+            url = _build_url(provider=item, port=port, name=name, api_key=api_key)
+            if not url:
+                continue
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        service = random.choice(api_services)
+            # Call API for IP information through the proxy
+            deserialize, headers = True, None
+            if item == "ip2location":
+                headers = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
+                deserialize = False
 
-        # We're already handling retries in this loop
-        success, data = make_proxy_request(port=port, url=service["url"], max_retries=1, timeout=12)
+            success, response = make_proxy_request(
+                port=port,
+                url=url,
+                max_retries=2,
+                timeout=12,
+                headers=headers,
+                deserialize=deserialize,
+            )
 
-        if success:
-            # Extract country code from the response using the service-specific key
-            country_key = service["country_key"]
-            country_code = data.get(country_key, "")
+            if success and item == "ip2location":
+                response = _extract_ip2location_data(response)
+                success = isinstance(response, dict) and bool(response)
+                if not success:
+                    logger.warning(f"Failed to extract JSON payload from ip2location demo HTML for proxy {name}")
 
-            if country_code:
-                # Convert ISO code to Chinese country name
-                result["country"] = ISO_TO_CHINESE.get(country_code, country_code)
+            if success:
+                provider = item
+                logger.debug(f"IP infor for proxy {name} successfully retrieved, provider: {provider}")
                 break
 
-        # If request failed, wait before trying another service
-        if attempt < max_retries - 1:
-            wait_time = min(2**attempt * random.uniform(1, 2), 6)
-            logger.warning(
-                f"Attempt {attempt+1} failed for proxy {name} with {service['url']}, waiting {wait_time:.2f}s"
-            )
-            time.sleep(wait_time)
+            if idx < len(providers) - 1:
+                fallback = providers[idx + 1]
+                logger.warning(f"Failed to query {url} for proxy {name}, provider={item}, trying fallback: {fallback}")
+            else:
+                logger.warning(f"Failed to query {url} for proxy {name}, provider={item}")
 
-    return result
+        # Parse data from response
+        if success:
+            try:
+                data, country_code, company_type, asn_type = _parse_data(provider, response)
+
+                if country_code:
+                    result.country = ISO_TO_CHINESE.get(country_code, "")
+
+                if not result.country:
+                    result.country = utils.trim(
+                        data.get("country_zh", "") or data.get("country", "") or data.get("country_name", "")
+                    )
+
+                # Check if it's residential (both company and asn type should be "isp")
+                if company_type == "isp" and asn_type == "isp":
+                    result.ip_type = "isp"
+                elif company_type in ["business", "isp"] and asn_type in ["business", "isp"]:
+                    result.ip_type = "business"
+
+            except Exception as e:
+                logger.error(f"Error parsing response for proxy {name}: {str(e)}")
+        else:
+            logger.warning(f"Failed to query residential info for proxy {name} with providers: {providers}")
+
+        # Determine if query was successful
+        flag = result.country != "" or result.ip_type != ""
+        return ProxyQueryResult(proxy=proxy, result=result, success=flag)
+
+    except Exception as e:
+        logger.error(f"Error querying residential info for {name}: {str(e)}")
+        return ProxyQueryResult(proxy=proxy, result=result, success=False)
+
+
+def locate_by_ipinfo(proxy: dict, port: int, reader: database.Reader = None) -> ProxyQueryResult:
+    """Check the location of a single proxy by making a request through it"""
+
+    def _create_failed_result(reason: str = "") -> ProxyQueryResult:
+        """Helper to create failed query result"""
+        name = proxy.get("name", "")
+        if reason:
+            logger.warning(f"Location query failed for proxy {name}: {reason}")
+        return ProxyQueryResult(proxy=proxy, result=ProxyInfo(name=name), success=False)
+
+    def _create_success_result(country: str) -> ProxyQueryResult:
+        """Helper to create successful query result"""
+        info = ProxyInfo(name=proxy.get("name", ""))
+        info.country = country
+        return ProxyQueryResult(proxy=proxy, result=info, success=True)
+
+    def _try_local_mmdb_lookup() -> str:
+        """Attempt to get country from local MMDB database"""
+        if not reader:
+            return ""
+
+        ip = get_ipv4(port=port, max_retries=2)
+        if ip:
+            return query_ip_country(ip, reader) or ""
+        return ""
+
+    def _try_online_api_services() -> str:
+        """Attempt to get country from online API services with retry logic"""
+        retries = 3
+
+        for attempt in range(retries):
+            # Select a random service for this attempt
+            service = random.choice(LOCATION_API_SERVICES)
+
+            # Make the API request
+            success, data = make_proxy_request(port=port, url=service["url"], max_retries=1, timeout=12)
+
+            if success and data:
+                # Parse country code from response
+                key = service["country_key"]
+                code = data.get(key, "")
+
+                if code:
+                    # Convert to Chinese country name
+                    return ISO_TO_CHINESE.get(code, code)
+
+            # Handle retry delay for failed attempts
+            if attempt < retries - 1:
+                delay = min(2**attempt * random.uniform(1, 2), 6)
+                logger.warning(
+                    f"API attempt {attempt+1} failed for proxy {proxy.get('name', '')} "
+                    f"using {service['url']}, retrying in {delay:.2f}s"
+                )
+                time.sleep(delay)
+
+        return ""
+
+    # Validate input parameters
+    if not port:
+        return _create_failed_result("No port specified")
+
+    # Apply rate limiting
+    random_delay()
+
+    # Main location detection logic
+    try:
+        # Strategy 1: Try local MMDB database first (faster and more reliable)
+        country = _try_local_mmdb_lookup()
+        if country:
+            logger.debug(f"Location found via MMDB for proxy {proxy.get('name', '')}: {country}")
+            return _create_success_result(country)
+
+        # Strategy 2: Fall back to online API services
+        country = _try_online_api_services()
+        if country:
+            logger.debug(f"Location found via API for proxy {proxy.get('name', '')}: {country}")
+            return _create_success_result(country)
+
+        # No location detected from any source
+        return _create_failed_result("Unable to determine location from any source")
+
+    except Exception as e:
+        logger.error(f"Unexpected error during location query for {proxy.get('name', '')}: {str(e)}")
+        return _create_failed_result(f"Exception: {str(e)}")
+
+
+def batch_query(
+    proxies: list[dict],
+    func: callable,
+    num_threads: int = 0,
+    show_progress: bool = True,
+    description: str = "Querying",
+    digits: int = 2,
+    reader: database.Reader = None,
+    api_key: str = "",
+) -> list[ProxyQueryResult]:
+    """
+    Run mihomo to query proxies information using the specified function
+
+    Args:
+        proxies: List of proxy configurations
+        func: Function to query each proxy (locate_by_ipinfo or check_residential)
+        num_threads: Number of threads for parallel processing
+        show_progress: Whether to show progress
+        description: Description for progress display
+        digits: Number of digits for proxy naming
+        reader: Optional mmdb reader for locate_by_ipinfo
+        api_key: Optional API key for check_residential function
+
+    Returns:
+        List of ProxyQueryResult with complete information
+    """
+    if not proxies or not is_mihomo():
+        return []
+
+    # Rename proxies for consistent naming
+    nodes = rename(proxies, digits, False)
+
+    logger.info(f"Generate clash listeners configuration for {len(nodes)} proxies")
+    # Generate mihomo configuration
+    config, records = generate_mihomo_config(nodes)
+
+    # Save the configuration to clash/config.yaml in the project directory
+    workspace = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "clash")
+    config_path = os.path.join(workspace, "config.yaml")
+    with open(config_path, "w", encoding="utf-8") as f:
+        yaml.dump(config, f, allow_unicode=True)
+
+    logger.info(f"Mihomo configuration saved to {config_path}")
+
+    # Check if we can find the mihomo binary
+    mihomo_bin = os.path.join(workspace, which_bin()[0])
+    if not os.path.exists(mihomo_bin) or not os.path.isfile(mihomo_bin):
+        logger.error("Mihomo binary not found, skipping proxy check")
+        return [ProxyQueryResult(proxy=proxy, result=ProxyInfo(name=proxy["name"]), success=False) for proxy in nodes]
+
+    # Make the binary executable
+    utils.chmod(mihomo_bin)
+
+    # Start mihomo with the configuration
+    logger.info(f"Starting mihomo with configuration {config_path}")
+    process = None
+    try:
+        # Run mihomo in background
+        process = subprocess.Popen(
+            [mihomo_bin, "-d", workspace, "-f", config_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+
+        # Wait longer to ensure mihomo is fully started
+        logger.info("Waiting for mihomo to start...")
+        time.sleep(8)
+
+        # Create proxy info mapping for task generation
+        mappings = {proxy["name"]: proxy for proxy in nodes}
+
+        # Generate tasks for each proxy
+        if reader is not None:
+            # For locate_by_ipinfo which needs reader parameter
+            tasks = [(mappings[name], port, reader) for name, port in records.items() if name in mappings]
+        elif api_key:
+            # For check_residential with API key
+            tasks = [(mappings[name], port, api_key) for name, port in records.items() if name in mappings]
+        else:
+            # For check_residential without API key
+            tasks = [(mappings[name], port) for name, port in records.items() if name in mappings]
+
+        # Check proxies using the specified function
+        results = utils.multi_thread_run(
+            func=func,
+            tasks=tasks,
+            num_threads=num_threads,
+            show_progress=show_progress,
+            description=description,
+        )
+
+        return results
+
+    except Exception as e:
+        logger.error(f"Error during mihomo check: {str(e)}")
+        return [ProxyQueryResult(proxy=proxy, result=ProxyInfo(name=proxy["name"]), success=False) for proxy in nodes]
+    finally:
+        # Always try to kill the mihomo process
+        if process:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except:
+                pass
+
+
+def process_query_results(results: list[ProxyQueryResult], strategy: str) -> tuple[list[dict], list[dict]]:
+    """
+    Process proxy query results
+
+    Args:
+        results: List of query results
+        strategy: Processing strategy ('residential' or 'location')
+
+    Returns:
+        tuple: (list of successful proxies, list of failed proxies)
+    """
+    successes, fails = [], []
+
+    for item in results:
+        if item.success and item.result.country:
+            # Copy proxy info to avoid modifying original data
+            proxy = item.proxy.copy()
+
+            if strategy == "residential":
+                # Residential IP check strategy
+                name = item.result.country
+                if item.result.ip_type == "isp":
+                    name += "家宽"
+                elif item.result.ip_type == "business":
+                    name += "商宽"
+
+                proxy["name"] = name
+                successes.append(proxy)
+            elif strategy == "location":
+                # Location check strategy
+                proxy["name"] = item.result.country
+                successes.append(proxy)
+            else:
+                # Unknown strategy, use query result directly
+                proxy["name"] = item.result.country
+                successes.append(proxy)
+        else:
+            # Failed query proxies
+            fails.append(item.proxy)
+
+    return successes, fails
 
 
 def regularize(
@@ -831,121 +1298,112 @@ def regularize(
     num_threads: int = 0,
     show_progress: bool = True,
     locate: bool = False,
+    residential: bool = False,
+    ip_library: str = "",
     digits: int = 2,
 ) -> list[dict]:
     if not proxies or not isinstance(proxies, list):
         return proxies
 
-    if locate:
+    # Phase 1: Residential check if necessary
+    successes, fails = [], []
+
+    if residential:
+        logger.info(f"Starting residential check for {len(proxies)} proxies")
+
+        # Enable locate if residential check is enabled
+        locate = True
+
+        # Get https://api.ipapi.is API key from environment variable
+        api_key = utils.trim(os.environ.get("IPAPI_IS_API_KEY", ""))
+
+        # Use mihomo to check for residential proxies
+        results = batch_query(
+            proxies=proxies,
+            func=partial(check_residential, ip_library=ip_library),
+            num_threads=num_threads,
+            show_progress=show_progress,
+            description="Checking residential",
+            digits=digits,
+            api_key=api_key,
+        )
+
+        # Process residential check results
+        successes, fails = process_query_results(results, "residential")
+        logger.info(f"Residential check completed: {len(successes)} successful, {len(fails)} failed")
+    else:
+        fails = proxies
+
+    # Phase 2: Location check if necessary
+    if locate and fails:
+        logger.info(f"Starting location check for {len(fails)} proxies")
+
+        # Initialize reader for locate functionality and load mmdb database if available
         directory = utils.trim(directory)
         if not directory:
             directory = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "data")
 
         repo, filename = "Loyalsoldier/geoip", "Country.mmdb"
+        reader = load_mmdb(directory=directory, repo=repo, filename=filename, update=update)
+        if not reader:
+            logger.error(f"Skipping location check due to cannot load mmdb: {filename}")
 
-        # Load mmdb
-        reader = load_mmdb(repo=repo, directory=directory, filename=filename, update=update)
+        unconfirmed = list()
         if reader:
-            tasks = [[p, reader] for p in proxies if p and isinstance(p, dict)]
-            proxies = utils.multi_thread_run(locate_by_geoip, tasks, num_threads, show_progress, "")
+            # Try local mmdb lookup first
+            tasks = [[p, reader] for p in fails if p and isinstance(p, dict)]
+            mmdb_results = utils.multi_thread_run(locate_by_geoip, tasks, num_threads, show_progress, "")
+
+            # Separate confirmed and unconfirmed proxies by regex
+            regex = f"中国|{CDN_PATTERN}"
+
+            for proxy in mmdb_results:
+                if proxy.pop("renamed", False) and not re.search(regex, proxy["name"], flags=re.I):
+                    # Add to successes list if confirmed by mmdb lookup
+                    successes.append(proxy)
+                else:
+                    # Add to unconfirmed list if not confirmed by mmdb lookup
+                    unconfirmed.append(proxy)
         else:
-            logger.error(f"skip rename proxies due to cannot load mmdb: {filename}")
+            # No mmdb available, treat all as unconfirmed
+            unconfirmed = fails
 
-        confirmed, unconfirmed = [], []
-        cdn_pattern = r"cloudflare|cloudfront|fastly|google"
-        regex = f"中国|{cdn_pattern}"
+        # For unconfirmed proxies, use online API services to get location info (fallback)
+        if unconfirmed:
+            logger.info(f"Using online API services for {len(unconfirmed)} unconfirmed proxies")
 
-        for proxy in proxies:
-            # Filter out proxies that are correctly located or have country as China, Cloudflare, or Google
-            if proxy.pop("renamed", False) and not re.search(regex, proxy["name"], flags=re.I):
-                confirmed.append(proxy)
-            else:
-                unconfirmed.append(proxy)
+            # Use mihomo to check IP locations
+            query_results = batch_query(
+                proxies=unconfirmed,
+                func=locate_by_ipinfo,
+                num_threads=num_threads,
+                show_progress=show_progress,
+                description="Querying location",
+                digits=digits,
+                reader=reader,
+            )
 
-        # For proxies that are not correctly located or have country as China, Cloudflare, or Google, generate clash listeners configuration to access https://api.ip.sb/geoip with the proxy to get the final landing ip address country or region
-        if unconfirmed and is_mihomo():
-            # Rename unconfirmed proxies
-            unconfirmed = rename(unconfirmed, digits, False)
+            # Process location check results and handle CDN proxies
+            query_successes, query_fails = process_query_results(query_results, "location")
 
-            logger.info(f"generate clash listeners configuration for {len(unconfirmed)} proxies")
-            # Generate mihomo configuration for unconfirmed proxies
-            mihomo_config, records = generate_mihomo_config(unconfirmed)
+            # Add query successes to final results
+            successes.extend(query_successes)
 
-            # Save the configuration to clash/config.yaml in the project directory
-            workspace = os.path.join(os.path.abspath(os.path.dirname(os.path.dirname(__file__))), "clash")
-            # Path to config.yaml in the clash directory
-            config_path = os.path.join(workspace, "config.yaml")
-            with open(config_path, "w", encoding="utf-8") as f:
-                yaml.dump(mihomo_config, f, allow_unicode=True)
+            # Handle CDN proxies that failed location check
+            for proxy in query_fails:
+                if re.search(CDN_PATTERN, proxy["name"], flags=re.I):
+                    logger.warning(f"Failed to get location for proxy {proxy['name']}, assume it's in US")
+                    proxy["name"] = "美国"
 
-            logger.info(f"Mihomo configuration saved to {config_path}")
+                successes.append(proxy)
 
-            # Check if we can find the mihomo binary
-            mihomo_bin = os.path.join(workspace, which_bin()[0])
-            if os.path.exists(mihomo_bin) and os.path.isfile(mihomo_bin):
-                # Make the binary executable
-                utils.chmod(mihomo_bin)
+        logger.info(f"Location check completed for {len(successes)} total proxies")
+    else:
+        # No location check needed, add all fails to successes
+        successes.extend(fails)
 
-                # Start mihomo with the configuration
-                logger.info(f"Starting mihomo with configuration {config_path}")
-                try:
-                    # Run mihomo in background
-                    process = subprocess.Popen(
-                        [mihomo_bin, "-d", workspace, "-f", config_path],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.PIPE,
-                    )
-
-                    # Wait longer to ensure mihomo is fully started
-                    logger.info("Waiting for mihomo to start...")
-                    time.sleep(8)
-
-                    # Generate tasks for each proxy
-                    tasks = [(name, port, reader) for name, port in records.items()]
-
-                    # Check IP location for each proxy in this batch
-                    results = utils.multi_thread_run(
-                        func=locate_by_ipinfo,
-                        tasks=tasks,
-                        num_threads=num_threads,
-                        show_progress=True,
-                        description=f"Checking",
-                    )
-
-                    # Kill the mihomo process
-                    process.terminate()
-                    process.wait(timeout=5)
-
-                    # Create a mapping from proxy names to countries
-                    country_map = {item["name"]: item["country"] for item in results if item.get("country")}
-
-                    successed, total = len(country_map), len(unconfirmed)
-                    logger.info(
-                        f"Finished checking proxy locations, successed: {successed}, total: {total}, failed: {total - successed}"
-                    )
-
-                    # Update the unconfirmed proxies with the new location information
-                    for proxy in unconfirmed:
-                        if proxy["name"] in country_map:
-                            proxy["name"] = country_map[proxy["name"]]
-
-                        if re.search(cdn_pattern, proxy["name"], flags=re.I):
-                            logger.warning(f"Failed to get location for proxy {proxy['name']}, assume it's in US")
-                            proxy["name"] = "美国"
-
-                    # Combine confirmed and unconfirmed proxies into a single list
-                    proxies = confirmed + unconfirmed
-                except Exception as e:
-                    logger.error(f"Error checking proxy locations: {str(e)}")
-
-                    try:
-                        process.terminate()
-                    except:
-                        pass
-            else:
-                logger.error("Mihomo binary not found, skipping proxy location check")
-
-    return rename(proxies=proxies, digits=digits, shuffle=True)
+    # Return final results
+    return rename(proxies=successes, digits=digits, shuffle=True)
 
 
 def rename(proxies: list[dict], digits: int = 2, shuffle: bool = False) -> list[dict]:

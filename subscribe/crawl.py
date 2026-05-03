@@ -530,7 +530,7 @@ def crawl_google(
         params["start"] = start
         content = re.sub(r"\\\\n", "", utils.http_get(url=url, params=params))
         content = re.sub(r"\?token\\\\u003d", "?token=", content, flags=re.I)
-        regex = r'https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/?(?:<em(?:\s+)?class="qkunPe">/?)?api/v1/client/subscribe\?token(?:</em>)?=[a-zA-Z0-9]{16,32}'
+        regex = r'https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?::\d+)?/?(?:<em(?:\s+)?class="qkunPe">/?)?api/v1/client/subscribe\?token(?:</em>)?=[a-zA-Z0-9]{16,32}'
         subscribes = re.findall(regex, content)
         for s in subscribes:
             s = re.sub(r'<em(?:\s+)?class="qkunPe">|</em>|\s+', "", s).replace("http://", "https://", 1)
@@ -614,7 +614,7 @@ def crawl_yandex(
                 logger.error(f"[YandexCrawl] invalid regex pattern: {reject}")
                 continue
 
-            regex = r"https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+/<b>api</b>/<b>v</b><b>1</b>/<b>client</b>/<b>subscribe</b>\?<b>token</b>=[a-zA-Z0-9]{16,32}"
+            regex = r"https?://(?:[a-zA-Z0-9_\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9_\u4e00-\u9fa5\-]+(?::\d+)?/<b>api</b>/<b>v</b><b>1</b>/<b>client</b>/<b>subscribe</b>\?<b>token</b>=[a-zA-Z0-9]{16,32}"
             links = re.findall(regex, group, flags=re.I)
             for link in links:
                 try:
@@ -1082,7 +1082,7 @@ def extract_subscribes(
         return {}
     try:
         limits, collections, proxies = max(1, limits), {}, []
-        sub_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d)|(?:/(?:s|sub)/[a-zA-Z0-9]{32}))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
+        sub_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+(?::\d+)?(?:(?:(?:/index.php)?/api/v1/client/subscribe\?token=[a-zA-Z0-9]{16,32})|(?:/link/[a-zA-Z0-9]+\?(?:sub|mu|clash)=\d)|(?:/(?:s|sub)/[a-zA-Z0-9]{32}))|https://jmssub\.net/members/getsub\.php\?service=\d+&id=[a-zA-Z0-9\-]{36}(?:\S+)?"
         extra_regex = r"https?://(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z0-9\u4e00-\u9fa5\-]+/sub\?(?:\S+)?target=\S+"
         protocal_regex = (
             r"(?:vmess|trojan|ss|ssr|snell|hysteria2|vless|hysteria|tuic|anytls)://[a-zA-Z0-9:.?+=@%&#_\-/]{10,}"
@@ -1103,6 +1103,15 @@ def extract_subscribes(
                 subscribes = re.findall(regex, content)
         else:
             subscribes = re.findall(regex, content, flags=re.I)
+
+        try:
+            parts = re.findall(
+                r"(?m)^#(?:\s+)?(?:!MANAGED-CONFIG|订阅链接)[^\n]*?(https?://[^\s\"'<>]+)", content, flags=re.I
+            )
+            if parts:
+                subscribes.extend([utils.trim(p) for p in parts])
+        except:
+            pass
 
         # 去重会打乱原本按日期排序的特性一致无法优先选择离当前时间较近的元素
         # subscribes = list(set(subscribes))
@@ -1253,19 +1262,24 @@ def check_status(
     remain: minimum remaining traffic flow
     spare_time: minimum remaining time
     tolerance: waiting time after expiration
+
+    Returns:
+        tuple[bool, bool]: (available, expired)
+        - First bool: whether the subscription is available
+        - Second bool: whether the subscription has expired
     """
     if not url or retry <= 0:
         return False, connectable
 
     try:
-        headers = {"User-Agent": "clash.meta"}
+        headers = {"User-Agent": f"{utils.USER_AGENT}; Clash.Meta; Mihomo; Shadowrocket;"}
         request = urllib.request.Request(url=url, headers=headers)
         response = urllib.request.urlopen(request, timeout=10, context=utils.CTX)
         if response.getcode() != 200:
             return False, connectable
 
         # in order to avoid the request to the speed test site causing constant data downloads, limit the maximum read to 15MB
-        content = str(response.read(15 * 1024 * 2014), encoding="utf8")
+        content = str(response.read(15 * 1024 * 1024), encoding="utf8")
 
         # response text is too short, ignore
         if len(content) < 32:
@@ -1274,23 +1288,22 @@ def check_status(
         # 订阅流量信息
         subscription = response.getheader("subscription-userinfo")
 
+        # 情况1: base64 编码格式（v2ray）
         if utils.isb64encode(content):
-            # parse and detect whether the subscription has expired
             return is_expired(header=subscription, remain=remain, spare_time=spare_time, tolerance=tolerance)
 
-        try:
-            proxies = yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
-        except ConstructorError:
-            yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
-            proxies = yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
-        except:
+        # 情况2: YAML 格式（clash）
+        proxies = _parse_yaml_proxies(content)
+
+        if proxies is None:
+            # 情况3: 纯协议链接格式
             if all(airport.AirPort.check_protocol(x) for x in content.split("\n") if x):
                 return True, False
-
             # TODO: 如果配置文件为 singbox、quanx、loon、surge等，需要解析出代理节点信息，并判断是否过期
-            proxies = []
+            return False, True
 
-        if proxies is None or len(proxies) == 0:
+        # 情况4: 节点列表为空
+        if len(proxies) == 0:
             return False, True
 
         # 根据订阅信息判断是否有效
@@ -1322,6 +1335,18 @@ def check_status(
             tolerance=tolerance,
             connectable=connectable,
         )
+
+
+def _parse_yaml_proxies(content: str) -> list | None:
+
+    try:
+        return yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
+    except ConstructorError:
+        yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
+        return yaml.load(content, Loader=yaml.FullLoader).get("proxies", [])
+    except Exception:
+        # 解析失败，返回 None 表示不是 YAML 格式
+        return None
 
 
 def is_expired(header: str, remain: float = 0, spare_time: float = 0, tolerance: float = 0) -> tuple[bool, bool]:
@@ -1500,10 +1525,10 @@ def collect_airport(
         )
 
     def crawl_ygpy() -> dict:
-        def get_links(url: str, prefix: str) -> list[str]:
+        def get_links(url: str, prefix: str, regex: str = r'href="(/vpn/\d{4}/\d{2}.html)"') -> list[str]:
             content = utils.http_get(url=url)
 
-            groups = re.findall(r'href="(/vpn/\d{4}/\d{2}.html)"', content, flags=re.I)
+            groups = re.findall(regex, content, flags=re.I)
             if not groups:
                 logger.warning(f"[AirPortCollector] cannot fetch article from url: {url}")
                 return []
@@ -1512,19 +1537,21 @@ def collect_airport(
             return list(set([urllib.parse.urljoin(prefix, x) for x in groups if x]))
 
         base = "https://ygpy.net"
-        links = get_links(url=base, prefix=base)
+        links = get_links(url=f"{base}/vpn/free", prefix=base, regex=r"/assets/chunks/free.data\.[^\r\n\s]+\.js")
         if not links:
             logger.warning(f"[AirPortCollector] cannot get article from url: {base}")
             return {}
 
-        articles = get_links(url=links[0], prefix=base)
+        articles = get_links(
+            url=links[0], prefix="", regex=r'"(https://ygpy.net/vpn/free/\d{4}/\d{2}/[^\r\n\s">]+\.html)"'
+        )
         if not articles:
             logger.warning(f"[AirPortCollector] cannot get articles from url: {links[0]}")
             return {}
 
         separator = r'<h2 id="\d+" tabindex="-1">'
         address_regex = r'<a href="(https?://[^\s]+)" target="_blank" rel="noreferrer nofollow">前往注册</a>'
-        coupon_regex = r"使用优惠码(?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0(?:\s+)?元购买"
+        coupon_regex = r"使用优惠[码券](?:\s+)?(?:<code>)?([^\r\n\s]+)(?:</code>(?:[\r\n\s]+)?)?0(?:\s+)?元购买"
 
         tasks = [[x, separator, address_regex, coupon_regex] for x in sorted(articles)]
         items = utils.multi_thread_run(func=run_crawl, tasks=tasks)
@@ -1533,6 +1560,35 @@ def collect_airport(
         for item in items:
             if item and isinstance(item, dict):
                 result.update(item)
+
+        # Extract javascript link from peer page and then parse airport urls and coupons
+        javascripts = utils.multi_thread_run(
+            func=get_links,
+            tasks=[
+                [x, base, r'href="(/assets/vpn_free_\d+_\d+_[^\r\n\s\"]+.md.[A-Za-z0-9_\-]+.lean.js)"']
+                for x in articles
+            ],
+        )
+
+        airports = utils.multi_thread_run(
+            func=run_crawl,
+            tasks=[
+                [
+                    x[0],
+                    r'"详细信息"|测试报告"|"官方(群组|频道)|"更新于|"联系方式',
+                    r'"hyperlink":"(https?://[^\s]+/(?:#/register|auth)\?(?:code|invite)=[^\s]+)"',
+                    r'{code:"([^\r\n\s]+)"}',
+                ]
+                for x in javascripts
+                if x and isinstance(x, list)
+            ],
+        )
+
+        for item in airports:
+            if not item or not isinstance(item, dict):
+                continue
+
+            result.update(item)
 
         return result
 
@@ -1592,6 +1648,9 @@ def collect_airport(
                 return {}
 
             for group in groups:
+                if not group or not isinstance(group, str):
+                    continue
+
                 words = re.findall(utils.trim(address_regex), group, flags=re.M)
                 address = words[0] if words else ""
                 if not address:

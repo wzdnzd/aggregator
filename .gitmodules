@@ -1,0 +1,3 @@
+[submodule "manager"]
+	path = manager
+	url = https://github.com/wzdnzd/proxy-manager.git
