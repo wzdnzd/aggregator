@@ -1,5 +1,5 @@
 name: Collect
-于:
+on:
   # executed once a week on Sundays at 00:00
   schedule:
     - cron: '10 3 * * *'  # 上海时间11:10（UTC 03:10）
