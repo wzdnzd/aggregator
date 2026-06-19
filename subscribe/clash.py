@@ -294,6 +294,9 @@ def verify(item: dict, mihomo: bool = True) -> bool:
     if not item or type(item) != dict or "type" not in item:
         return False
 
+    # remove dialer-proxy because target proxy maybe not exists
+    item.pop("dialer-proxy", None)
+
     try:
         # name must be string
         name = str(item.get("name", "")).strip()
