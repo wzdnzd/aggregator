@@ -358,7 +358,7 @@ CHINA_PROVINCE_EN_SUFFIXES = (
     "city",
 )
 
-REGION_KEYS = set("province", "province_name", "region", "region_name", "state", "state_name")
+REGION_KEYS = set(["province", "province_name", "region", "region_name", "state", "state_name"])
 
 
 def short_company_name(value: str) -> str:
