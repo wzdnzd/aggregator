@@ -767,7 +767,7 @@ class AirPort:
                 if os.path.exists(v2ray_file):
                     os.remove(v2ray_file)
 
-                logger.error(f"save file fialed, artifact: {artifact}")
+                logger.error(f"save file failed, artifact: {artifact}")
                 traceback.print_exc()
 
             generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
