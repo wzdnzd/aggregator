@@ -247,6 +247,12 @@ VMESS_SUPPORTED_CIPHERS = ["auto", "aes-128-gcm", "chacha20-poly1305", "none"]
 
 SPECIAL_PROTOCOLS = set(["vless", "tuic", "hysteria", "hysteria2", "anytls"])
 
+VLESS_MLKEM_X25519_PLUS_PREFIX = "mlkem768x25519plus"
+VLESS_MLKEM_X25519_PLUS_MODES = ("native", "xorpub", "random")
+VLESS_MLKEM_X25519_PLUS_RTTS = ("1rtt", "0rtt")
+VLESS_MLKEM_X25519_PLUS_PADDING_LIMIT = 20
+VLESS_MLKEM_X25519_PLUS_KEY_SIZES = (32, 1184)
+
 # xtls-rprx-direct and xtls-rprx-origin are deprecated and no longer supported
 # XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
 
@@ -285,6 +291,37 @@ def check_ports(port: str, ranges: str, protocol: str) -> bool:
             if start <= 0 or start > 65535 or end <= 0 or end > 65535 or start > end:
                 return False
         except:
+            return False
+
+    return True
+
+
+def verify_vless_encryption(encryption: str) -> bool:
+    if not encryption or encryption == "none":
+        return True
+
+    parts = encryption.split(".")
+    if (
+        len(parts) < 4
+        or parts[0] != VLESS_MLKEM_X25519_PLUS_PREFIX
+        or parts[1] not in VLESS_MLKEM_X25519_PLUS_MODES
+        or parts[2] not in VLESS_MLKEM_X25519_PLUS_RTTS
+    ):
+        return False
+
+    for key in parts[3:]:
+        if len(key) < VLESS_MLKEM_X25519_PLUS_PADDING_LIMIT:
+            continue
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", key):
+            return False
+
+        try:
+            content = key + "=" * (-len(key) % 4)
+            decoded = base64.urlsafe_b64decode(content)
+        except:
+            return False
+
+        if len(decoded) not in VLESS_MLKEM_X25519_PLUS_KEY_SIZES:
             return False
 
     return True
@@ -527,16 +564,8 @@ def verify(item: dict, mihomo: bool = True) -> bool:
 
                 # see: https://github.com/MetaCubeX/mihomo/blob/Alpha/transport/vless/encryption/factory.go#L12
                 encryption = utils.trim(item.get("encryption", ""))
-                if encryption not in ["", "none"]:
-                    parts = encryption.split(".")
-
-                    # Must be: mlkem768x25519plus.<mode>.<...>.<...> (len >= 4)
-                    if (
-                        len(parts) < 4
-                        or parts[0] != "mlkem768x25519plus"
-                        or parts[1] not in ("native", "xorpub", "random")
-                    ):
-                        return False
+                if not verify_vless_encryption(encryption):
+                    return False
 
                 network = utils.trim(item.get("network", "tcp"))
 
