@@ -41,6 +41,56 @@ from yaml.constructor import ConstructorError
 
 SEPARATOR = "-"
 
+_SUSPICIOUS_URL_RE = re.compile(
+    r"(?i)("
+    r"(?:^|//)(?:[^/]*\.)?(?:speedtest|librespeed|fast\.com|cachefly\.net|thinkbroadband\.com|speed\.cloudflare\.com)"
+    r"|/__down(?:\?|$)"
+    r"|\.(?:zip|iso|exe|mp4|mkv|avi|tar|tgz|gz|7z|rar|bin|img|dmg|apk|msi|pdf)(?:\?|$)"
+    r")"
+)
+
+_REJECT_CONTENT_TYPE_PREFIXES = (
+    "video/",
+    "audio/",
+    "image/",
+    "font/",
+    "application/zip",
+    "application/x-zip",
+    "application/gzip",
+    "application/x-gzip",
+    "application/x-tar",
+    "application/x-rar",
+    "application/pdf",
+    "application/x-msdownload",
+    "application/vnd.",
+)
+
+_REJECT_DISPOSITION_EXT = (
+    ".zip",
+    ".iso",
+    ".exe",
+    ".mp4",
+    ".mkv",
+    ".avi",
+    ".tar",
+    ".tgz",
+    ".gz",
+    ".7z",
+    ".rar",
+    ".bin",
+    ".img",
+    ".dmg",
+    ".apk",
+    ".msi",
+    ".pdf",
+    ".torrent",
+)
+
+_VALIDATE_MAX_BYTES = 15 * 1024 * 1024
+_VALIDATE_UNIDENTIFIED_BYTES = 64 * 1024
+_VALIDATE_CHUNK_SIZE = 8 * 1024
+_VALIDATE_SNIFF_DEADLINE = 8
+
 
 @dataclass
 class ValidateResult(object):
@@ -1271,6 +1321,11 @@ def check_status(
     if not url or retry <= 0:
         return False, connectable
 
+    # 垃圾 URL 提前拦截
+    if _is_suspicious_url(url):
+        logger.debug(f"[Validate] skip suspicious url: {utils.mask(url)}")
+        return False, True
+
     try:
         headers = {"User-Agent": f"{utils.USER_AGENT}; Clash.Meta; Mihomo; Shadowrocket;"}
         request = urllib.request.Request(url=url, headers=headers)
@@ -1278,8 +1333,21 @@ def check_status(
         if response.getcode() != 200:
             return False, connectable
 
-        # in order to avoid the request to the speed test site causing constant data downloads, limit the maximum read to 15MB
-        content = str(response.read(15 * 1024 * 1024), encoding="utf8")
+        # 响应头检查 - 明显不是订阅
+        if _should_reject_response(response):
+            response.close()
+            logger.debug(f"[Validate] reject by header: {utils.mask(url)}")
+            return False, True
+
+        # 按需分块读取 + 嗅探，先确认像不像订阅，再决定读多少
+        content = _read_subscription_body(response)
+        if content is None:
+            return False, True
+
+        try:
+            content = content.decode("utf-8")
+        except UnicodeDecodeError:
+            return False, True
 
         # response text is too short, ignore
         if len(content) < 32:
@@ -1310,7 +1378,7 @@ def check_status(
         return is_expired(header=subscription, remain=remain, spare_time=spare_time, tolerance=tolerance)
     except urllib.error.HTTPError as e:
         try:
-            message = str(e.read(), encoding="utf8")
+            message = str(e.read(4096), encoding="utf8")
         except:
             message = ""
 
@@ -1326,7 +1394,8 @@ def check_status(
             )
 
         return False, expired
-    except Exception as e:
+    except (socket.timeout, TimeoutError, ssl.SSLError, ConnectionError, OSError):
+        # 网络类错误继续重试
         return check_status(
             url=url,
             retry=retry - 1,
@@ -1335,9 +1404,15 @@ def check_status(
             tolerance=tolerance,
             connectable=connectable,
         )
+    except Exception as e:
+        # 其他非网络错误不再重试
+        logger.debug(f"[Validate] unexpected error for {utils.mask(url)}: {e}")
+        return False, connectable
 
 
 def _parse_yaml_proxies(content: str) -> list | None:
+    if not content or not re.search(r"^proxies\s*:", content, flags=re.M):
+        return None
 
     try:
         return yaml.load(content, Loader=yaml.SafeLoader).get("proxies", [])
@@ -1383,6 +1458,151 @@ def is_expired(header: str, remain: float = 0, spare_time: float = 0, tolerance:
         return flag, expired
     except:
         return True, False
+
+
+def _is_suspicious_url(url: str) -> bool:
+    """URL 前置垃圾拦截"""
+    if not url:
+        return False
+
+    return bool(_SUSPICIOUS_URL_RE.search(url))
+
+
+def _should_reject_response(response) -> bool:
+    """响应头检查 - 明显不是订阅"""
+    ctype = (response.getheader("Content-Type") or "").split(";")[0].strip().lower()
+    if ctype:
+        for prefix in _REJECT_CONTENT_TYPE_PREFIXES:
+            if ctype.startswith(prefix):
+                return True
+
+    disposition = response.getheader("Content-Disposition") or ""
+    if disposition:
+        m = re.search(r"filename\*?=(?:UTF-8''|\"|')?([^\";]+)", disposition, re.I)
+        if m:
+            name = urllib.parse.unquote(m.group(1).strip().strip("\"'")).lower()
+            if name.endswith(_REJECT_DISPOSITION_EXT):
+                return True
+
+    return False
+
+
+def _read_subscription_body(response) -> bytes | None:
+    """分块读取 + 嗅探 + 动态上限，大聚合订阅不受影响"""
+    start = time.monotonic()
+    buf = bytearray()
+    limit = _VALIDATE_UNIDENTIFIED_BYTES
+    verdict = "maybe"
+
+    while len(buf) < limit:
+        # 嗅探阶段设置时限
+        if verdict != "yes" and (time.monotonic() - start) > _VALIDATE_SNIFF_DEADLINE:
+            try:
+                response.close()
+            except Exception:
+                pass
+            return None
+
+        to_read = min(_VALIDATE_CHUNK_SIZE, limit - len(buf))
+        try:
+            chunk = response.read(to_read)
+        except (socket.timeout, TimeoutError, OSError):
+            try:
+                response.close()
+            except Exception:
+                pass
+            return None
+
+        if not chunk:
+            break
+
+        buf.extend(chunk)
+
+        if verdict != "yes":
+            verdict = _looks_like_subscription(bytes(buf))
+            if verdict == "no":
+                try:
+                    response.close()
+                except Exception:
+                    pass
+                return None
+            if verdict == "yes":
+                limit = _VALIDATE_MAX_BYTES
+
+    # 读到 64KB 且 verdict 仍是 "maybe"，说明是大量未识别内容
+    if verdict != "yes" and len(buf) >= _VALIDATE_UNIDENTIFIED_BYTES:
+        try:
+            extra = response.read(1)
+        except Exception:
+            extra = b""
+        if extra:
+            try:
+                response.close()
+            except Exception:
+                pass
+            return None
+
+    return bytes(buf)
+
+
+def _looks_like_subscription(data: bytes) -> str:
+    """内容嗅探 - 返回 'yes' / 'no' / 'maybe'"""
+    if not data:
+        return "maybe"
+
+    sample = data[:8192]
+    if b"\x00" in sample:
+        return "no"
+
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        return "no"
+
+    sample_text = text.lstrip("﻿ \t\r\n")
+    if not sample_text:
+        return "maybe"
+
+    head = sample_text[:64].lower()
+    if head.startswith(("<!doctype", "<html", "<?xml", "<head", "<body")):
+        return "no"
+
+    # Clash YAML
+    if re.search(
+        r"^(proxies|proxy-groups|port|mixed-port|socks-port|redir-port|tproxy-port|allow-lan|mode|dns|rules)\s*:",
+        sample_text,
+        re.M | re.I,
+    ):
+        return "yes"
+
+    # Surge / Loon / Quantumult
+    if re.search(r"^\[(?:Proxy|Proxy Group|Rule|General|Replica)\]", sample_text, re.M | re.I):
+        return "yes"
+    if "MANAGED-CONFIG" in sample_text[:500].upper() or sample_text.lstrip().startswith("#!"):
+        return "yes"
+
+    # sing-box JSON
+    stripped = sample_text.lstrip()
+    if stripped.startswith("{") or stripped.startswith("["):
+        if re.search(r'"(outbounds|inbounds|proxies|server|protocol|dns)"', sample_text):
+            return "yes"
+        return "maybe"
+
+    # 协议链接，机场订阅常见
+    if re.search(r"(?im)^(vmess|trojan|ss|ssr|vless|hysteria2?|tuic|snell|anytls|socks5)://", sample_text):
+        return "yes"
+
+    # base64，允许换行
+    compact = re.sub(r"\s+", "", sample_text[:4096])
+    if len(compact) >= 32 and re.match(r"^[A-Za-z0-9+/=]+$", compact):
+        return "yes"
+
+    # 纯注释开头，机场订阅常见前言
+    lines = [ln.strip() for ln in sample_text.splitlines() if ln.strip()]
+    if lines and all(ln.startswith("#") or ln.startswith("//") for ln in lines):
+        return "maybe"
+
+    return "maybe"
 
 
 def is_available(url: str, retry: int = 2, remain: float = 0, spare_time: float = 0) -> bool:
