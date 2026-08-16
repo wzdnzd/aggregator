@@ -192,9 +192,12 @@ COMMON_SS_SUPPORTED_CIPHERS = [
     "xchacha20-ietf-poly1305",
 ]
 
-# AES-2022 key lengths. chacha20-poly1305 is a supported cipher but has no EIH in mihomo.
-# see: https://github.com/SagerNet/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L72-L86
-MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN = {"2022-blake3-aes-128-gcm": 16, "2022-blake3-aes-256-gcm": 32}
+# reference: https://github.com/SagerNet/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L72-L86
+MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN = {
+    "2022-blake3-aes-128-gcm": 16,
+    "2022-blake3-aes-256-gcm": 32,
+    "2022-blake3-chacha20-poly1305": 32,
+}
 
 MIHOMO_SS_SUPPORTED_CIPHERS = (
     COMMON_SS_SUPPORTED_CIPHERS
@@ -205,7 +208,6 @@ MIHOMO_SS_SUPPORTED_CIPHERS = (
         "aes-256-ccm",
         "aes-128-gcm-siv",
         "aes-256-gcm-siv",
-        "2022-blake3-chacha20-poly1305",
         "chacha20",
         "chacha8-ietf-poly1305",
         "xchacha8-ietf-poly1305",
@@ -325,6 +327,35 @@ def verify_vless_encryption(encryption: str) -> bool:
     return True
 
 
+def verify_ss_2022_password(cipher: str, password: str) -> bool:
+    # password is ":"-separated standard base64 PSKs; chacha20 rejects EIH (pskList > 1)
+    # see: https://github.com/SagerNet/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L72-L86
+    password = utils.trim(password)
+    if not password:
+        return False
+
+    words = password.split(":")
+    if cipher == "2022-blake3-chacha20-poly1305" and len(words) > 1:
+        return False
+
+    key_len = MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.get(cipher)
+    if not key_len:
+        return False
+
+    for word in words:
+        # Go encoding/base64.StdEncoding: standard alphabet and padding required
+        if not word or not re.fullmatch(r"[A-Za-z0-9+/]+=*$", word) or len(word) % 4 != 0:
+            return False
+        try:
+            text = base64.b64decode(word, validate=True)
+        except:
+            return False
+        if len(text) != key_len:
+            return False
+
+    return True
+
+
 def verify_reality_public_key(public_key: str) -> bool:
     # mihomo uses base64.RawURLEncoding (URL-safe, no padding) and requires 32 bytes
     # see: https://github.com/MetaCubeX/mihomo/blob/Alpha/adapter/outbound/reality.go
@@ -395,17 +426,8 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                 return False
 
             if item["cipher"] in MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN:
-                # will throw bad key length error
-                # see: https://github.com/MetaCubeX/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L59-L108
-                password = str(item.get(authentication, ""))
-                words = password.split(":")
-                for word in words:
-                    try:
-                        text = base64.b64decode(word)
-                        if len(text) != MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN.get(item["cipher"]):
-                            return False
-                    except:
-                        return False
+                if not verify_ss_2022_password(item["cipher"], str(item.get(authentication, ""))):
+                    return False
 
             plugin = item.get("plugin", "")
 
