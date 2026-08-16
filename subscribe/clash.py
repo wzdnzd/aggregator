@@ -192,12 +192,9 @@ COMMON_SS_SUPPORTED_CIPHERS = [
     "xchacha20-ietf-poly1305",
 ]
 
-# reference: https://github.com/MetaCubeX/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L73-L86
-MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN = {
-    "2022-blake3-aes-128-gcm": 16,
-    "2022-blake3-aes-256-gcm": 32,
-    "2022-blake3-chacha20-poly1305": 32,
-}
+# AES-2022 key lengths. chacha20-poly1305 is a supported cipher but has no EIH in mihomo.
+# see: https://github.com/SagerNet/sing-shadowsocks2/blob/dev/shadowaead_2022/method.go#L72-L86
+MIHOMO_SS_SUPPORTED_CIPHERS_SALT_LEN = {"2022-blake3-aes-128-gcm": 16, "2022-blake3-aes-256-gcm": 32}
 
 MIHOMO_SS_SUPPORTED_CIPHERS = (
     COMMON_SS_SUPPORTED_CIPHERS
@@ -208,6 +205,7 @@ MIHOMO_SS_SUPPORTED_CIPHERS = (
         "aes-256-ccm",
         "aes-128-gcm-siv",
         "aes-256-gcm-siv",
+        "2022-blake3-chacha20-poly1305",
         "chacha20",
         "chacha8-ietf-poly1305",
         "xchacha8-ietf-poly1305",
@@ -325,6 +323,26 @@ def verify_vless_encryption(encryption: str) -> bool:
             return False
 
     return True
+
+
+def verify_reality_public_key(public_key: str) -> bool:
+    # mihomo uses base64.RawURLEncoding (URL-safe, no padding) and requires 32 bytes
+    # see: https://github.com/MetaCubeX/mihomo/blob/Alpha/adapter/outbound/reality.go
+    public_key = utils.trim(public_key)
+    if not public_key or not re.fullmatch(r"[A-Za-z0-9_-]+", public_key):
+        return False
+
+    try:
+        decoded = base64.urlsafe_b64decode(public_key + "=" * (-len(public_key) % 4))
+    except:
+        return False
+
+    if len(decoded) != 32:
+        return False
+
+    # reject non-canonical encodings that Go RawURLEncoding.DecodeString rejects
+    canonical = base64.urlsafe_b64encode(decoded).decode("utf-8").rstrip("=")
+    return canonical == public_key
 
 
 def verify(item: dict, mihomo: bool = True) -> bool:
@@ -610,10 +628,10 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                         return False
 
                     content = utils.trim(reality_opts["public-key"])
-                    content += "=" * (4 - len(content) % 4)
-                    public_key = base64.urlsafe_b64decode(content)
-                    if len(public_key) != 32:
+                    if not verify_reality_public_key(content):
                         return False
+
+                    reality_opts["public-key"] = content
 
                     short_id = reality_opts["short-id"]
                     if type(short_id) != str:

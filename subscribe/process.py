@@ -574,7 +574,7 @@ def aggregate(args: argparse.Namespace) -> None:
         filename = "config.yaml"
         proxies = clash.generate_config(workspace, proxies, filename)
 
-        # filer
+        # filter
         skip = utils.trim(os.environ.get("SKIP_ALIVE_CHECK", "false")).lower() in ["true", "1"]
         nochecks, starttime = proxies, time.time()
 
