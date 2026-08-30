@@ -253,6 +253,25 @@ VLESS_MLKEM_X25519_PLUS_RTTS = ("1rtt", "0rtt")
 VLESS_MLKEM_X25519_PLUS_PADDING_LIMIT = 20
 VLESS_MLKEM_X25519_PLUS_KEY_SIZES = (32, 1184)
 
+# mihomo ParseRange uses strconv.Atoi (64-bit int on our binaries)
+# see: https://github.com/MetaCubeX/mihomo/blob/Alpha/transport/xhttp/config.go
+XHTTP_RANGE_MAX = 2**63 - 1
+XHTTP_RANGE_FIELDS = (
+    "sc-max-each-post-bytes",
+    "sc-min-posts-interval-ms",
+    "x-padding-bytes",
+    "uplink-chunk-size",
+    "session-length",
+)
+XHTTP_RANGE_POSITIVE_MAX = set(["sc-max-each-post-bytes", "sc-min-posts-interval-ms"])
+XHTTP_REUSE_RANGE_FIELDS = (
+    "max-concurrency",
+    "max-connections",
+    "c-max-reuse-times",
+    "h-max-request-times",
+    "h-max-reusable-secs",
+)
+
 # xtls-rprx-direct and xtls-rprx-origin are deprecated and no longer supported
 # XTLS_FLOWS = set(["xtls-rprx-direct", "xtls-rprx-origin", "xtls-rprx-vision"])
 
@@ -374,6 +393,120 @@ def verify_reality_public_key(public_key: str) -> bool:
     # reject non-canonical encodings that Go RawURLEncoding.DecodeString rejects
     canonical = base64.urlsafe_b64encode(decoded).decode("utf-8").rstrip("=")
     return canonical == public_key
+
+
+def parse_xhttp_range_bound(text: str):
+    # one ParseRange token: decimal int or scientific/float that is a whole number
+    text = utils.trim(text)
+    if not text:
+        return None
+
+    if re.fullmatch(r"[0-9]+", text):
+        try:
+            value = int(text)
+        except:
+            return None
+    else:
+        try:
+            number = float(text)
+        except:
+            return None
+        if number != number or number < 0 or number == float("inf"):
+            return None
+        value = int(number)
+        if value != number:
+            return None
+
+    if value < 0 or value > XHTTP_RANGE_MAX:
+        return None
+    return value
+
+
+def normalize_xhttp_range(value):
+    # canonical "123" or "min-max" for mihomo ParseRange; None if invalid
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, int):
+        if value < 0 or value > XHTTP_RANGE_MAX:
+            return None
+        return str(value)
+    if isinstance(value, float):
+        if value != value or value < 0 or value == float("inf"):
+            return None
+        number = int(value)
+        if number != value or number > XHTTP_RANGE_MAX:
+            return None
+        return str(number)
+
+    text = utils.trim(str(value))
+    if not text:
+        return ""
+
+    bound = parse_xhttp_range_bound(text)
+    if bound is not None:
+        return str(bound)
+
+    # original value is already a range like "16-32" or "1e5-2e5", not a clamp
+    if text.count("-") != 1:
+        return None
+    left, right = text.split("-", 1)
+    min_val, max_val = parse_xhttp_range_bound(left), parse_xhttp_range_bound(right)
+    if min_val is None or max_val is None or max_val < min_val:
+        return None
+    if min_val == max_val:
+        return str(min_val)
+    return f"{min_val}-{max_val}"
+
+
+def apply_xhttp_range_field(container: dict, key: str, min_positive: bool = False, max_positive: bool = False) -> bool:
+    if key not in container:
+        return True
+
+    value = container[key]
+    if value is None or (isinstance(value, str) and not utils.trim(value)):
+        container.pop(key, None)
+        return True
+
+    normalized = normalize_xhttp_range(value)
+    if normalized is None:
+        return False
+    if not normalized:
+        container.pop(key, None)
+        return True
+
+    parts = normalized.split("-")
+    min_val, max_val = int(parts[0]), int(parts[-1])
+    if min_positive and min_val <= 0:
+        return False
+    if max_positive and max_val <= 0:
+        return False
+
+    container[key] = min_val if len(parts) == 1 else normalized
+    return True
+
+
+def verify_xhttp_reuse_settings(settings: dict) -> bool:
+    if type(settings) != dict:
+        return False
+
+    for key in XHTTP_REUSE_RANGE_FIELDS:
+        if not apply_xhttp_range_field(settings, key):
+            return False
+
+    if "h-keep-alive-period" not in settings:
+        return True
+
+    value = settings["h-keep-alive-period"]
+    if value is None or (isinstance(value, str) and not utils.trim(value)):
+        settings.pop("h-keep-alive-period", None)
+        return True
+
+    normalized = normalize_xhttp_range(value)
+    if not normalized or "-" in normalized:
+        return False
+
+    settings["h-keep-alive-period"] = int(normalized)
+    return True
 
 
 def verify(item: dict, mihomo: bool = True) -> bool:
@@ -689,6 +822,29 @@ def verify(item: dict, mihomo: bool = True) -> bool:
                             return False
                     if "headers" in xhttp_opts and type(xhttp_opts["headers"]) != dict:
                         return False
+
+                    # ParseRange fields must be decimal ints or min-max, not 1E+05 / 100000.0
+                    # see: https://github.com/MetaCubeX/mihomo/blob/Alpha/transport/xhttp/config.go
+                    for key in XHTTP_RANGE_FIELDS:
+                        min_positive = key == "session-length"
+                        max_positive = key in XHTTP_RANGE_POSITIVE_MAX
+                        if not apply_xhttp_range_field(
+                            xhttp_opts, key, min_positive=min_positive, max_positive=max_positive
+                        ):
+                            return False
+
+                    if "reuse-settings" in xhttp_opts and not verify_xhttp_reuse_settings(
+                        xhttp_opts.get("reuse-settings")
+                    ):
+                        return False
+                    if "download-settings" in xhttp_opts:
+                        download_settings = xhttp_opts.get("download-settings")
+                        if type(download_settings) != dict:
+                            return False
+                        if "reuse-settings" in download_settings and not verify_xhttp_reuse_settings(
+                            download_settings.get("reuse-settings")
+                        ):
+                            return False
             elif item["type"] == "tuic":
                 # mihomo: https://wiki.metacubex.one/config/proxies/tuic
                 token = wrap(item.get("token", ""))
