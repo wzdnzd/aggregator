@@ -26,7 +26,8 @@ import yaml
 from logger import logger
 
 import subconverter
-from clash import is_mihomo, verify
+from clash import is_mihomo
+from outbound import verify
 
 EMAILS_DOMAINS = [
     "gmail.com",
