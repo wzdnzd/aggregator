@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import utils
-
 from outbound.base import OutboundVerifier, VerifyContext
 from outbound.common import ensure_bool, quote_numeric_fields, wrap
 
@@ -17,7 +16,7 @@ class SudokuVerifier(OutboundVerifier):
     type_name = "sudoku"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not wrap(item.get("key", "")):
             return False
         quote_numeric_fields(item, ("key",))
@@ -46,5 +45,5 @@ class SudokuVerifier(OutboundVerifier):
                 return False
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return "key"

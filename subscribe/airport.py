@@ -18,16 +18,19 @@ import urllib.request
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import Enum
+from http.client import HTTPMessage, HTTPResponse
+from urllib.request import Request
 
 import mailtm
 import renewal
 import utils
 import yaml
+from config.models import NodeInput
 from logger import logger
+from outbound import verify
 
 import subconverter
 from clash import is_mihomo
-from outbound import verify
 
 EMAILS_DOMAINS = [
     "gmail.com",
@@ -72,12 +75,26 @@ class Category(Enum):
 
 
 # deal with !<str>
-def str_constructor(loader, node):
+def str_constructor(loader: yaml.Loader, node: yaml.Node) -> str:
     return str(loader.construct_scalar(node))
 
 
 yaml.SafeLoader.add_constructor("str", str_constructor)
 yaml.FullLoader.add_constructor("str", str_constructor)
+
+_UNQUOTED_IPV6 = re.compile(
+    r"(?im)(?P<pre>(?:^|[\s,{])(?:server|ip|ipv6)\s*:\s*)" r'(?P<val>(?![\'"])\S*:\S*)' r"(?P<post>\s*(?:,|\}|$|\n|#))"
+)
+
+
+def quote_unquoted_ipv6(document: str) -> str:
+    if not document:
+        return ""
+
+    def replacer(match: re.Match[str]) -> str:
+        return f'{match.group("pre")}"{match.group("val")}"{match.group("post")}'
+
+    return _UNQUOTED_IPV6.sub(replacer, document)
 
 
 def lookup(name: str) -> Category:
@@ -111,7 +128,7 @@ class RegisterRequire:
 
 
 class NoRedirHandler(urllib.request.HTTPRedirectHandler):
-    def http_error_302(self, req, fp, code, msg, headers):
+    def http_error_302(self, req: Request, fp: HTTPResponse, code: int, msg: str, headers: HTTPMessage) -> HTTPResponse:
         return fp
 
     http_error_301 = http_error_302
@@ -145,32 +162,33 @@ class AirPort:
         self,
         name: str,
         site: str,
-        sub: str,
+        nodes: NodeInput | None = None,
         rename: str = "",
         exclude: str = "",
         include: str = "",
-        liveness: bool = True,
+        check_alive: bool = True,
         coupon: str = "",
         api_prefix: str = "/api/v1/",
-    ):
+    ) -> None:
         if site.endswith("/"):
             site = site[: len(site) - 1]
 
         self.api_prefix = utils.get_subpath(api_prefix)
-        if sub.strip() != "":
+        self.nodes = nodes if isinstance(nodes, NodeInput) else NodeInput()
+        subs = self.nodes.subscribe_list()
+        sub = subs[0] if subs else ""
+        if sub:
             if sub.startswith(utils.FILEPATH_PROTOCAL):
                 ref = sub[8:]
             else:
                 ref = utils.extract_domain(sub, include_protocal=True)
 
-            self.sub = sub
             self.fetch = ""
             self.ref = ref
             self.reg = ""
             self.registed = True
             self.send_email = ""
         else:
-            self.sub = ""
             self.fetch = f"{site}{self.api_prefix}user/server/fetch"
             self.registed = False
             self.send_email = f"{site}{self.api_prefix}passport/comm/sendEmailVerify"
@@ -180,7 +198,7 @@ class AirPort:
         self.rename = rename
         self.exclude = exclude
         self.include = include
-        self.liveness = liveness
+        self.check_alive = check_alive
         self.coupon = "" if utils.isblank(coupon) else coupon
         self.headers = {
             "User-Agent": utils.USER_AGENT,
@@ -328,10 +346,10 @@ class AirPort:
                 api_prefix=self.api_prefix,
             )
             if subscribe_info:
-                self.sub = subscribe_info.sub_url
-            if not self.sub:
+                self.nodes.subscribe = subscribe_info.sub_url
+            if not self.nodes.subscribe_list():
                 if token:
-                    self.sub = f"{self.ref}/api/v1/client/subscribe?token={token}"
+                    self.nodes.subscribe = f"{self.ref}/api/v1/client/subscribe?token={token}"
                 else:
                     logger.error(f"[RegisterError] cannot get token when register, domain: {self.ref}")
 
@@ -396,7 +414,7 @@ class AirPort:
 
         return success
 
-    def fetch_unused(self, cookies: str, auth: str = "", rate: float = 3.0) -> list:
+    def fetch_unused(self, cookies: str, auth: str = "", rate: float = 3.0) -> list[dict[str, object]]:
         if (not cookies and not auth) or "" == self.fetch.strip():
             return []
 
@@ -421,7 +439,12 @@ class AirPort:
             return []
 
     def get_subscribe(
-        self, retry: int, rr: RegisterRequire = None, rigid: bool = True, chuck: bool = False, invite_code: str = None
+        self,
+        retry: int,
+        rr: RegisterRequire = None,
+        allow_gmail_alias: bool = False,
+        skip_captcha: bool = False,
+        invite_code: str = None,
     ) -> tuple[str, str]:
         if self.registed:
             return "", ""
@@ -440,8 +463,8 @@ class AirPort:
         # 需要邀请码或者强制验证
         if (
             (rr.invite and not invite_code)
-            or (chuck and rr.recaptcha)
-            or (rr.whitelist and rr.verify and (rigid or "gmail.com" not in rr.whitelist))
+            or (skip_captcha and rr.recaptcha)
+            or (rr.whitelist and rr.verify and (not allow_gmail_alias or "gmail.com" not in rr.whitelist))
         ):
             self.available = False
             return "", ""
@@ -508,6 +531,31 @@ class AirPort:
             except:
                 return "", ""
 
+    def _fetch_text(self, url: str, retry: int) -> str:
+        url = utils.trim(url)
+        if not url:
+            return ""
+        if url.startswith(utils.FILEPATH_PROTOCAL):
+            file = url[len(utils.FILEPATH_PROTOCAL) :]
+            if not os.path.exists(file) or not os.path.isfile(file):
+                logger.error(f"[ParseError] file: {file} not found")
+                return ""
+            with open(file, "r", encoding="utf8") as reader:
+                return reader.read()
+
+        client = f"{utils.USER_AGENT}; Clash.Meta; Mihomo; Shadowrocket;"
+        headers = {"User-Agent": client}
+        trace = os.environ.get("TRACE_ENABLE", "false").lower() in ["true", "1"]
+        return utils.http_get(
+            url=url,
+            headers=headers,
+            retry=retry,
+            timeout=120,
+            trace=trace,
+            interval=1,
+            max_size=15 * 1024 * 1024,
+        ).strip()
+
     def parse(
         self,
         cookie: str,
@@ -515,188 +563,148 @@ class AirPort:
         retry: int,
         rate: float,
         bin_name: str,
-        disable_insecure: bool = False,
+        require_tls: bool = False,
         udp: bool = True,
         ignore_exclude: bool = False,
-        chatgpt: dict = None,
         special_protocols: bool = False,
-    ) -> list:
-        if "" == self.sub:
-            logger.error(f"[ParseError] cannot found any proxies because subscribe url is empty, domain: {self.ref}")
+        nodes: NodeInput | None = None,
+    ) -> list[dict[str, object]]:
+        source = nodes if isinstance(nodes, NodeInput) else self.nodes
+        collected = []
+        chars = utils.random_chars(length=3, punctuation=False)
+        artifact = f"{self.name}-{chars}"
+
+        for url in source.subscribe_list():
+            text = self._fetch_text(url, retry)
+            if not text or (
+                text.startswith("{") and text.endswith("}") and not re.search(r'"outbounds":', text, flags=re.I)
+            ):
+                logger.error(f"[ParseError] cannot found any proxies, subscribe: {utils.mask(url=url)}")
+                continue
+            collected.extend(
+                self.decode(
+                    text=text,
+                    artifact=f"{artifact}-sub",
+                    program=bin_name,
+                    ignore=ignore_exclude,
+                    special=special_protocols,
+                    do_verify=False,
+                )
+            )
+
+        if source.uris:
+            collected.extend(
+                self.decode(
+                    text="\n".join(source.uris),
+                    artifact=f"{artifact}-uri",
+                    program=bin_name,
+                    ignore=ignore_exclude,
+                    special=special_protocols,
+                    do_verify=False,
+                )
+            )
+
+        collected.extend([item for item in source.proxies if isinstance(item, dict)])
+        if not collected:
+            if source.empty():
+                logger.error(f"[ParseError] cannot found any proxies because node input is empty, domain: {self.ref}")
             return []
 
-        if self.sub.startswith(utils.FILEPATH_PROTOCAL):
-            self.sub = self.sub[len(utils.FILEPATH_PROTOCAL) :]
-            if not os.path.exists(self.sub) or not os.path.isfile(self.sub):
-                logger.error(f"[ParseError] file: {self.sub} not found")
-                return []
+        parsed = [item for item in collected if verify(item, special_protocols)]
+        if not parsed:
+            logger.info(f"cannot found any proxy, domain: {self.ref}")
+            return []
 
-            with open(self.sub, "r", encoding="UTF8") as f:
-                text = f.read()
-        else:
-            client = f"{utils.USER_AGENT}; Clash.Meta; Mihomo; Shadowrocket;"
-            headers = {"User-Agent": client}
-            trace = os.environ.get("TRACE_ENABLE", "false").lower() in ["true", "1"]
+        proxies = []
+        unused_nodes = self.fetch_unused(cookie, auth, rate) if cookie or auth else []
+        subscribe_url = source.subscribe_list()[0] if source.subscribe_list() else ""
+        for item in parsed:
+            name = item.get("name", "")
+            if utils.isblank(name) or name in unused_nodes:
+                continue
 
-            text = utils.http_get(
-                url=self.sub,
-                headers=headers,
-                retry=retry,
-                timeout=120,
-                trace=trace,
-                interval=1,
-                max_size=15 * 1024 * 1024,
+            if re.match(r"^JMS-\d+@[a-zA-Z0-9.]+:\d+$", name, flags=re.I):
+                server = name.split("@", maxsplit=1)[1]
+                hostname = utils.trim(server.split(":", maxsplit=1)[0]).lower()
+                if re.match(r"^(\d+\.){3}\d+$", item.get("server", ""), flags=re.I):
+                    item["server"] = hostname
+
+            try:
+                if self.include and not re.search(self.include, name, re.I):
+                    continue
+                if self.exclude and re.search(self.exclude, name, re.I):
+                    continue
+            except Exception:
+                logger.error(
+                    f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
+                )
+
+            try:
+                if self.rename:
+                    pattern_groups = self.rename.split(RENAME_GROUP_SEPARATOR)
+                    for group in pattern_groups:
+                        rename_regex = utils.trim(group)
+                        if not rename_regex:
+                            continue
+                        if RENAME_SEPARATOR in rename_regex:
+                            words = rename_regex.split(RENAME_SEPARATOR, maxsplit=1)
+                            old = words[0].strip()
+                            new = words[1].strip()
+                            if old:
+                                name = re.sub(old, new, name, flags=re.I)
+                        else:
+                            name = re.sub(rename_regex, "", name, flags=re.I)
+
+                regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
+                name = re.sub(regex, "", name, flags=re.I)
+            except Exception:
+                logger.error(
+                    f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tdomain: {self.ref}"
+                )
+
+            name = re.sub(
+                r"\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
+                " ",
+                name,
+                flags=re.I,
             ).strip()
 
-        if "" == text or (
-            text.startswith("{") and text.endswith("}") and not re.search(r'"outbounds":', text, flags=re.I)
-        ):
-            logger.error(f"[ParseError] cannot found any proxies, subscribe: {utils.mask(url=self.sub)}")
-            return []
-
-        chatgpt = chatgpt if chatgpt and type(chatgpt) == dict else None
-        enable, operate, pattern = False, "IN", ""
-        if chatgpt:
-            enable = chatgpt.get("enable", False)
-            operate = utils.trim(chatgpt.get("operate", "IN")).upper()
-            pattern = utils.trim(chatgpt.get("regex", ""))
-
-        try:
-            chars = utils.random_chars(length=3, punctuation=False)
-            artifact = f"{self.name}-{chars}"
-
-            nodes = self.decode(
-                text=text,
-                artifact=artifact,
-                program=bin_name,
-                ignore=ignore_exclude,
-                special=special_protocols,
+            name = (
+                re.sub(r"\s+|\r|\n|\\r|\\n", " ", name, flags=re.I)
+                .replace("_", "-")
+                .replace("+", "-")
+                .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
             )
+            name = re.sub(r"((\s+)?-(\s+)?)+", "-", name)
+            if not name:
+                name = f"{self.name[0]}{self.name[-1]}-{''.join(random.sample(string.ascii_uppercase, 3))}"
 
-            if not nodes:
-                logger.info(f"cannot found any proxy, domain: {self.ref}")
-                return []
+            if len(name) > 30:
+                i, j, k, n = 10, 4, 4, len(name)
+                alphabets = [x for x in name[i : n - j] if x in LETTERS]
+                if len(alphabets) > k:
+                    abbreviation = "".join(random.sample(alphabets, k)).strip()
+                else:
+                    abbreviation = "".join(alphabets)
+                name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
 
-            proxies = []
-            unused_nodes = self.fetch_unused(cookie, auth, rate)
-            for item in nodes:
-                name = item.get("name", "")
-                if utils.isblank(name) or name in unused_nodes:
-                    continue
+            name = re.sub(r"\s+(\d+)[\s_\-\|]+([A-Za-z])\b", r"-\1\2", name)
+            item["name"] = re.sub(r"(-\d+[A-Za-z])+$", "", name).upper()
+            item["sub"] = subscribe_url
+            item["liveness"] = self.check_alive
 
-                # JustMySocks节点，用主机名代替 IP 地址
-                if re.match(r"^JMS-\d+@[a-zA-Z0-9.]+:\d+$", name, flags=re.I):
-                    server = name.split("@", maxsplit=1)[1]
-                    hostname = utils.trim(server.split(":", maxsplit=1)[0]).lower()
-                    if re.match(r"^(\d+\.){3}\d+$", item.get("server", ""), flags=re.I):
-                        item["server"] = hostname
+            if require_tls:
+                if "skip-cert-verify" in item:
+                    item["skip-cert-verify"] = False
+                if "tls" in item:
+                    item["tls"] = True
 
-                try:
-                    if self.include and not re.search(self.include, name, re.I):
-                        continue
-                    else:
-                        if self.exclude and re.search(self.exclude, name, re.I):
-                            continue
-                except:
-                    logger.error(
-                        f"filter proxies error, maybe include or exclude regex exists problems, include: {self.include}\texclude: {self.exclude}"
-                    )
+            if udp and "udp" not in item and (item.get("type", "") != "snell" or int(item.get("version", 1)) == 3):
+                item["udp"] = True
 
-                try:
-                    if self.rename:
-                        pattern_groups = self.rename.split(RENAME_GROUP_SEPARATOR)
-                        for group in pattern_groups:
-                            rename_regex = utils.trim(group)
-                            if not rename_regex:
-                                continue
+            proxies.append(item)
 
-                            # re对group的引用方法: https://stackoverflow.com/questions/7191209/re-sub-replace-with-matched-content
-                            if RENAME_SEPARATOR in rename_regex:
-                                words = rename_regex.split(RENAME_SEPARATOR, maxsplit=1)
-                                old = words[0].strip()
-                                new = words[1].strip()
-                                if old:
-                                    name = re.sub(old, new, name, flags=re.I)
-                            else:
-                                name = re.sub(rename_regex, "", name, flags=re.I)
-
-                    # 标记需要进行ChatGPT连通性测试的节点
-                    flag, detect = (
-                        enable or re.search(f"{utils.CHATGPT_FLAG}|(Chat)?GPT", name, flags=re.I),
-                        True,
-                    )
-                    if flag and pattern:
-                        match = re.search(pattern, name, flags=re.I)
-                        detect = match is None if operate != "IN" else match is not None
-
-                    if flag:
-                        name = re.sub(
-                            r"((\s+)?([\-\|_]+)?(\s+)?)?(Chat)?GPT",
-                            " ",
-                            name,
-                            flags=re.I,
-                        )
-                        item["chatgpt"] = detect
-
-                    # 重命名带网址的节点
-                    regex = r"(?:https?://)?(?:[a-zA-Z0-9\u4e00-\u9fa5\-]+\.)+[a-zA-Z\u4e00-\u9fa5]{2,}"
-                    name = re.sub(regex, "", name, flags=re.I)
-                except:
-                    logger.error(
-                        f"rename error, name: {name},\trename: {self.rename}\tseparator: {RENAME_SEPARATOR}\tchatgpt: {pattern}\tdomain: {self.ref}"
-                    )
-
-                name = re.sub(
-                    r"\[[^\[]*\]|[（\(][^（\(]*[\)）]|{[^{]*}|<[^<]*>|【[^【]*】|「[^「]*」|[^a-zA-Z0-9\u4e00-\u9fa5_×\.\-|\s]",
-                    " ",
-                    name,
-                    flags=re.I,
-                ).strip()
-
-                name = (
-                    re.sub(r"\s+|\r|\n|\\r|\\n", " ", name, flags=re.I)
-                    .replace("_", "-")
-                    .replace("+", "-")
-                    .strip(r"""!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~ """)
-                )
-                name = re.sub(r"((\s+)?-(\s+)?)+", "-", name)
-                if not name:
-                    name = f"{self.name[0]}{self.name[-1]}-{''.join(random.sample(string.ascii_uppercase, 3))}"
-
-                if len(name) > 30:
-                    i, j, k, n = 10, 4, 4, len(name)
-                    alphabets = [x for x in name[i : n - j] if x in LETTERS]
-                    if len(alphabets) > k:
-                        abbreviation = "".join(random.sample(alphabets, k)).strip()
-                    else:
-                        abbreviation = "".join(alphabets)
-
-                    name = f"{name[:i].strip()}-{abbreviation}-{name[-j:].strip()}"
-
-                name = re.sub(r"\s+(\d+)[\s_\-\|]+([A-Za-z])\b", r"-\1\2", name)
-                item["name"] = re.sub(r"(-\d+[A-Za-z])+$", "", name).upper()
-
-                # 方便过滤无效订阅
-                item["sub"] = self.sub
-                item["liveness"] = self.liveness
-
-                if disable_insecure:
-                    if "skip-cert-verify" in item:
-                        item["skip-cert-verify"] = False
-                    if "tls" in item:
-                        item["tls"] = True
-
-                if udp and "udp" not in item and (item.get("type", "") != "snell" or int(item.get("version", 1)) == 3):
-                    item["udp"] = True
-
-                proxies.append(item)
-
-            return proxies
-        except:
-            logger.error(
-                f"[ParseError] occur error when parse data, domain: {self.ref}, message:\n{traceback.format_exc()}"
-            )
-            return []
+        return proxies
 
     @staticmethod
     def check_protocol(link: str) -> bool:
@@ -715,7 +723,8 @@ class AirPort:
         special: bool = False,
         throw: bool = False,
         use_subconverter: bool = True,
-    ) -> list:
+        do_verify: bool = True,
+    ) -> list[dict[str, object]]:
         def clean_text(document: str) -> str:
             document = utils.trim(text=document)
             if not document:
@@ -732,6 +741,38 @@ class AirPort:
             document = re.sub(r'-\s+("?%.*"?)', add_quote, document, flags=re.I)
 
             return document
+
+        def load_nodes(document: str) -> list[dict[str, object]]:
+            document = quote_unquoted_ipv6(clean_text(document))
+            if not document:
+                return []
+
+            loaded = None
+            try:
+                loaded = yaml.load(document, Loader=yaml.SafeLoader)
+            except yaml.YAMLError:
+                try:
+                    yaml.add_multi_constructor(
+                        "str",
+                        lambda loader, suffix, node: str(node.value),
+                        Loader=yaml.SafeLoader,
+                    )
+                    loaded = yaml.load(document, Loader=yaml.FullLoader)
+                except yaml.YAMLError as e:
+                    if throw:
+                        raise e
+                    logger.error(f"cannot load yaml file, artifact: {artifact}, message:\n{traceback.format_exc()}")
+                    return []
+            except Exception as e:
+                if throw:
+                    raise e
+                logger.error(f"cannot load yaml file, artifact: {artifact}, message:\n{traceback.format_exc()}")
+                return []
+
+            if not isinstance(loaded, dict):
+                return []
+            proxies = loaded.get("proxies", [])
+            return proxies if isinstance(proxies, list) else []
 
         text, nodes = utils.trim(text=text), []
         if not text:
@@ -795,47 +836,26 @@ class AirPort:
             if not success:
                 return []
 
-            with open(clash_file, "r", encoding="utf8", errors="ignore") as reader:
-                config = None
-                try:
-                    config = yaml.load(reader, Loader=yaml.SafeLoader)
-                except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
-                    reader.seek(0, 0)
-                    yaml.add_multi_constructor(
-                        "str",
-                        lambda loader, suffix, node: str(node.value),
-                        Loader=yaml.SafeLoader,
-                    )
-                    config = yaml.load(reader, Loader=yaml.SafeLoader)
-                except Exception as e:
-                    if throw:
-                        raise e
-                    else:
-                        logger.error(f"cannot load yaml file, artifact: {artifact}, message:\n{traceback.format_exc()}")
-
-                nodes = [] if not config else config.get("proxies", [])
-
-            # 已经读取，可以删除
-            os.remove(clash_file)
-        else:
-            nodes = None
+            document = ""
             try:
-                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
-            except yaml.scanner.ScannerError:
-                text = clean_text(document=text)
-                nodes = yaml.load(text, Loader=yaml.SafeLoader).get("proxies", [])
-            except (yaml.constructor.ConstructorError, yaml.parser.ParserError):
-                yaml.add_multi_constructor("str", lambda loader, suffix, node: str(node.value), Loader=yaml.SafeLoader)
-                nodes = yaml.load(text, Loader=yaml.FullLoader).get("proxies", [])
-            except Exception as e:
-                if throw:
-                    raise e
-                else:
-                    logger.error(f"cannot load yaml file, artifact: {artifact}, message:\n{traceback.format_exc()}")
+                with open(clash_file, "r", encoding="utf8", errors="ignore") as reader:
+                    document = reader.read()
+            finally:
+                if os.path.exists(clash_file):
+                    os.remove(clash_file)
+            nodes = load_nodes(document)
+        else:
+            nodes = load_nodes(text)
 
-        return [] if not nodes else [x for x in nodes if verify(x, special)]
+        if not nodes:
+            return []
+        if do_verify:
+            return [x for x in nodes if verify(x, special)]
+        return nodes
 
     @staticmethod
-    def enable_special_protocols() -> bool:
-        flag = utils.trim(os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true")).lower()
-        return (flag == "" or flag in ["true", "1"]) and is_mihomo()
+    def enable_special_protocols(enabled: bool | None = None) -> bool:
+        if enabled is None:
+            flag = utils.trim(os.environ.get("ENABLE_SPECIAL_PROTOCOLS", "true")).lower()
+            enabled = flag == "" or flag in ["true", "1"]
+        return bool(enabled) and is_mihomo()

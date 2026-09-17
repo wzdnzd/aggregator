@@ -5,7 +5,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 
 import utils
-
 from outbound.common import (
     check_common_optional,
     check_optional_port,
@@ -18,8 +17,8 @@ from outbound.common import (
 
 
 class VerifyContext:
-    def __init__(self, mihomo: bool = True) -> None:
-        self.mihomo = mihomo
+    def __init__(self, is_mihomo: bool = True) -> None:
+        self.is_mihomo = is_mihomo
 
 
 class OutboundVerifier(ABC):
@@ -28,8 +27,8 @@ class OutboundVerifier(ABC):
     require_server: bool = True
     require_port: bool = True
 
-    def verify(self, item: dict, ctx: VerifyContext) -> bool:
-        if self.mihomo_only and not ctx.mihomo:
+    def verify(self, item: dict[str, object], ctx: VerifyContext) -> bool:
+        if self.mihomo_only and not ctx.is_mihomo:
             return False
 
         item.pop("dialer-proxy", None)
@@ -52,20 +51,20 @@ class OutboundVerifier(ABC):
             return False
         return finalize_auth(item, self.auth_field(item))
 
-    def needs_server(self, item: dict) -> bool:
+    def needs_server(self, item: dict[str, object]) -> bool:
         return self.require_server
 
-    def needs_port(self, item: dict) -> bool:
+    def needs_port(self, item: dict[str, object]) -> bool:
         return self.require_port
 
     @abstractmethod
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         raise NotImplementedError
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return "password"
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         field = self.auth_field(item)
         secret = item.get(field, "") if field else ""
         return (self.type_name, secret)
@@ -83,7 +82,7 @@ def register(*verifiers: OutboundVerifier) -> None:
         VERIFIERS[verifier.type_name] = verifier
 
 
-def verify(item: dict, mihomo: bool = True) -> bool:
+def verify(item: dict[str, object], is_mihomo: bool = True) -> bool:
     if not item or type(item) != dict or "type" not in item:
         return False
 
@@ -92,12 +91,12 @@ def verify(item: dict, mihomo: bool = True) -> bool:
         return False
 
     try:
-        return verifier.verify(item, VerifyContext(mihomo=mihomo))
+        return verifier.verify(item, VerifyContext(is_mihomo=is_mihomo))
     except Exception:
         return False
 
 
-def proxy_exists(proxy: dict, hosts: dict) -> bool:
+def proxy_exists(proxy: dict[str, object], hosts: dict[str, list[dict[str, object]]]) -> bool:
     if not proxy:
         return True
     if not hosts:

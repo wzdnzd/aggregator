@@ -13,10 +13,15 @@ import urllib.request
 import warnings
 from copy import deepcopy
 
-import push
 import utils
 import yaml
+from config.models import StorageItem
+from crawl.models import ChannelResult
 from logger import logger
+from push import PushTo
+
+from .base import PluginContext, ScriptPlugin, register_plugin
+from .commons import as_channel_result, plugin_params
 
 warnings.filterwarnings("ignore")
 
@@ -36,7 +41,7 @@ HEADER = {
 """
 
 
-def convert(chars: bytes) -> list:
+def convert(chars: bytes) -> list[dict[str, object]]:
     if chars is None or b"" == chars:
         return []
     try:
@@ -77,7 +82,7 @@ def convert(chars: bytes) -> list:
         return []
 
 
-def parse_vmess(node: dict, uuid: str) -> dict:
+def parse_vmess(node: dict[str, object], uuid: str) -> dict[str, object] | None:
     if not uuid:
         return None
 
@@ -128,7 +133,7 @@ def parse_vmess(node: dict, uuid: str) -> dict:
     return result
 
 
-def login(url, params, headers, retry) -> str:
+def login(url: str, params: dict[str, object], headers: dict[str, str], retry: int) -> str:
     try:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, headers=headers, method="POST")
@@ -148,7 +153,7 @@ def login(url, params, headers, retry) -> str:
         return login(url, params, headers, retry) if retry > 0 else ""
 
 
-def register(url: str, params: dict, retry: int) -> bool:
+def register(url: str, params: dict[str, object], retry: int) -> bool:
     try:
         data = urllib.parse.urlencode(params).encode(encoding="UTF8")
         request = urllib.request.Request(url, data=data, method="POST", headers=HEADER)
@@ -171,7 +176,7 @@ def register(url: str, params: dict, retry: int) -> bool:
         return register(url, params, retry) if retry > 0 else False
 
 
-def get_cookie(text) -> str:
+def get_cookie(text: str | None) -> str:
     regex = "(__cfduid|uid|email|key|ip|expire_in)=(.+?);"
     if not text:
         return ""
@@ -186,7 +191,7 @@ def fetch_nodes(
     domain: str,
     email: str,
     passwd: str,
-    headers: dict = None,
+    headers: dict[str, str] | None = None,
     retry: int = 3,
     subflag: bool = False,
 ) -> bytes:
@@ -236,7 +241,7 @@ def check(domain: str) -> bool:
     return False
 
 
-def get_payload(email: str, passwd: str) -> dict:
+def get_payload(email: str, passwd: str) -> dict[str, object]:
     if not email:
         email = utils.random_chars(length=8, punctuation=False) + "@gmail.com"
     if not passwd:
@@ -253,7 +258,7 @@ def get_payload(email: str, passwd: str) -> dict:
     }
 
 
-def scanone(domain: str, email: str, passwd: str) -> list:
+def scanone(domain: str, email: str, passwd: str) -> list[dict[str, object]]:
     # 获取机场所有节点信息
     content = get_userinfo(domain=domain, email=email, passwd=passwd, subflag=False, verify=True)
 
@@ -306,7 +311,7 @@ def get_userinfo(domain: str, email: str, passwd: str, subflag: bool, verify: bo
     return fetch_nodes(domain=domain, email=email, passwd=passwd, subflag=subflag)
 
 
-def filter_task(tasks: dict) -> list:
+def filter_task(tasks: dict[str, dict[str, object]]) -> list[list[str]]:
     if not tasks or type(tasks) != dict:
         return []
 
@@ -329,7 +334,7 @@ def filter_task(tasks: dict) -> list:
     return configs
 
 
-def scan(params: dict) -> list:
+def scan(params: dict[str, object], ctx: PluginContext | None = None) -> list[dict[str, object]]:
     if not params or type(params) != dict:
         return []
 
@@ -339,31 +344,47 @@ def scan(params: dict) -> list:
         return []
 
     config = params.get("config", {})
-    storage = params.get("storage", {})
-    if not storage or type(storage) != dict:
-        logger.error(f"[ScanerError] cannot scan proxies bcause storage config is invalidate")
+    if ctx is not None and not isinstance(ctx, PluginContext):
         return []
-
-    persist = storage.get("items", {})
-    pushtool = push.get_instance(config=push.PushConfig.from_dict(storage))
-
-    if not pushtool.validate(config=persist) or not config or type(config) != dict or not config.get("push_to"):
-        logger.error(f"[ScanerError] cannot scan proxies bcause missing some parameters")
+    pushtool = ctx.pushtool if ctx else None
+    persist = ctx.persist if ctx else None
+    if (
+        not isinstance(pushtool, PushTo)
+        or not isinstance(persist, StorageItem)
+        or not pushtool.validate(item=persist)
+        or not config
+        or not isinstance(config, dict)
+        or not config.get("push_to")
+    ):
+        logger.error("[ScanerError] cannot scan proxies bcause missing some parameters")
         return []
 
     results = utils.multi_process_run(func=scanone, tasks=tasks)
     proxies = list(itertools.chain.from_iterable(results))
     if proxies:
         content = yaml.dump(data={"proxies": proxies}, allow_unicode=True)
-        pushtool.push_to(content=content, config=persist, group="scaner")
+        pushtool.push_to(content=content, item=persist, group="scaner")
     else:
         domains = ",".join(x[0] for x in tasks)
         logger.info(f"[ScanerError] cannot found any proxies, domains=[{domains}]")
 
-    config["sub"] = [pushtool.raw_url(config=persist)]
+    config["sub"] = [pushtool.raw_url(item=persist)]
     config["name"] = "loophole" if not config.get("name", "") else config.get("name")
     config["push_to"] = list(set(config["push_to"]))
     config["saved"] = True
 
     logger.info(f"[ScanerInfo] scan finished, found {len(proxies)} proxies")
     return [config]
+
+
+class ScanerPlugin(ScriptPlugin[dict[str, object]]):
+    name = "scaner"
+
+    def parse(self, ctx: PluginContext) -> dict[str, object]:
+        return plugin_params(ctx)
+
+    def run(self, config: dict[str, object], ctx: PluginContext) -> ChannelResult:
+        return as_channel_result(scan(config, ctx))
+
+
+register_plugin(ScanerPlugin())

@@ -7,30 +7,12 @@ import os
 from threading import Lock
 
 import utils
+from config.models import CONVERT_TARGETS
 from logger import logger
 
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 FILE_LOCK = Lock()
-
-CONVERT_TARGETS = [
-    "clash",
-    "v2ray",
-    "singbox",
-    "mixed",
-    "clashr",
-    "quan",
-    "quanx",
-    "loon",
-    "ss",
-    "sssub",
-    "ssd",
-    "ssr",
-    "surfboard",
-    "surge",
-    # "surge&ver=2",
-    # "surge&ver=3",
-]
 
 
 def get_filename(target: str) -> str:

@@ -18,17 +18,17 @@ class QuotedStr(str):
     pass
 
 
-def quoted_scalar(dumper, data):
+def quoted_scalar(dumper: object, data: object) -> object:
     return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
 
 
-def wrap(text) -> str:
+def wrap(text: object) -> str:
     if utils.is_number(text):
         text = str(text)
     return utils.trim(text)
 
 
-def normalize_name(item: dict) -> bool:
+def normalize_name(item: dict[str, object]) -> bool:
     name = str(item.get("name", "")).strip()
     if not name:
         return False
@@ -36,7 +36,7 @@ def normalize_name(item: dict) -> bool:
     return True
 
 
-def normalize_server(item: dict) -> bool:
+def normalize_server(item: dict[str, object]) -> bool:
     server = str(item.get("server", "")).strip().lower()
     if not server:
         return False
@@ -52,7 +52,7 @@ def normalize_server(item: dict) -> bool:
     return True
 
 
-def check_ports(port, ranges, protocol: str) -> bool:
+def check_ports(port: object, ranges: object, protocol: str) -> bool:
     protocol = utils.trim(protocol).lower()
 
     try:
@@ -65,7 +65,7 @@ def check_ports(port, ranges, protocol: str) -> bool:
     return parse_port_ranges(ranges)
 
 
-def parse_port_ranges(ranges) -> bool:
+def parse_port_ranges(ranges: object) -> bool:
     text = wrap(ranges)
     if not text:
         return False
@@ -88,17 +88,17 @@ def parse_port_ranges(ranges) -> bool:
     return True
 
 
-def check_required_port(item: dict, protocol: str) -> bool:
+def check_required_port(item: dict[str, object], protocol: str) -> bool:
     return check_ports(item.get("port", ""), item.get("ports", None), protocol)
 
 
-def check_optional_port(item: dict, protocol: str) -> bool:
+def check_optional_port(item: dict[str, object], protocol: str) -> bool:
     if "port" not in item or item.get("port") in (None, ""):
         return True
     return check_ports(item.get("port", ""), item.get("ports", None), protocol)
 
 
-def check_common_optional(item: dict) -> bool:
+def check_common_optional(item: dict[str, object]) -> bool:
     if "uuid" in item and not utils.verify_uuid(item.get("uuid")):
         return False
 
@@ -121,7 +121,7 @@ def check_common_optional(item: dict) -> bool:
     return True
 
 
-def finalize_auth(item: dict, field: str | None) -> bool:
+def finalize_auth(item: dict[str, object], field: str | None) -> bool:
     if not field:
         return True
     if not item.get(field, ""):
@@ -131,13 +131,13 @@ def finalize_auth(item: dict, field: str | None) -> bool:
     return True
 
 
-def quote_numeric_fields(item: dict, fields: tuple[str, ...]) -> None:
+def quote_numeric_fields(item: dict[str, object], fields: tuple[str, ...]) -> None:
     for field in fields:
         if field in item and item.get(field, "") != "" and utils.is_number(item[field]):
             item[field] = QuotedStr(item[field])
 
 
-def ensure_non_negative_number(item: dict, field: str) -> bool:
+def ensure_non_negative_number(item: dict[str, object], field: str) -> bool:
     if field not in item:
         return True
     if not utils.is_number(item[field]) or int(item[field]) < 0:
@@ -145,19 +145,19 @@ def ensure_non_negative_number(item: dict, field: str) -> bool:
     return True
 
 
-def ensure_number(item: dict, field: str) -> bool:
+def ensure_number(item: dict[str, object], field: str) -> bool:
     if field not in item:
         return True
     return utils.is_number(item[field])
 
 
-def ensure_bool(item: dict, field: str) -> bool:
+def ensure_bool(item: dict[str, object], field: str) -> bool:
     if field not in item:
         return True
     return type(item[field]) == bool
 
 
-def ensure_str(item: dict, field: str) -> bool:
+def ensure_str(item: dict[str, object], field: str) -> bool:
     if field not in item:
         return True
     return type(item[field]) == str
@@ -174,7 +174,7 @@ def is_valid_ip(text: str) -> bool:
         return False
 
 
-def verify_traffic(item: dict, field: str) -> bool:
+def verify_traffic(item: dict[str, object], field: str) -> bool:
     if field not in item:
         return True
 
@@ -190,20 +190,20 @@ def verify_traffic(item: dict, field: str) -> bool:
     return bool(TRAFFIC_PATTERN.match(utils.trim(traffic)))
 
 
-def verify_congestion_controller(item: dict) -> bool:
+def verify_congestion_controller(item: dict[str, object]) -> bool:
     if "congestion-controller" not in item:
         return True
     return item.get("congestion-controller") in CONGESTION_CONTROLLERS
 
 
-def verify_bbr_profile(item: dict) -> bool:
+def verify_bbr_profile(item: dict[str, object]) -> bool:
     if "bbr-profile" not in item:
         return True
     profile = wrap(item.get("bbr-profile", ""))
     return profile in BBR_PROFILES
 
 
-def verify_hop_interval(item: dict) -> bool:
+def verify_hop_interval(item: dict[str, object]) -> bool:
     if "hop-interval" not in item:
         return True
     value = item.get("hop-interval")
@@ -223,7 +223,7 @@ def verify_hop_interval(item: dict) -> bool:
         return False
 
 
-def endpoint_key(item: dict) -> str:
+def endpoint_key(item: dict[str, object]) -> str:
     server = item.get("server")
     port = item.get("port")
     if server:

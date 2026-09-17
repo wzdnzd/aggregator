@@ -9,12 +9,18 @@ import re
 import time
 from copy import deepcopy
 
-import crawl
-import push
 import utils
+from config.models import StorageItem, TaskParams
+from crawl.channels.page import PageChannel
+from crawl.helpers import fetch_jobs, is_available, naming_task
+from crawl.models import ChannelResult, CrawlContext
 from logger import logger
 from origin import Origin
+from push import PushTo
 from urlvalidator import isurl
+
+from .base import PluginContext, ScriptPlugin, register_plugin
+from .commons import as_channel_result, plugin_params
 
 # github rest api prefix
 GITHUB_API = "https://api.github.com"
@@ -60,7 +66,7 @@ def query_forks_count(username: str, repository: str, retry: int = 3) -> int:
         return -1
 
 
-def query_forks(username: str, repository: str, page: int, peer: int = 100, sort: str = "newest") -> dict:
+def query_forks(username: str, repository: str, page: int, peer: int = 100, sort: str = "newest") -> dict[str, object]:
     username = utils.trim(username)
     repository = utils.trim(repository)
 
@@ -106,9 +112,9 @@ def query_forks(username: str, repository: str, page: int, peer: int = 100, sort
     return subscriptions
 
 
-def collect_subs(params: dict) -> list[dict]:
-    def update_conf(config: dict, sub: str, name: str = "") -> dict:
-        name = crawl.naming_task(url=sub) if not name else name
+def collect_subs(params: dict[str, object], ctx: PluginContext | None = None) -> list[dict[str, object]]:
+    def update_conf(config: dict[str, object], sub: str, name: str = "") -> dict[str, object]:
+        name = naming_task(url=sub) if not name else name
 
         item = deepcopy(config)
         item.update({"name": name, "sub": sub, "saved": True})
@@ -131,16 +137,12 @@ def collect_subs(params: dict) -> list[dict]:
         logger.error(f"[GithubFork] cannot list forks from github due to username or repository is empty")
         return []
 
-    # used to store subscriptions
-    storage = params.get("storage", {})
-    if not storage or type(storage) != dict:
-        logger.error(f"[GithubFork] cannot fetch subscriptions due to invalid storage config")
+    if ctx is not None and not isinstance(ctx, PluginContext):
         return []
-
-    persist = storage.get("items", {})
-    pushtool = push.get_instance(config=push.PushConfig.from_dict(storage))
-    if not pushtool.validate(config=persist):
-        logger.error(f"[GithubFork] cannot fetch subscriptions due to invalid persist config")
+    pushtool = ctx.pushtool if ctx else None
+    persist = ctx.persist if ctx else None
+    if not isinstance(pushtool, PushTo) or not isinstance(persist, StorageItem) or not pushtool.validate(item=persist):
+        logger.error("[GithubFork] cannot fetch subscriptions due to invalid persist config")
         return []
 
     # only keep subscriptions, usually used when there are too many nodes to save to the remote service
@@ -159,7 +161,7 @@ def collect_subs(params: dict) -> list[dict]:
     materials, tasks = {}, []
 
     # load old subscriptions
-    content = utils.http_get(url=pushtool.raw_url(config=persist), timeout=30)
+    content = utils.http_get(url=pushtool.raw_url(item=persist), timeout=30)
     urls = re.findall(r"^https?:\/\/[^\s]+", content, flags=re.M)
     for url in urls:
         url = github_warp(ghproxy=ghproxy, url=url)
@@ -226,25 +228,30 @@ def collect_subs(params: dict) -> list[dict]:
                 proxy = github_warp(ghproxy=ghproxy, url=proxy)
                 materials[proxy] = update_conf(config=config, sub=proxy, name=name)
             for sub in subs:
-                tasks.append([sub, push_to, include, exclude, config, None, Origin.PAGE])
+                tasks.append(
+                    PageChannel(url=sub, include=include, exclude=exclude, push_to=push_to, origin=Origin.PAGE.name)
+                )
 
     # crawl all subscriptions from subscriptions.txt
-    results = utils.multi_thread_run(func=crawl.crawl_single_page, tasks=tasks)
-    for result in results:
-        if not result or not isinstance(result, dict):
-            continue
-
-        for k, v in result.items():
-            if not k or not v or not isinstance(v, dict):
-                continue
-
-            v.update({"sub": k, "saved": True})
-            materials[k] = v
+    crawled = fetch_jobs(
+        tasks,
+        (
+            ctx.crawl
+            if ctx
+            else CrawlContext(
+                mode=0, include_nodes=True, max_fails=5, exclude="", task=TaskParams(), storage=None, pushtool=None
+            )
+        ),
+    )
+    for item in crawled.items:
+        payload = deepcopy(config)
+        payload.update({"sub": item.url, "saved": True})
+        materials[item.url] = payload
 
     # check availability
     candidates = list(materials.keys())
     tasks = [[x, 2, remain, life] for x in candidates]
-    masks = utils.multi_thread_run(func=crawl.is_available, tasks=tasks)
+    masks = utils.multi_thread_run(func=is_available, tasks=tasks)
 
     # filter available subscriptions
     effective_subs = sorted([candidates[i] for i in range(len(masks)) if masks[i]])
@@ -253,6 +260,19 @@ def collect_subs(params: dict) -> list[dict]:
     # save result
     if effective_subs:
         content = "\n".join(effective_subs)
-        pushtool.push_to(content=content, config=persist, group="gitfork")
+        pushtool.push_to(content=content, item=persist, group="gitfork")
 
     return [] if only_sublink else [materials.get(k) for k in effective_subs]
+
+
+class GitForksPlugin(ScriptPlugin[dict[str, object]]):
+    name = "gitforks"
+
+    def parse(self, ctx: PluginContext) -> dict[str, object]:
+        return plugin_params(ctx)
+
+    def run(self, config: dict[str, object], ctx: PluginContext) -> ChannelResult:
+        return as_channel_result(collect_subs(config, ctx))
+
+
+register_plugin(GitForksPlugin())

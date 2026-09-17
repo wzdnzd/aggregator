@@ -43,14 +43,26 @@ USER_AGENT = (
 FILEPATH_PROTOCAL = "file:///"
 
 
-# ChatGPT 标识
-CHATGPT_FLAG = "-GPT"
-
-
 DEFAULT_HTTP_HEADERS = {
     "User-Agent": USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
 }
+
+
+_SUSPICIOUS_URL_RE = re.compile(
+    r"(?i)("
+    r"(?:^|//)(?:[^/]*\.)?(?:speedtest|librespeed|fast\.com|cachefly\.net|thinkbroadband\.com|speed\.cloudflare\.com)"
+    r"|/__down(?:\?|$)"
+    r"|\.(?:zip|iso|exe|mp4|mkv|avi|tar|tgz|gz|7z|rar|bin|img|dmg|apk|msi|pdf|"
+    r"css|js|png|jpe?g|gif|svg|webp|woff2?|ico|map|torrent)(?:\?|$)"
+    r")"
+)
+
+
+def is_suspicious_url(url: str) -> bool:
+    if not url or not isinstance(url, str):
+        return False
+    return bool(_SUSPICIOUS_URL_RE.search(url.strip()))
 
 
 def random_chars(length: int, punctuation: bool = False) -> str:
@@ -65,14 +77,14 @@ def random_chars(length: int, punctuation: bool = False) -> str:
 
 def http_get(
     url: str,
-    headers: dict = None,
-    params: dict = None,
+    headers: dict[str, str] | None = None,
+    params: dict[str, str] | None = None,
     retry: int = 3,
     proxy: str = "",
     interval: float = 0,
     timeout: float = 10,
     trace: bool = False,
-    max_size=None,
+    max_size: int | None = None,
 ) -> str:
     if not isurl(url=url):
         logger.error(f"invalid url: {url}")
@@ -190,7 +202,7 @@ def extract_cookie(text: str) -> str:
     return cookie
 
 
-def cmd(command: list, output: bool = False) -> tuple[bool, str]:
+def cmd(command: list[str], output: bool = False) -> tuple[bool, str]:
     if command is None or len(command) == 0:
         return False, ""
 
@@ -288,7 +300,7 @@ def encoding_url(url: str) -> str:
         return url
 
 
-def write_file(filename: str, lines: list) -> bool:
+def write_file(filename: str, lines: list[str] | str) -> bool:
     if not filename or not lines:
         logger.error(f"filename or lines is empty, filename: {filename}")
         return False
@@ -356,6 +368,13 @@ def load_dotenv(enviroment: str = ".env") -> None:
                 os.environ[k] = v
 
 
+def env_bool(name: str, default: bool = False) -> bool:
+    raw = trim(os.environ.get(name, ""))
+    if not raw:
+        return default
+    return raw.lower() in ["true", "1"]
+
+
 def hide(url: str) -> str:
     # len('http://') equals 7
     if isblank(url) or len(url) < 7:
@@ -413,12 +432,12 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 def http_post(
     url: str,
-    headers: dict = None,
-    params: dict = {},
+    headers: dict[str, str] | None = None,
+    params: dict[str, object] | None = None,
     retry: int = 3,
     timeout: float = 6,
     allow_redirects: bool = True,
-) -> HTTPResponse:
+) -> HTTPResponse | None:
     if params is None or type(params) != dict or retry <= 0:
         return None
 
@@ -481,7 +500,7 @@ def url_complete(url: str, secret: bool = False) -> str:
     return url
 
 
-def load_emoji_pattern(filepath: str = "") -> dict:
+def load_emoji_pattern(filepath: str = "") -> dict[str, str]:
     filepath = trim(filepath)
     if not filepath:
         workspace = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -509,7 +528,7 @@ def load_emoji_pattern(filepath: str = "") -> dict:
     return patterns
 
 
-def get_emoji(text: str, patterns: dict, default: str = "") -> str:
+def get_emoji(text: str, patterns: dict[str, str], default: str = "") -> str:
     if not patterns or type(patterns) != dict or not text or type(text) != str:
         return default
 
@@ -530,7 +549,7 @@ def get_subpath(api_prefix: str, default: str = "/api/v1/") -> str:
     return path
 
 
-def multi_process_run(func: typing.Callable, tasks: list) -> list:
+def multi_process_run(func: typing.Callable[..., object], tasks: list[object]) -> list[object]:
     if not func or not isinstance(func, typing.Callable):
         logger.error(f"skip execute due to func is not callable")
         return []
@@ -566,12 +585,12 @@ def multi_process_run(func: typing.Callable, tasks: list) -> list:
 
 
 def multi_thread_run(
-    func: typing.Callable,
-    tasks: list,
-    num_threads: int = None,
+    func: typing.Callable[..., object],
+    tasks: list[object],
+    num_threads: int | None = None,
     show_progress: bool = False,
     description: str = "",
-) -> list:
+) -> list[object]:
     if not func or not tasks or not isinstance(tasks, list):
         return []
 

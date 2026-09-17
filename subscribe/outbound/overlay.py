@@ -12,7 +12,7 @@ class EasyTierVerifier(OutboundVerifier):
     require_server = False
     require_port = False
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not wrap(item.get("network-name", "")):
             return False
         peers = item.get("peers")
@@ -21,10 +21,10 @@ class EasyTierVerifier(OutboundVerifier):
         has_listeners = isinstance(listeners, list) and listeners
         return bool(has_peers or has_listeners)
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("network-name", ""), item.get("network-secret", ""))
 
 
@@ -34,13 +34,13 @@ class TailscaleVerifier(OutboundVerifier):
     require_server = False
     require_port = False
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("auth-key", ""), item.get("hostname", ""), item.get("control-url", ""))
 
 
@@ -50,12 +50,12 @@ class ZeroTierVerifier(OutboundVerifier):
     require_server = False
     require_port = False
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         network = wrap(item.get("network", ""))
         return len(network) == 16
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("network", ""), item.get("identity-secret", ""))

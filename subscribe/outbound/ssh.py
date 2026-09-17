@@ -10,7 +10,7 @@ class SshVerifier(OutboundVerifier):
     type_name = "ssh"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not wrap(item.get("username", "")):
             return False
         quote_numeric_fields(item, ("username",))
@@ -18,12 +18,12 @@ class SshVerifier(OutboundVerifier):
         has_key = bool(wrap(item.get("private-key", "")) or wrap(item.get("private_key", "")))
         return has_password or has_key
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         if wrap(item.get("password", "")):
             return "password"
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (
             self.type_name,
             item.get("username", ""),

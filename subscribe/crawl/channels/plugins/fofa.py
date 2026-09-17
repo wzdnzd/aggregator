@@ -17,10 +17,14 @@ from copy import deepcopy
 
 import utils
 import yaml
-from crawl import naming_task
+from crawl.helpers import naming_task
+from crawl.models import ChannelResult
 from logger import logger
 from origin import Origin
 from urlvalidator import isurl
+
+from .base import PluginContext, ScriptPlugin, register_plugin
+from .commons import as_channel_result, plugin_params
 
 
 def search(exclude: str = "", maxsize: int = sys.maxsize, timesleep: float = 3, timeout: float = 180) -> list[str]:
@@ -119,15 +123,15 @@ def extract_one(url: str) -> list[str]:
     return subscriptions
 
 
-def recall(params: dict) -> list:
-    def inwrap(sub: str, nocache: bool = True, pardon: bool = False) -> dict:
+def recall(params: dict[str, object]) -> list[dict[str, object]]:
+    def inwrap(sub: str, nocache: bool = True, pardon: bool = False) -> dict[str, object]:
         config = deepcopy(params.get("config", {}))
         config["sub"] = sub
         config["saved"] = False
         config["checked"] = False
         config["nocache"] = nocache
         config["pardon"] = pardon
-        config["name"] = naming_task(link)
+        config["name"] = naming_task(sub)
         config["origin"] = Origin.FOFA.name
         config["push_to"] = list(set(config.get("push_to", [])))
 
@@ -167,3 +171,16 @@ def recall(params: dict) -> list:
     logger.info(f"[FOFA] search finished, found {len(tasks)} candidates to be check, cost: {cost}")
 
     return tasks
+
+
+class FofaPlugin(ScriptPlugin[dict[str, object]]):
+    name = "fofa"
+
+    def parse(self, ctx: PluginContext) -> dict[str, object]:
+        return plugin_params(ctx)
+
+    def run(self, config: dict[str, object], ctx: PluginContext) -> ChannelResult:
+        return as_channel_result(recall(config))
+
+
+register_plugin(FofaPlugin())

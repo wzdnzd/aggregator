@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import utils
-
 from outbound.common import wrap
 
 # mihomo ParseRange uses strconv.Atoi
@@ -27,7 +26,7 @@ XHTTP_MODES = ("auto", "stream-one", "stream-up", "packet-up")
 MKCP_HEADERS = ("", "none", "srtp", "utp", "wechat-video", "dtls", "wireguard")
 
 
-def parse_xhttp_range_bound(text: str):
+def parse_xhttp_range_bound(text: str) -> int | None:
     text = utils.trim(text)
     if not text:
         return None
@@ -53,7 +52,7 @@ def parse_xhttp_range_bound(text: str):
     return value
 
 
-def normalize_xhttp_range(value, allow_negative: bool = False):
+def normalize_xhttp_range(value: object, allow_negative: bool = False) -> int | None:
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, int):
@@ -93,7 +92,9 @@ def normalize_xhttp_range(value, allow_negative: bool = False):
     return f"{min_val}-{max_val}"
 
 
-def apply_xhttp_range_field(container: dict, key: str, min_positive: bool = False, max_positive: bool = False) -> bool:
+def apply_xhttp_range_field(
+    container: dict[str, object], key: str, min_positive: bool = False, max_positive: bool = False
+) -> bool:
     if key not in container:
         return True
 
@@ -120,7 +121,7 @@ def apply_xhttp_range_field(container: dict, key: str, min_positive: bool = Fals
     return True
 
 
-def verify_xhttp_reuse_settings(settings: dict) -> bool:
+def verify_xhttp_reuse_settings(settings: dict[str, object]) -> bool:
     if type(settings) != dict:
         return False
 
@@ -145,7 +146,7 @@ def verify_xhttp_reuse_settings(settings: dict) -> bool:
     return True
 
 
-def verify_ws_opts(item: dict, network: str) -> bool:
+def verify_ws_opts(item: dict[str, object], network: str) -> bool:
     if "ws-opts" not in item:
         return True
     if network != "ws":
@@ -161,7 +162,7 @@ def verify_ws_opts(item: dict, network: str) -> bool:
     return True
 
 
-def verify_grpc_opts(item: dict, network: str) -> bool:
+def verify_grpc_opts(item: dict[str, object], network: str) -> bool:
     if "grpc-opts" not in item:
         return True
     if network != "grpc":
@@ -175,7 +176,7 @@ def verify_grpc_opts(item: dict, network: str) -> bool:
     return True
 
 
-def verify_http_opts(item: dict, network: str) -> bool:
+def verify_http_opts(item: dict[str, object], network: str) -> bool:
     if "http-opts" not in item:
         return True
     if network != "http":
@@ -198,7 +199,7 @@ def verify_http_opts(item: dict, network: str) -> bool:
     return True
 
 
-def verify_h2_opts(item: dict, network: str) -> bool:
+def verify_h2_opts(item: dict[str, object], network: str) -> bool:
     if "h2-opts" not in item:
         return True
     if network != "h2":
@@ -212,7 +213,7 @@ def verify_h2_opts(item: dict, network: str) -> bool:
     return True
 
 
-def verify_mkcp_opts(item: dict, network: str) -> bool:
+def verify_mkcp_opts(item: dict[str, object], network: str) -> bool:
     if "mkcp-opts" not in item:
         return True
     if network not in ("mkcp", "kcp"):
@@ -228,7 +229,7 @@ def verify_mkcp_opts(item: dict, network: str) -> bool:
     return True
 
 
-def verify_mekya_opts(item: dict, network: str) -> bool:
+def verify_mekya_opts(item: dict[str, object], network: str) -> bool:
     if "mekya-opts" not in item:
         return True
     if network != "mekya":
@@ -244,7 +245,7 @@ def verify_mekya_opts(item: dict, network: str) -> bool:
     return True
 
 
-def verify_xhttp_opts(item: dict, network: str) -> bool:
+def verify_xhttp_opts(item: dict[str, object], network: str) -> bool:
     if "xhttp-opts" not in item:
         return True
     if network != "xhttp":
@@ -284,7 +285,7 @@ def verify_xhttp_opts(item: dict, network: str) -> bool:
     return True
 
 
-def normalize_httpupgrade(item: dict) -> str:
+def normalize_httpupgrade(item: dict[str, object]) -> str:
     network = wrap(item.get("network", ""))
     if network != "httpupgrade":
         return network

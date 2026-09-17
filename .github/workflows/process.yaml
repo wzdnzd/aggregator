@@ -15,9 +15,6 @@ env:
   # token
   PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
 
-  # network reachable
-  REACHABLE: ${{ vars.REACHABLE }}
-
   # not check connective
   SKIP_ALIVE_CHECK: ${{ vars.SKIP_ALIVE_CHECK }}
 

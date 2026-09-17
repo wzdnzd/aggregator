@@ -30,7 +30,7 @@ VMess | Trojan | SS | SSR | Snell | Hysteria2 | VLESS | Hysteria | TUIC | AnyTLS
 
 ```bash
 # 1. 准备配置文件
-cp subscribe/config/config.default.json my-config.json
+cp subscribe/examples/config.default.json my-config.json
 
 # 2. 设置环境变量
 export PUSH_TOKEN=your_github_token
@@ -71,13 +71,13 @@ graph LR
     A[开始] --> B{选择方式}
     B -->|简单| C[collect.py]
     B -->|完整| D[process.py]
-    
+
     C --> E[自动收集机场]
     E --> F[注册账号]
     F --> G[获取订阅]
     G --> H[验证代理]
     H --> I[上传到Gist]
-    
+
     D --> J[加载配置]
     J --> K[多源爬取]
     K --> L[聚合处理]
@@ -93,7 +93,7 @@ graph LR
 **process.py 配置**：
 ```json
 {
-    "domains": [
+    "sites": [
         {
             "name": "example-airport",
             "domain": "example.com",
@@ -121,7 +121,7 @@ graph LR
         "items": {
             "free-clash": {
                 "username": "your-username",
-                "gistid": "your-gist-id", 
+                "gist_id": "your-gist-id",
                 "filename": "clash.yaml"
             }
         }

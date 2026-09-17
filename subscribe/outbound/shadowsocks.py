@@ -6,7 +6,6 @@ import base64
 import re
 
 import utils
-
 from outbound.base import OutboundVerifier, VerifyContext
 
 COMMON_SS_SUPPORTED_CIPHERS = [
@@ -108,8 +107,8 @@ def verify_ss_2022_password(cipher: str, password: str) -> bool:
 class ShadowsocksVerifier(OutboundVerifier):
     type_name = "ss"
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
-        ciphers = MIHOMO_SS_SUPPORTED_CIPHERS if ctx.mihomo else COMMON_SS_SUPPORTED_CIPHERS
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
+        ciphers = MIHOMO_SS_SUPPORTED_CIPHERS if ctx.is_mihomo else COMMON_SS_SUPPORTED_CIPHERS
         if item.get("cipher") not in ciphers:
             return False
 
@@ -118,7 +117,7 @@ class ShadowsocksVerifier(OutboundVerifier):
                 return False
 
         plugin = item.get("plugin", "")
-        plugins = MIHOMO_SS_PLUGINS if ctx.mihomo else CLASH_SS_PLUGINS
+        plugins = MIHOMO_SS_PLUGINS if ctx.is_mihomo else CLASH_SS_PLUGINS
         if plugin not in plugins:
             return False
         if not plugin:
@@ -149,7 +148,7 @@ class ShadowsocksVerifier(OutboundVerifier):
 class ShadowsocksRVerifier(OutboundVerifier):
     type_name = "ssr"
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if item.get("cipher") not in SSR_SUPPORTED_CIPHERS:
             return False
         if item.get("obfs") not in SSR_SUPPORTED_OBFS:
@@ -158,5 +157,5 @@ class ShadowsocksRVerifier(OutboundVerifier):
             return False
         return True
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, str(item.get("protocol-param", "")).lower())

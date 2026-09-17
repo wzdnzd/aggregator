@@ -52,7 +52,7 @@ class ProxyInfo(GeoInfo):
 class ProxyQueryResult:
     """Complete proxy query result"""
 
-    proxy: dict
+    proxy: dict[str, object]
     result: ProxyInfo
     success: bool
 
@@ -321,12 +321,12 @@ def is_cdn_label(value: str) -> bool:
     return bool(text and _CDN_NAME_RE.search(text))
 
 
-def _mark_cdn(proxy: dict) -> None:
+def _mark_cdn(proxy: dict[str, object]) -> None:
     if isinstance(proxy, dict):
         proxy["cdn"] = True
 
 
-def _is_cdn_proxy(proxy: dict) -> bool:
+def _is_cdn_proxy(proxy: dict[str, object]) -> bool:
     return isinstance(proxy, dict) and (bool(proxy.get("cdn")) or is_cdn_label(str(proxy.get("name", ""))))
 
 
@@ -476,7 +476,7 @@ def query_ip_country(ip: str, reader: database.Reader) -> str:
     return lookup_ip_geo(ip, reader).country
 
 
-def locate_by_geoip(proxy: dict, reader: database.Reader) -> dict:
+def locate_by_geoip(proxy: dict[str, object], reader: database.Reader) -> dict[str, object]:
     if not proxy or not isinstance(proxy, dict):
         return None
 
@@ -509,7 +509,7 @@ def locate_by_geoip(proxy: dict, reader: database.Reader) -> dict:
 class PortReservation:
     """Reserve local TCP ports by binding them without listen/connect."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._sockets = []
 
     def reserve(self, n: int) -> list[int]:
@@ -591,7 +591,7 @@ def _idna_host(host: str) -> str:
         return host
 
 
-def _origin_headers(url: str, extra: dict = None) -> dict:
+def _origin_headers(url: str, extra: dict[str, str] | None = None) -> dict[str, object]:
     parsed = urllib.parse.urlparse(url)
     base = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else ""
     result = {
@@ -699,7 +699,7 @@ def _assert_tunnel_open(sock: socket.socket, wait: float = 0.2) -> None:
         sock.settimeout(previous)
 
 
-def _http_get_on_sock(sock: socket.socket, host: str, path: str, headers: dict) -> tuple[int, str, bytes]:
+def _http_get_on_sock(sock: socket.socket, host: str, path: str, headers: dict[str, str]) -> tuple[int, str, bytes]:
     host = _idna_host(host)
     lines = [f"GET {path} HTTP/1.1", f"Host: {host}"]
     sent = {"host"}
@@ -740,7 +740,9 @@ def _decode_body(body: bytes) -> str:
     return body.decode("utf-8", "replace")
 
 
-def _request_through_proxy(port: int, url: str, headers: dict, timeout: int, redirects: int = 3) -> tuple[int, bytes]:
+def _request_through_proxy(
+    port: int, url: str, headers: dict[str, str], timeout: int, redirects: int = 3
+) -> tuple[int, bytes]:
     """
     Fetch URL via mihomo HTTP inbound.
 
@@ -803,7 +805,7 @@ def make_proxy_request(
     url: str,
     max_retries: int = 5,
     timeout: int = 10,
-    headers: dict = None,
+    headers: dict[str, str] = None,
     deserialize: bool = True,
     quiet: bool = False,
 ) -> tuple[bool, dict]:
@@ -885,13 +887,13 @@ LOCATION_API_SERVICES = [
 ]
 
 
-def random_delay(min_delay: float = 0.01, max_delay: float = 0.5):
+def random_delay(min_delay: float = 0.01, max_delay: float = 0.5) -> None:
     """Random delay to avoid API rate limiting"""
     time.sleep(random.uniform(min_delay, max_delay))
 
 
 def check_residential(
-    proxy: dict,
+    proxy: dict[str, object],
     port: int,
     api_key: str = "",
     ip_library: str = "ipnetcoffee",
@@ -1014,7 +1016,7 @@ def check_residential(
         return ProxyQueryResult(proxy=proxy, result=result, success=False)
 
 
-def locate_by_ipinfo(proxy: dict, port: int, reader: database.Reader = None) -> ProxyQueryResult:
+def locate_by_ipinfo(proxy: dict[str, object], port: int, reader: database.Reader = None) -> ProxyQueryResult:
     """Check the location of a single proxy by making a request through it"""
     name = proxy.get("name", "")
 

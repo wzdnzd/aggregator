@@ -16,7 +16,7 @@ PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
 class Logger:
-    def __init__(self):
+    def __init__(self) -> None:
         self._logger = logging.getLogger()
         if not self._logger.handlers:
             self.formatter = logging.Formatter(fmt=DEFAULT_LOG_FMT, datefmt=DEFAULT_LOG_DATETIME_FORMAT)
@@ -28,20 +28,20 @@ class Logger:
         if sys.version_info.major == 2:
             logging.getLogger("requests").setLevel(logging.WARNING)
 
-    def _get_file_handler(self, filename):
+    def _get_file_handler(self, filename: str) -> logging.FileHandler:
         """返回一个文件日志handler"""
         file_handler = logging.FileHandler(filename=filename, encoding="utf8")
         file_handler.setFormatter(self.formatter)
         return file_handler
 
-    def _get_console_handler(self):
+    def _get_console_handler(self) -> logging.StreamHandler:
         """返回一个输出到终端日志handler"""
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(self.formatter)
         return console_handler
 
     @property
-    def logger(self):
+    def logger(self) -> logging.Logger:
         return self._logger
 
 

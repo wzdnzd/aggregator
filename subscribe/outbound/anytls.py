@@ -11,7 +11,7 @@ class AnyTLSVerifier(OutboundVerifier):
     type_name = "anytls"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         for field in ("idle-session-check-interval", "idle-session-timeout", "min-idle-session"):
             if not ensure_non_negative_number(item, field):
                 return False

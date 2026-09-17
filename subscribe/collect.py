@@ -13,13 +13,16 @@ import subprocess
 import sys
 import time
 
-import crawl
 import executable
+import pipeline
 import push
 import utils
 import workflow
 import yaml
 from airport import AirPort
+from config.models import NodeInput, SiteConfig, StorageItem
+from crawl.helpers import check_status, naming_task
+from discovery import AirportRecord, collect_airport, parse_records, save_records
 from logger import logger
 from urlvalidator import isurl
 from workflow import TaskConfig
@@ -37,10 +40,10 @@ def assign(
     domains_file: str = "",
     overwrite: bool = False,
     pages: int = sys.maxsize,
-    rigid: bool = True,
+    allow_gmail_alias: bool = False,
     display: bool = True,
     num_threads: int = 0,
-    **kwargs,
+    **kwargs: object,
 ) -> list[TaskConfig]:
     def load_exist(username: str, gist_id: str, access_token: str, filename: str) -> list[str]:
         if not filename:
@@ -58,7 +61,7 @@ def assign(
 
         if username and gist_id and access_token:
             push_tool = push.PushToGist(token=access_token)
-            url = push_tool.raw_url(config={"username": username, "gistid": gist_id, "filename": filename})
+            url = push_tool.raw_url(item=StorageItem(username=username, gist_id=gist_id, filename=filename))
 
             content = utils.http_get(url=url, timeout=30)
             items = re.findall(pattern, content, flags=re.M)
@@ -70,7 +73,7 @@ def assign(
         # 过滤已过期订阅并返回
         links = list(subscriptions)
         results = utils.multi_thread_run(
-            func=crawl.check_status,
+            func=check_status,
             tasks=links,
             num_threads=num_threads,
             show_progress=display,
@@ -78,32 +81,11 @@ def assign(
 
         return [links[i] for i in range(len(links)) if results[i][0] and not results[i][1]]
 
-    def parse_domains(content: str) -> dict:
-        if not content or not isinstance(content, str):
-            logger.warning("cannot found any domain due to content is empty or not string")
-            return {}
-
-        records = {}
-        for line in content.split("\n"):
-            line = utils.trim(line)
-            if not line or line.startswith("#"):
-                continue
-
-            words = line.rsplit(delimiter, maxsplit=3)
-            address = utils.trim(words[0])
-            coupon = utils.trim(words[1]) if len(words) > 1 else ""
-            invite_code = utils.trim(words[2]) if len(words) > 2 else ""
-            api_prefix = utils.trim(words[3]) if len(words) > 3 else ""
-
-            records[address] = {"coupon": coupon, "invite_code": invite_code, "api_prefix": api_prefix}
-
-        return records
-
     subscribes_file = utils.trim(kwargs.get("subscribes_file", ""))
     access_token = utils.trim(kwargs.get("access_token", ""))
     gist_id = utils.trim(kwargs.get("gist_id", ""))
     username = utils.trim(kwargs.get("username", ""))
-    chuck = kwargs.get("chuck", False)
+    skip_captcha = kwargs.get("skip_captcha", False)
 
     # 加载已有订阅
     subscriptions = load_exist(username, gist_id, access_token, subscribes_file)
@@ -114,7 +96,12 @@ def assign(
 
     tasks = (
         [
-            TaskConfig(name=utils.random_chars(length=8), sub=x, bin_name=bin_name, special_protocols=special_protocols)
+            TaskConfig(
+                name=utils.random_chars(length=8),
+                nodes=NodeInput(subscribe=x),
+                bin_name=bin_name,
+                special_protocols=special_protocols,
+            )
             for x in subscriptions
             if x
         ]
@@ -127,7 +114,8 @@ def assign(
         logger.info("skip registering new accounts, will use existing subscriptions for refreshing")
         return tasks
 
-    domains, delimiter = {}, "@#@#"
+    records: dict[str, AirportRecord] = {}
+    delimiter = "@#@#"
     domains_file = utils.trim(domains_file)
     if not domains_file:
         domains_file = "domains.txt"
@@ -135,65 +123,72 @@ def assign(
     # 加载已有站点列表
     fullpath = os.path.join(DATA_BASE, domains_file)
     if os.path.exists(fullpath) and os.path.isfile(fullpath):
-        with open(fullpath, "r", encoding="UTF8") as f:
-            domains.update(parse_domains(content=str(f.read())))
+        with open(fullpath, "r", encoding="UTF8") as handle:
+            records.update(parse_records(content=str(handle.read()), delimiter=delimiter))
 
     # 爬取新站点列表
-    if not domains or overwrite:
-        candidates = crawl.collect_airport(
+    if not records or overwrite:
+        crawled = collect_airport(
             channel="jichang_list",
             page_num=pages,
-            num_thread=num_threads,
-            rigid=rigid,
+            num_threads=num_threads,
+            allow_gmail_alias=allow_gmail_alias,
             display=display,
             filepath=os.path.join(DATA_BASE, "coupons.txt"),
             delimiter=delimiter,
-            chuck=chuck,
+            skip_captcha=skip_captcha,
         )
 
-        if candidates:
-            for k, v in candidates.items():
-                item = domains.get(k, {})
-                item.update(v)
-
-                domains[k] = item
-
+        if crawled:
+            for domain, incoming in crawled.items():
+                current = records.get(domain)
+                if current is None:
+                    records[domain] = incoming
+                else:
+                    current.coupon = incoming.coupon
+                    current.api_prefix = incoming.api_prefix
             overwrite = True
 
     # 加载自定义机场列表
     customize_link = utils.trim(kwargs.get("customize_link", ""))
     if customize_link:
         if isurl(customize_link):
-            domains.update(parse_domains(content=utils.http_get(url=customize_link)))
+            records.update(parse_records(content=utils.http_get(url=customize_link), delimiter=delimiter))
         else:
             local_file = os.path.join(DATA_BASE, customize_link)
             if local_file != fullpath and os.path.exists(local_file) and os.path.isfile(local_file):
-                with open(local_file, "r", encoding="UTF8") as f:
-                    domains.update(parse_domains(content=str(f.read())))
+                with open(local_file, "r", encoding="UTF8") as handle:
+                    records.update(parse_records(content=str(handle.read()), delimiter=delimiter))
 
-    if not domains:
+    if not records:
         logger.error("cannot collect any new airport for free use")
         return tasks
 
     if overwrite:
-        crawl.save_candidates(candidates=domains, filepath=fullpath, delimiter=delimiter)
+        save_records(records=records, filepath=fullpath, delimiter=delimiter, full=True)
 
-    for domain, param in domains.items():
-        name = crawl.naming_task(url=domain)
-        tasks.append(
-            TaskConfig(
+    sites = []
+    for domain, record in records.items():
+        name = naming_task(url=domain)
+        sites.append(
+            SiteConfig(
                 name=name,
                 domain=domain,
-                coupon=param.get("coupon", ""),
-                invite_code=param.get("invite_code", ""),
-                api_prefix=param.get("api_prefix", ""),
-                bin_name=bin_name,
-                rigid=rigid,
-                chuck=chuck,
-                special_protocols=special_protocols,
+                coupon=record.coupon,
+                invite_code=record.invite_code,
+                api_prefix=record.api_prefix or "/api/v1/",
+                skip_captcha=skip_captcha,
             )
         )
 
+    assigned, _ = pipeline.assign_sites(
+        sites=sites,
+        groups={},
+        retry=3,
+        bin_name=bin_name,
+        allow_gmail_alias=allow_gmail_alias,
+    )
+    tasks.extend(assigned)
     return tasks
 
 
@@ -219,16 +214,16 @@ def aggregate(args: argparse.Namespace) -> None:
         domains_file="domains.txt",
         overwrite=args.overwrite,
         pages=args.pages,
-        rigid=not args.easygoing,
+        allow_gmail_alias=args.easygoing,
         display=display,
         num_threads=args.num,
         refresh=args.refresh,
-        chuck=args.chuck,
+        skip_captcha=args.skip_captcha,
         username=username,
         gist_id=gist_id,
         access_token=access_token,
         subscribes_file=subscribes_file,
-        customize_link=args.yourself,
+        customize_link=args.custom_sites,
     )
 
     if not tasks:
@@ -236,14 +231,16 @@ def aggregate(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     # 已有订阅已经做过过期检查，无需再测
-    old_subscriptions = set([t.sub for t in tasks if t.sub])
+    old_subscriptions = set()
+    for task in tasks:
+        old_subscriptions.update(task.nodes.subscribe_list())
 
     logger.info(f"start generate subscribes information, tasks: {len(tasks)}")
     generate_conf = os.path.join(PATH, "subconverter", "generate.ini")
     if os.path.exists(generate_conf) and os.path.isfile(generate_conf):
         os.remove(generate_conf)
 
-    results = utils.multi_thread_run(func=workflow.executewrapper, tasks=tasks, num_threads=args.num)
+    results = pipeline.execute_tasks(tasks)
     proxies = list(itertools.chain.from_iterable([x[1] for x in results if x]))
 
     if len(proxies) == 0:
@@ -300,7 +297,6 @@ def aggregate(args: argparse.Namespace) -> None:
     subscriptions = set()
     for p in proxies:
         # 移除无用的标记
-        p.pop("chatgpt", False)
         p.pop("liveness", True)
 
         sub = p.pop("sub", "")
@@ -332,7 +328,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
         filename = subconverter.get_filename(target=target)
         list_only = False if target == "v2ray" or target == "mixed" or "ss" in target else not args.all
-        targets.append((convert_name, filename, target, list_only, args.vitiate))
+        targets.append((convert_name, filename, target, list_only, args.ignore_default_filters))
 
     for t in targets:
         success = subconverter.generate_conf(generate_conf, t[0], source, t[1], t[2], True, t[3], t[4])
@@ -361,7 +357,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
         tasks = [[x, 2, traffic, life, 0, True] for x in new_subscriptions]
         results = utils.multi_thread_run(
-            func=crawl.check_status,
+            func=check_status,
             tasks=tasks,
             num_threads=args.num,
             show_progress=display,
@@ -386,7 +382,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
     # 如有必要，上传至 Gist
     if gist_id and access_token:
-        files, config = {}, {"gistid": gist_id, "filename": list(records.keys())[0]}
+        files, item = {}, StorageItem(gist_id=gist_id, filename=list(records.keys())[0])
 
         for k, v in records.items():
             if os.path.exists(v) and os.path.isfile(v):
@@ -402,7 +398,7 @@ def aggregate(args: argparse.Namespace) -> None:
             push_client = push.PushToGist(token=access_token)
 
             # 上传
-            success = push_client.push_to(content="", config=config, payload={"files": files}, group="collect")
+            success = push_client.push_to(content="", item=item, payload={"files": files}, group="collect")
             if success:
                 logger.info(f"upload proxies and subscriptions to gist successed")
             else:
@@ -413,7 +409,7 @@ def aggregate(args: argparse.Namespace) -> None:
 
 
 class CustomHelpFormatter(argparse.HelpFormatter):
-    def _format_action_invocation(self, action):
+    def _format_action_invocation(self, action: argparse.Action) -> str:
         if action.choices:
             parts = []
             if action.option_strings:
@@ -433,7 +429,17 @@ class CustomHelpFormatter(argparse.HelpFormatter):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(formatter_class=CustomHelpFormatter)
+    env_parser = argparse.ArgumentParser(add_help=False)
+    env_parser.add_argument(
+        "--environment",
+        type=str,
+        default=".env",
+        help="environment file name",
+    )
+    env_args, _ = env_parser.parse_known_args()
+    utils.load_dotenv(env_args.environment)
+
+    parser = argparse.ArgumentParser(formatter_class=CustomHelpFormatter, parents=[env_parser])
     parser.add_argument(
         "-a",
         "--all",
@@ -445,8 +451,8 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-c",
-        "--chuck",
-        dest="chuck",
+        "--skip-captcha",
+        dest="skip_captcha",
         action="store_true",
         default=False,
         help="discard candidate sites that may require human-authentication",
@@ -555,8 +561,8 @@ if __name__ == "__main__":
         "-s",
         "--skip",
         dest="skip",
-        action="store_true",
-        default=False,
+        action=argparse.BooleanOptionalAction,
+        default=utils.env_bool("SKIP_ALIVE_CHECK", False),
         help="skip usability checks",
     )
 
@@ -580,8 +586,8 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-v",
-        "--vitiate",
-        dest="vitiate",
+        "--ignore-default-filters",
+        dest="ignore_default_filters",
         action="store_true",
         default=False,
         help="ignoring default proxies filter rules",
@@ -589,7 +595,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "-y",
-        "--yourself",
+        "--custom-sites",
         type=str,
         required=False,
         default=os.environ.get("CUSTOMIZE_LINK", ""),

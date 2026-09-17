@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import utils
-
 from outbound.base import OutboundVerifier, VerifyContext
 from outbound.common import wrap
 
@@ -13,7 +12,7 @@ SNELL_OBFS_MODES = ("", "http", "tls", "shadow-tls", "restls", "jls")
 class SnellVerifier(OutboundVerifier):
     type_name = "snell"
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if "version" in item and not utils.is_number(item["version"]):
             return False
 
@@ -37,5 +36,5 @@ class SnellVerifier(OutboundVerifier):
         mode = wrap(obfs_opts.get("mode", ""))
         return mode in SNELL_OBFS_MODES
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return "psk"

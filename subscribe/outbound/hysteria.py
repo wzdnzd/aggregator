@@ -22,7 +22,7 @@ class HysteriaVerifier(OutboundVerifier):
     type_name = "hysteria"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not verify_traffic(item, "up") or not verify_traffic(item, "down"):
             return False
         for field in ("ca", "ca-str", "auth-str", "auth_str", "obfs"):
@@ -40,10 +40,10 @@ class HysteriaVerifier(OutboundVerifier):
                 return False
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return "auth-str" if "auth-str" in item else "auth_str"
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         field = self.auth_field(item)
         return (self.type_name, item.get(field, ""))
 
@@ -52,7 +52,7 @@ class Hysteria2Verifier(OutboundVerifier):
     type_name = "hysteria2"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not verify_traffic(item, "up") or not verify_traffic(item, "down"):
             return False
         for field in ("ca", "ca-str", "obfs-password"):

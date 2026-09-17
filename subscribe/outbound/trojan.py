@@ -11,7 +11,7 @@ from outbound.transport import verify_grpc_opts, verify_ws_opts
 class TrojanVerifier(OutboundVerifier):
     type_name = "trojan"
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         network = wrap(item.get("network", ""))
         if network and network not in ("tcp", "ws", "grpc"):
             return False
@@ -23,7 +23,7 @@ class TrojanVerifier(OutboundVerifier):
             return False
         if not verify_grpc_opts(item, network):
             return False
-        if ctx.mihomo and not verify_reality_opts(item):
+        if ctx.is_mihomo and not verify_reality_opts(item):
             return False
 
         if "ss-opts" in item:

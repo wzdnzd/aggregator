@@ -12,11 +12,15 @@ import time
 import urllib
 import urllib.request
 
-import push
 import utils
+from config.models import StorageItem
+from crawl.models import ChannelResult
 from logger import logger
+from push import PushTo
 
 from . import commons
+from .base import PluginContext, ScriptPlugin, register_plugin
+from .commons import as_channel_result, plugin_params
 
 
 def fetch(email: str, retry: int = 2) -> str:
@@ -67,7 +71,7 @@ def fetch(email: str, retry: int = 2) -> str:
         return fetch(email, retry - 1)
 
 
-def getrss(params: dict) -> list:
+def getrss(params: dict[str, object], ctx: PluginContext | None = None) -> list[dict[str, object]]:
     if not params or type(params) != dict:
         return []
 
@@ -80,23 +84,19 @@ def getrss(params: dict) -> list:
         logger.error(f"[V2RayFreeError] cannot fetch subscribes bcause missing some parameters")
         return []
 
-    include = params.get("include", "").strip()
-    storage = params.get("storage", {})
-    if not storage or type(storage) != dict:
-        logger.error(f"[V2RayFreeError] cannot fetch subscribes bcause storage config is invalidate")
+    include = str(params.get("include", "") or "").strip()
+    if ctx is not None and not isinstance(ctx, PluginContext):
         return []
-
-    persist = storage.get("items", {})
-    push_config = push.PushConfig.from_dict(storage)
-
-    exists = load(config=push_config, persist=persist)
+    pushtool = ctx.pushtool if ctx else None
+    persist = ctx.persist if ctx else None
+    exists = load(pushtool=pushtool, persist=persist)
     emails = [x for x in emails if x not in exists.keys()]
 
     results, subscribes = utils.multi_thread_run(func=fetch, tasks=emails), []
     exists.update(filter(data=dict(zip(emails, results))))
 
     # persist subscribes
-    commons.persist(config=push_config, data=exists, persist=persist)
+    commons.persist(pushtool=pushtool, data=exists, item=persist)
 
     results = list(exists.values())
     results.extend(config.get("sub", []))
@@ -123,12 +123,11 @@ def getrss(params: dict) -> list:
     return [config]
 
 
-def load(config: push.PushConfig, persist: dict) -> dict:
-    pushtool = push.get_instance(config=config)
-    if not pushtool.validate(config=persist):
+def load(pushtool: PushTo | None, persist: StorageItem | None) -> dict[str, object]:
+    if not isinstance(pushtool, PushTo) or not isinstance(persist, StorageItem) or not pushtool.validate(item=persist):
         return {}
 
-    url = pushtool.raw_url(config=persist)
+    url = pushtool.raw_url(item=persist)
     try:
         content = utils.http_get(url=url)
         data = json.loads(content)
@@ -137,7 +136,7 @@ def load(config: push.PushConfig, persist: dict) -> dict:
         return {}
 
 
-def filter(data: dict) -> dict:
+def filter(data: dict[str, object]) -> dict[str, object]:
     if not data or type(data) != dict:
         return {}
 
@@ -163,3 +162,16 @@ def check(subscribe: str) -> bool:
         )
         is not None
     )
+
+
+class V2RayFreePlugin(ScriptPlugin[dict[str, object]]):
+    name = "v2rayfree"
+
+    def parse(self, ctx: PluginContext) -> dict[str, object]:
+        return plugin_params(ctx)
+
+    def run(self, config: dict[str, object], ctx: PluginContext) -> ChannelResult:
+        return as_channel_result(getrss(config, ctx))
+
+
+register_plugin(V2RayFreePlugin())

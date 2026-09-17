@@ -12,7 +12,6 @@ import ssl
 import string
 import urllib
 import urllib.parse
-import urllib.request
 from collections import defaultdict
 
 import executable
@@ -34,7 +33,7 @@ DOWNLOAD_URL = [
 EXTERNAL_CONTROLLER = "127.0.0.1:9090"
 
 
-def generate_config(path: str, proxies: list, filename: str) -> list:
+def generate_config(path: str, proxies: list[dict[str, object]], filename: str) -> list[dict[str, object]]:
     os.makedirs(path, exist_ok=True)
     external_config = filter_proxies(proxies)
     config = {
@@ -55,7 +54,7 @@ def generate_config(path: str, proxies: list, filename: str) -> list:
     return config.get("proxies", [])
 
 
-def filter_proxies(proxies: list) -> dict:
+def filter_proxies(proxies: list[dict[str, object]]) -> dict[str, object]:
     config = {
         "proxies": [],
         "proxy-groups": [
@@ -125,7 +124,9 @@ def filter_proxies(proxies: list) -> dict:
     return config
 
 
-def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, strict: bool = False) -> bool:
+def check(
+    proxy: dict[str, object], api_url: str, timeout: int, test_url: str, delay: int, strict: bool = False
+) -> bool:
     proxy_name = ""
     try:
         proxy_name = urllib.parse.quote(proxy.get("name", ""), safe="")
@@ -163,34 +164,6 @@ def check(proxy: dict, api_url: str, timeout: int, test_url: str, delay: int, st
             if data.get("delay", -1) <= 0 or data.get("delay", -1) > delay:
                 alive = False
                 break
-
-        if alive:
-            # filter and check US(for speed) proxies as candidates for ChatGPT/OpenAI/New Bing/Google Bard
-            proxy_name = proxy.get("name", "")
-            if proxy.pop("chatgpt", False) and not proxy_name.endswith(utils.CHATGPT_FLAG):
-                try:
-                    # check for ChatGPT Web: https://chat.openai.com
-                    request = urllib.request.Request(
-                        url=f"{base_url}https://chat.openai.com/favicon.ico&expected=200",
-                        headers=utils.DEFAULT_HTTP_HEADERS,
-                    )
-                    response = urllib.request.urlopen(request, timeout=5, context=CTX)
-                    if response.getcode() == 200:
-                        content = str(response.read(), encoding="utf-8")
-                        data = json.loads(content)
-                        allowed = data.get("delay", -1) > 0
-
-                    # check for ChatGPT API: https://api.openai.com
-                    if allowed:
-                        content = utils.http_get(
-                            url=f"{base_url}https://api.openai.com/v1/engines&expected=401",
-                            retry=1,
-                        )
-                        data = json.loads(content)
-                        if data.get("delay", -1) > 0:
-                            proxy["name"] = f"{proxy_name}{utils.CHATGPT_FLAG}"
-                except Exception:
-                    logger.debug(f"check for OpenAI failed, proxy: {proxy.get('name')}, message: {str(e)}")
 
         return alive
     except Exception as e:

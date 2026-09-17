@@ -22,7 +22,7 @@ class TuicVerifier(OutboundVerifier):
     type_name = "tuic"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         token = wrap(item.get("token", ""))
         uuid = wrap(item.get("uuid", ""))
         password = wrap(item.get("password", ""))
@@ -52,10 +52,10 @@ class TuicVerifier(OutboundVerifier):
             return False
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return "token" if wrap(item.get("token", "")) else "uuid"
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         if wrap(item.get("token", "")):
             return (self.type_name, item.get("token", ""))
         return (self.type_name, item.get("uuid", ""))
@@ -65,7 +65,7 @@ class ShadowQuicVerifier(OutboundVerifier):
     type_name = "shadowquic"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not wrap(item.get("username", "")):
             return False
         quote_numeric_fields(item, ("username",))
@@ -82,5 +82,5 @@ class ShadowQuicVerifier(OutboundVerifier):
                     return False
         return True
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("username", ""), item.get("password", ""))

@@ -48,16 +48,16 @@ class TemporaryMail(object):
     def __init__(self) -> None:
         self.api_address = ""
 
-    def get_domains_list(self) -> list:
+    def get_domains_list(self) -> list[str]:
         raise NotImplementedError
 
     def get_account(self, retry: int = 3) -> Account:
         raise NotImplementedError
 
-    def get_messages(self, account: Account) -> list:
+    def get_messages(self, account: Account) -> list[Message]:
         raise NotImplementedError
 
-    def monitor_account(self, account: Account, timeout: int = 300, sleep: int = 3) -> Message:
+    def monitor_account(self, account: Account, timeout: int = 300, sleep: int = 3) -> Message | None:
         """keep waiting for new messages"""
         if not account:
             return None
@@ -122,7 +122,7 @@ class RootSh(TemporaryMail):
             "User-Agent": utils.USER_AGENT,
         }
 
-    def get_domains_list(self) -> list:
+    def get_domains_list(self) -> list[str]:
         content, count = "", 1
         while not content and count <= 3:
             count += 1
@@ -180,7 +180,7 @@ class RootSh(TemporaryMail):
         except:
             return self.get_account(retry=retry - 1)
 
-    def get_messages(self, account: Account) -> list:
+    def get_messages(self, account: Account) -> list[Message]:
         if not account:
             return []
 
@@ -261,7 +261,7 @@ class SnapMail(TemporaryMail):
     def __init__(self) -> None:
         self.api_address = "https://snapmail.cc"
 
-    def get_domains_list(self) -> list:
+    def get_domains_list(self) -> list[str]:
         domains = ["snapmail.cc", "lista.cc", "xxxhi.cc"]
         # content = utils.http_get(
         #     url="https://www.snapmail.cc/scripts/controllers/addEmailBox.js", retry=1
@@ -287,7 +287,7 @@ class SnapMail(TemporaryMail):
 
         return Account(address=address)
 
-    def get_messages(self, account: Account) -> list:
+    def get_messages(self, account: Account) -> list[Message]:
         if not account:
             return []
 
@@ -351,7 +351,7 @@ class LinShiEmail(TemporaryMail):
     def __init__(self) -> None:
         self.api_address = "https://linshiyouxiang.net"
 
-    def get_domains_list(self) -> list:
+    def get_domains_list(self) -> list[str]:
         content = utils.http_get(url=self.api_address)
         if not content:
             return []
@@ -370,7 +370,7 @@ class LinShiEmail(TemporaryMail):
 
         return Account(address=address)
 
-    def get_messages(self, account: Account) -> list:
+    def get_messages(self, account: Account) -> list[Message]:
         if not account:
             return []
 
@@ -415,7 +415,7 @@ class MailTM(TemporaryMail):
         self.api_address = "https://api.mail.tm"
         self.auth_headers = {}
 
-    def get_domains_list(self) -> list:
+    def get_domains_list(self) -> list[str]:
         headers = {"Accept": "application/ld+json"}
         try:
             content = utils.http_get(url=f"{self.api_address}/domains?page=1", headers=headers)
@@ -450,7 +450,7 @@ class MailTM(TemporaryMail):
         except:
             return self._make_account_request(endpoint=endpoint, address=address, password=password, retry=retry - 1)
 
-    def _generate_jwt(self, address: str, password: str, retry: int = 3):
+    def _generate_jwt(self, address: str, password: str, retry: int = 3) -> dict[str, object] | None:
         jwt = self._make_account_request(endpoint="token", address=address, password=password, retry=retry)
         if not jwt:
             logger.error(f"[JWTError] generate jwt token failed, domain: {self.api_address}")
@@ -479,7 +479,7 @@ class MailTM(TemporaryMail):
 
         return account
 
-    def get_messages(self, account: Account) -> list:
+    def get_messages(self, account: Account) -> list[Message]:
         """download a list of messages currently in the account."""
         if not account or not self.auth_headers:
             return []
@@ -566,7 +566,7 @@ class MOAKT(TemporaryMail):
             "User-Agent": utils.USER_AGENT,
         }
 
-    def get_domains_list(self) -> list:
+    def get_domains_list(self) -> list[str]:
         content = utils.http_get(url=self.api_address)
         if not content:
             return []
@@ -611,7 +611,7 @@ class MOAKT(TemporaryMail):
         username, domain = address.split("@", maxsplit=1)
         return self._make_account_request(username=username, domain=domain, retry=retry)
 
-    def get_messages(self, account: Account) -> list:
+    def get_messages(self, account: Account) -> list[Message]:
         if not account:
             return []
 
@@ -654,7 +654,7 @@ class Emailnator(TemporaryMail):
             "Referer": "https://www.emailnator.com/",
         }
 
-    def get_domains_list(self) -> list:
+    def get_domains_list(self) -> list[str]:
         # unable to obtain the supported email domain through web api
         return ["gmail.com", "googlemail.com", "smartnator.com", "psnator.com", "tmpmailtor.com", "mydefipet.live"]
 
@@ -715,7 +715,7 @@ class Emailnator(TemporaryMail):
         except:
             return self.get_account(retry=retry - 1)
 
-    def get_messages(self, account: Account) -> list:
+    def get_messages(self, account: Account) -> list[Message]:
         if not account:
             return []
         try:

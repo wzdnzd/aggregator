@@ -6,7 +6,6 @@ import base64
 import re
 
 import utils
-
 from outbound.common import QuotedStr, wrap
 
 
@@ -28,7 +27,7 @@ def verify_reality_public_key(public_key: str) -> bool:
     return canonical == public_key
 
 
-def verify_reality_opts(item: dict, required: bool = False) -> bool:
+def verify_reality_opts(item: dict[str, object], required: bool = False) -> bool:
     if "reality-opts" not in item:
         return not required
 
@@ -65,7 +64,7 @@ def verify_reality_opts(item: dict, required: bool = False) -> bool:
     return True
 
 
-def verify_optional_str_dict(item: dict, field: str, required_keys: tuple[str, ...] = ()) -> bool:
+def verify_optional_str_dict(item: dict[str, object], field: str, required_keys: tuple[str, ...] = ()) -> bool:
     if field not in item:
         return True
     opts = item.get(field)

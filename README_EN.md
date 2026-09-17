@@ -47,7 +47,7 @@ graph TB
         A2[Configuration File] --> C[Collect Module]
         C --> E[Task Assigner]
     end
-    
+
     subgraph "Storage Services"
         Y[GitHub Gist]
         Z[PasteGG]
@@ -60,7 +60,7 @@ graph TB
     G --> M
     G --> H
     G --> N
-    
+
     E --> M
     E --> H
 
@@ -72,19 +72,19 @@ graph TB
     J --> P
     K --> P
     N --> P
-    
+
     P --> Q
     Q -->|Yes| O
     Q -->|No| R
     O --> R
-    
+
     R --> S
     S --> T
     T --> U
     U --> V
     V --> W
     W --> X
-    
+
     X --> Y
     X --> Z
     X --> AA
@@ -102,7 +102,7 @@ flowchart TD
     E --> F[Quality Filtering]
     F --> G[Format Conversion]
     G --> H[Push to Storage]
-    
+
     subgraph Sources [Data Source Types]
         A1[Telegram Channels<br/>Public Message Crawling]
         A2[GitHub Repositories<br/>Code and Issues Search]
@@ -112,7 +112,7 @@ flowchart TD
         A6[General Web<br/>Specified URL Crawling]
         A7[Script Plugins<br/>Custom Logic]
     end
-    
+
     subgraph Processing [Processing Pipeline]
         B1[Content Parsing<br/>Extract Subscription Links]
         C1[Connectivity Validation<br/>Check Subscription Validity]
@@ -122,7 +122,7 @@ flowchart TD
         G1[Multi-format Conversion<br/>Adapt to Different Clients]
         H1[Batch Push<br/>Upload to Storage Backends]
     end
-    
+
     A1 --> B1
     A2 --> B1
     A3 --> B1
@@ -130,7 +130,7 @@ flowchart TD
     A5 --> B1
     A6 --> B1
     A7 --> B1
-    
+
     B1 --> C1
     C1 --> D1
     D1 --> E1
@@ -148,7 +148,7 @@ classDiagram
         +load_config() Load Configuration
         +execute_tasks() Execute Tasks
     }
-    
+
     class CrawlModule {
         +batch_crawl() Batch Crawling
         +crawl_telegram() Telegram Crawler
@@ -161,7 +161,7 @@ classDiagram
         +validate() Validate Subscription
         +collect_airport() Collect Airport
     }
-    
+
     class AirportModule {
         +register() Register Account
         +get_subscribe() Get Subscription
@@ -171,7 +171,7 @@ classDiagram
         +decode() Decode Content
         +check_protocol() Check Protocol
     }
-    
+
     class ClashModule {
         +generate_config() Generate Config
         +filter_proxies() Filter Proxies
@@ -179,7 +179,7 @@ classDiagram
         +check() Check Connectivity
         +is_mihomo() Check Engine
     }
-    
+
     class SubconverterModule {
         +get_filename() Get Filename
         +generate_conf() Generate Config
@@ -187,7 +187,7 @@ classDiagram
         +getpath() Get Path
         +CONVERT_TARGETS Supported Formats
     }
-    
+
     class PushModule {
         +push_to() Push Content
         +push_file() Push File
@@ -195,44 +195,44 @@ classDiagram
         +filter_push() Filter Push
         +raw_url() Get Raw URL
     }
-    
+
     class CollectModule {
         +assign() Assign Tasks
         +aggregate() Aggregate Processing
     }
-    
+
     class WorkflowModule {
         +TaskConfig Task Configuration
     }
-    
+
     class UtilsModule {
         +http_get() HTTP Request
         +trim() String Processing
         +extract_domain() Domain Extraction
     }
-    
+
     class LoggerModule {
         +logger Logger Instance
     }
-    
+
     ProcessModule --> CrawlModule : Invoke Crawling
     ProcessModule --> AirportModule : Invoke Airport
     ProcessModule --> ClashModule : Test Proxies
     ProcessModule --> SubconverterModule : Format Conversion
     ProcessModule --> PushModule : Push Results
-    
+
     CollectModule --> CrawlModule : Invoke Crawling
     CollectModule --> AirportModule : Invoke Airport
     CollectModule --> WorkflowModule : Use Configuration
-    
+
     CrawlModule --> AirportModule : Parse Subscription
     CrawlModule --> UtilsModule : Use Utilities
     CrawlModule --> LoggerModule : Log Events
-    
+
     AirportModule --> SubconverterModule : Subscription Conversion
     AirportModule --> ClashModule : Verify Proxy
     AirportModule --> UtilsModule : Use Utilities
-    
+
     ClashModule --> UtilsModule : Use Utilities
     PushModule --> UtilsModule : Use Utilities
     PushModule --> LoggerModule : Log Events
@@ -285,8 +285,6 @@ GIST_LINK=username/gist_id
 # Workflow mode (0: crawl+aggregate, 1: crawl only, 2: aggregate only)
 WORKFLOW_MODE=0
 
-# Network settings
-REACHABLE=true
 SKIP_ALIVE_CHECK=false
 SKIP_REMARK=false
 
@@ -297,46 +295,46 @@ CUSTOMIZE_LINK=https://your-custom-airport-list.com
 ## Configuration Guide
 
 ### Configuration File Structure
-The main configuration file is located at `subscribe/config/config.default.json`. Here's the complete structure:
+The main configuration file is located at `subscribe/examples/config.default.json`. Here's the complete structure:
 
 ```json
 {
-    "domains": [...],      // Domain/subscription configurations
+    "sites": [...],      // Domain/subscription configurations
     "crawl": {...},        // Crawling settings
-    "groups": {...},       // Output group configurations  
+    "groups": {...},       // Output group configurations
     "storage": {...}       // Storage backend settings
 }
 ```
 
-### 1. Domain Configuration (domains)
+### 1. Site Configuration (sites)
 Configure specific airport websites or subscription links:
 
 ```json
 {
-    "domains": [
+    "sites": [
         {
             "name": "example-site",           // Unique identifier
-            "sub": ["https://sub1.com"],      // Existing subscription URLs, will skip auto-registration if configured
+            "subscribe": ["https://sub1.com"],      // Existing subscription URLs, will skip auto-registration if configured
             "domain": "example.com",          // Airport domain, will attempt auto-registration for free plans when sub is empty and domain is valid
             "enable": true,                   // Enable/disable this config
             "rename": "🚀 {name}",           // Rename pattern for proxies
             "include": "regex_pattern",       // Include filter (regex)
             "exclude": "regex_pattern",       // Exclude filter (regex)
             "push_to": ["group1", "group2"], // Target groups
-            "ignorede": true,                 // Ignore default exclude rules
-            "liveness": true,                 // Enable liveness testing
-            "rate": 2.5,                     // Max rate multiplier
+            "ignore_default_exclude": true,                 // Ignore default exclude rules
+            "check_alive": true,                 // Enable liveness testing
+            "max_rate": 2.5,                 // Max rate multiplier
             "count": 2,                      // Number of accounts to register
             "coupon": "FREECODE",            // Coupon code
-            "secure": false,                 // Require secure connections
+            "require_tls": false,                 // Require secure connections
             "renew": {                       // Account renewal settings
-                "account": [
+                "accounts": [
                     {
                         "email": "user@example.com",
-                        "passwd": "password123",
+                        "password": "password123",
                         "ticket": {
                             "enable": true,
-                            "autoreset": false,
+                            "auto_reset": false,
                             "subject": "Account Issue",
                             "message": "Please help",
                             "level": 1
@@ -347,11 +345,6 @@ Configure specific airport websites or subscription links:
                 "package": "free",
                 "method": 1,
                 "coupon_code": "DISCOUNT",
-                "chatgpt": {
-                    "enable": true,
-                    "regex": "ChatGPT|OpenAI",
-                    "operate": "IN"
-                }
             }
         }
     ]
@@ -367,18 +360,18 @@ Configure specific airport websites or subscription links:
     "crawl": {
         "enable": true,                    // Enable crawling
         "exclude": "spam|blocked",         // Global exclude pattern
-        "threshold": 5,                    // Max failure threshold
-        "singlelink": true,               // Allow single proxy links
+        "max_fails": 5,                    // Max failure threshold
+        "include_nodes": true,               // Allow single proxy links
         "persist": {                      // Persistence settings
-            "subs": "crawledsubs",        // Subscription storage key
-            "proxies": "crawledproxies"   // Proxy storage key
+            "subscribe": "crawledsubs",   // Subscription storage key
+            "nodes": "crawledproxies"   // Proxy storage key
         },
-        "config": {                       // Global crawl config
+        "task": {                         // TaskConfig generation params
             "rename": "🌐 {name}",
             "include": "",
             "exclude": ""
         },
-        
+
 #### 2.2 Telegram Crawler
 
 ```json
@@ -387,11 +380,11 @@ Configure specific airport websites or subscription links:
             "enable": true,
             "pages": 5,                   // Pages to crawl per channel
             "exclude": "spam|ads",
-            "users": {
+            "channels": {
                 "channel_name": {
                     "include": "subscription|sub",
                     "exclude": "spam",
-                    "config": {
+                    "task": {
                         "rename": "📱 TG-{name}"
                     },
                     "push_to": ["group1"]
@@ -411,7 +404,7 @@ Configure specific airport websites or subscription links:
         "pages": 2,                       // Search pages
         "push_to": ["free"],
         "exclude": "test|spam",
-        "spams": ["spam-repo"]            // Excluded repositories
+        "exclude_repos": ["spam-repo"]            // Excluded repositories
     }
 }
 ```
@@ -432,14 +425,14 @@ GH_TOKEN=your_github_token
     "google": {
             "enable": false,              // Disabled by default
             "exclude": "spam",
-            "notinurl": ["spam.com"],     // Exclude domains
+            "exclude_sites": ["spam.com"],     // Exclude domains
             "qdr": 7,                     // Days to search back
-            "limits": 100,                // Max results
+            "limit": 100,                // Max results
             "push_to": ["group1"]
     },
     "yandex": {
         "enable": false,
-        "within": 2,                     // Time range (days)
+        "days": 2,                     // Time range (days)
         "pages": 5,                      // Search pages
         "push_to": ["free"]
     }
@@ -455,7 +448,7 @@ GH_TOKEN=your_github_token
             "users": {
                 "username": {
                     "enable": true,
-                    "num": 30,            // Number of tweets to check
+                    "tweets": 30,         // Number of tweets to check
                     "include": "proxy|vpn",
                     "exclude": "spam",
                     "push_to": ["group1"]
@@ -476,7 +469,7 @@ GH_TOKEN=your_github_token
                 "url": "https://example.com/proxies",
                 "include": "vmess://|trojan://",
                 "exclude": "expired",
-                "config": {
+                "task": {
                     "rename": "🌍 {name}"
                 },
                 "push_to": ["group1"]
@@ -492,18 +485,14 @@ GH_TOKEN=your_github_token
     "scripts": [
             {
                 "enable": false,
-                "script": "custom_crawler#main_function",
-                "params": {
-                    "persist": {
-                        "fileid": "custom_output"
-                    },
-                    "config": {
-                        "enable": true,
-                        "liveness": true,
-                        "exclude": "spam",
-                        "rename": "🔧 {name}",
-                        "push_to": ["group1"]
-                    }
+                "plugin": "dynamic",
+                "persist": "custom_output",
+                "task": {
+                    "enable": true,
+                    "check_alive": true,
+                    "exclude": "spam",
+                    "rename": "🔧 {name}",
+                    "push_to": ["group1"]
                 }
             }
         ]
@@ -520,7 +509,7 @@ Define output groups and format conversion:
     "groups": {
         "premium": {                      // Group name
             "emoji": true,                // Add country emojis
-            "list": true,                 // Generate proxy list
+            "list_only": true,                 // Generate proxy list
             "targets": {                  // Output formats (keys must be supported by subconverter: https://github.com/asdlokj1qpi233/subconverter)
                 "clash": "premium-clash",     // Storage key for Clash format
                 "singbox": "premium-singbox", // Storage key for SingBox format
@@ -530,12 +519,12 @@ Define output groups and format conversion:
                 "enable": false,
                 "locate": true,           // Whether to detect node's landing region/country
                 "residential": false,     // Whether to detect if node type is residential broadband
-                "bits": 2                 // Number of digits to pad node names
+                "digits": 2                 // Number of digits to pad node names
             }
         },
         "free": {
             "emoji": true,
-            "list": false,
+            "list_only": false,
             "targets": {
                 "clash": "free-clash",
                 "v2ray": "free-v2ray"
@@ -556,7 +545,7 @@ Define output groups and format conversion:
         "items": {
             "premium-clash": {
                 "username": "github-username",
-                "gistid": "gist-id",
+                "gist_id": "gist-id",
                 "filename": "clash.yaml"
             }
         }
@@ -580,8 +569,8 @@ PUSH_TOKEN=your_github_personal_access_token
         "items": {
             "config-name": {
                 "username": "username",
-                "folderid": "folder-id",
-                "fileid": "file-id"
+                "folder_id": "folder-id",
+                "file_id": "file-id"
             }
         }
     }
@@ -603,7 +592,7 @@ PUSH_TOKEN=your_pastegg_api_key
         "domain": "https://imperialb.in",
         "items": {
             "config-name": {
-                "fileid": "document-id"
+                "file_id": "document-id"
             }
         }
     }
@@ -624,7 +613,7 @@ PUSH_TOKEN=your_imperial_api_token
         "base": "https://pastefy.app",
         "items": {
             "config-name": {
-                "fileid": "paste-id"
+                "file_id": "paste-id"
             }
         }
     }
@@ -645,7 +634,7 @@ PUSH_TOKEN=your_pastefy_api_token
         "base": "https://qbin.me",
         "items": {
             "config-name": {
-                "fileid": "file-id",
+                "file_id": "file-id",
                 "password": "password (optional)",
                 "expire": 86400
             }
@@ -672,17 +661,17 @@ Configure storage backends for output:
         "items": {                        // Storage configurations
             "premium-clash": {
                 "username": "your-username",
-                "gistid": "your-gist-id",
+                "gist_id": "your-gist-id",
                 "filename": "premium-clash.yaml"
             },
             "premium-v2ray": {
-                "username": "your-username", 
-                "gistid": "your-gist-id",
+                "username": "your-username",
+                "gist_id": "your-gist-id",
                 "filename": "premium-v2ray.txt"
             },
             "crawledsubs": {              // For persistence
                 "username": "your-username",
-                "gistid": "your-gist-id", 
+                "gist_id": "your-gist-id",
                 "filename": "subscriptions.json"
             }
         }
@@ -696,8 +685,8 @@ Configure storage backends for output:
         "engine": "local",
         "items": {
             "config-name": {
-                "folderid": "output",      // Subdirectory
-                "fileid": "proxies.yaml"   // Filename
+                "folder_id": "output",      // Subdirectory
+                "file_id": "proxies.yaml"   // Filename
             }
         }
     }
@@ -719,7 +708,7 @@ LOCAL_BASEDIR=/path/to/local/storage    # Local storage directory
 # Configuration file (optional)
 SUBSCRIBE_CONF=https://example.com/config.json  # Remote configuration file URL
 
-# GitHub related  
+# GitHub related
 GH_TOKEN=your_github_token              # GitHub API Token
 GH_COOKIE=your_github_session_cookie    # GitHub Session Cookie
 GIST_PAT=your_personal_access_token     # GitHub Personal Access Token
@@ -727,7 +716,6 @@ GIST_LINK=username/gist_id              # Gist link (for collect.py)
 
 # Workflow mode
 WORKFLOW_MODE=0                         # 0:crawl+aggregate 1:crawl only 2:aggregate only
-REACHABLE=true                          # Network reachability
 SKIP_ALIVE_CHECK=false                  # Skip liveness check
 SKIP_REMARK=false                       # Skip remark update
 
@@ -750,7 +738,7 @@ sequenceDiagram
     participant Clash
     participant Convert
     participant Push
-    
+
     User->>Process: Run with config
     Process->>Config: Load configuration
     Config-->>Process: Return ProcessConfig
@@ -873,36 +861,36 @@ classDiagram
         +filter_push()
         +raw_url()
     }
-    
+
     class PushToGist {
         +api_address: str
         +method: PATCH
     }
-    
+
     class PushToPasteGG {
         +api_address: str
         +method: PATCH
     }
-    
+
     class PushToImperial {
         +api_address: str
         +method: PATCH
     }
-    
+
     class PushToPastefy {
         +api_address: str
         +method: PUT
     }
-    
+
     class PushToQBin {
         +api_address: str
         +method: POST
     }
-    
+
     class PushToLocal {
         +method: local
     }
-    
+
     PushTo <|-- PushToGist
     PushTo <|-- PushToPasteGG
     PushTo <|-- PushToImperial
@@ -916,7 +904,7 @@ classDiagram
 #### Basic Workflow
 1. **Prepare Configuration**
 ```bash
-cp subscribe/config/config.default.json my-config.json
+cp subscribe/examples/config.default.json my-config.json
 # Edit my-config.json with your settings
 ```
 

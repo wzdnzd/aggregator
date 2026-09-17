@@ -346,7 +346,6 @@ SUBSCRIBE_CONF=https://example.com/config.json  # 远程配置文件URL
 
 # 工作模式控制
 WORKFLOW_MODE=0                         # 0:爬取+聚合 1:仅爬取 2:仅聚合
-REACHABLE=true                          # 网络连通性检测
 SKIP_ALIVE_CHECK=false                  # 跳过代理活性检查
 SKIP_REMARK=false                       # 跳过备注更新
 
@@ -386,12 +385,12 @@ python subscribe/collect.py [选项]
 -o, --overwrite             # 覆盖域名列表
 -r, --refresh               # 仅刷新现有订阅
 -s, --skip                  # 跳过可用性检查
--c, --chuck                 # 丢弃需要人机验证的站点
+-c, --skip-captcha                 # 丢弃需要人机验证的站点
 -e, --easygoing             # 宽松注册模式
 -a, --all                   # 生成完整 Clash 配置
--v, --vitiate               # 忽略默认过滤规则
+-v, --ignore-default-filters               # 忽略默认过滤规则
 -i, --invisible             # 隐藏进度条
--y, --yourself URL          # 自定义机场列表URL
+-y, --custom-sites URL          # 自定义机场列表URL
 -u, --url URL               # 测试URL
 ```
 
@@ -449,20 +448,20 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 
 ## 配置详解
 
-配置文件是 `process.py` 的核心，位于 `subscribe/config/config.default.json`。
+配置文件是 `process.py` 的核心，位于 `subscribe/examples/config.default.json`。
 
 ### 配置文件结构概览
 
 ```json
 {
-    "domains": [...],      // 机场域名和订阅配置
+    "sites": [...],        // 机场域名和订阅配置
     "crawl": {...},        // 爬虫设置和数据源配置
     "groups": {...},       // 输出分组和格式转换
     "storage": {...}       // 存储后端配置
 }
 ```
 
-### 1. 域名配置 (domains)
+### 1. 站点配置 (sites)
 
 配置机场网站和订阅链接，支持自动注册和订阅管理。
 
@@ -471,8 +470,8 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 | 配置项    | 类型    | 必需性 | 默认值 | 说明                                                    |
 | --------- | ------- | ------ | ------ | ------------------------------------------------------- |
 | `name`    | string  | 必需   | `""`   | 机场唯一标识符，用于日志和命名                          |
-| `sub`     | array   | 可选   | `[]`   | 已有订阅链接列表，配置后将跳过自动注册                  |
-| `domain`  | string  | 条件   | `""`   | 机场域名，当 `sub` 为空时必需，用于自动注册获取免费套餐 |
+| `subscribe`     | array   | 可选   | `[]`   | 已有订阅链接列表，配置后将跳过自动注册                  |
+| `domain`  | string  | 条件   | `""`   | 机场域名，当 `subscribe` 为空时必需，用于自动注册获取免费套餐 |
 | `enable`  | boolean | 可选   | `true` | 是否启用此配置                                          |
 | `push_to` | array   | 必需   | `[]`   | 推送到的分组名称列表，不能为空                          |
 
@@ -483,15 +482,15 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 | `rename`   | string  | 可选   | `""`   | 节点重命名规则，支持 `{name}` 占位符 |
 | `include`  | string  | 可选   | `""`   | 包含过滤器，正则表达式               |
 | `exclude`  | string  | 可选   | `""`   | 排除过滤器，正则表达式               |
-| `ignorede` | boolean | 可选   | `true` | 是否忽略默认排除规则                 |
+| `ignore_default_exclude` | boolean | 可选   | `true` | 是否忽略默认排除规则                 |
 
 #### 质量控制
 
 | 配置项     | 类型    | 必需性 | 默认值  | 说明                             |
 | ---------- | ------- | ------ | ------- | -------------------------------- |
-| `liveness` | boolean | 可选   | `true`  | 是否进行活性测试                 |
+| `check_alive` | boolean | 可选   | `true`  | 是否进行活性测试                 |
 | `rate`     | number  | 可选   | `2.5`   | 最大倍率，超过此值的节点将被丢弃 |
-| `secure`   | boolean | 可选   | `false` | 是否要求安全连接（验证SSL证书）  |
+| `require_tls`   | boolean | 可选   | `false` | 是否要求安全连接（验证SSL证书）  |
 
 #### 注册配置
 
@@ -507,13 +506,13 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 ```json
 {
     "renew": {
-        "account": [                    // 账号列表
+        "accounts": [                   // 账号列表
             {
                 "email": "user@example.com",     // 登录邮箱
-                "passwd": "password123",         // 登录密码
+                "password": "password123",         // 登录密码
                 "ticket": {                      // 工单配置
                     "enable": true,              // 是否启用工单
-                    "autoreset": false,          // 是否自动重置
+                    "auto_reset": false,          // 是否自动重置
                     "subject": "账号问题",       // 工单标题
                     "message": "请协助处理",     // 工单内容
                     "level": 1                   // 工单等级（1-3）
@@ -524,11 +523,6 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
         "package": "免费套餐",          // 套餐名称
         "method": 1,                    // 支付方式
         "coupon_code": "NEWUSER",       // 续费优惠码
-        "chatgpt": {                    // ChatGPT检测配置
-            "enable": true,             // 是否启用检测
-            "regex": "ChatGPT|OpenAI",  // 检测关键词
-            "operate": "IN"             // 操作类型（IN/OUT）
-        }
     }
 }
 ```
@@ -537,22 +531,22 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 
 ```json
 {
-    "domains": [
+    "sites": [
         {
             "name": "example-airport",
-            "sub": ["https://example.com/api/v1/client/subscribe?token=abc123"],
+            "subscribe": ["https://example.com/api/v1/client/subscribe?token=abc123"],
             "domain": "example.com",
             "enable": true,
             "rename": "🚀 {name}",
             "include": "香港|新加坡|美国",
             "exclude": "过期|失效|测试",
             "push_to": ["premium", "backup"],
-            "ignorede": true,
-            "liveness": true,
-            "rate": 2.0,
+            "ignore_default_exclude": true,
+            "check_alive": true,
+            "max_rate": 2.0,
             "count": 3,
             "coupon": "FREE2024",
-            "secure": false
+            "require_tls": false
         }
     ]
 }
@@ -568,23 +562,23 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 | ------------ | ------- | ------ | ------ | -------------------------- |
 | `enable`     | boolean | 可选   | `true` | 是否启用爬虫功能           |
 | `exclude`    | string  | 可选   | `""`   | 全局排除规则（正则表达式） |
-| `threshold`  | number  | 可选   | `5`    | 失败阈值，超过此值停止尝试 |
-| `singlelink` | boolean | 可选   | `true` | 是否允许单个代理链接       |
+| `max_fails`  | number  | 可选   | `5`    | 失败阈值，超过此值停止尝试 |
+| `include_nodes` | boolean | 可选   | `true` | 是否允许单个代理链接       |
 
 #### 持久化配置 (persist)
 
 | 配置项    | 类型   | 必需性 | 默认值             | 说明             |
 | --------- | ------ | ------ | ------------------ | ---------------- |
-| `subs`    | string | 可选   | `"crawledsubs"`    | 订阅数据存储键名 |
-| `proxies` | string | 可选   | `"crawledproxies"` | 代理数据存储键名 |
+| `subscribe` | string | 可选   | `"crawledsubs"`    | 订阅数据存储键名 |
+| `nodes`     | string | 可选   | `"crawledproxies"` | 节点快照存储键名 |
 
-#### 通用配置 (config)
+#### 任务参数 (task)
 
-应用于所有爬取源的默认配置：
+应用于所有爬取源、后续生成 TaskConfig 时使用的参数：
 
 ```json
 {
-    "config": {
+    "task": {
         "rename": "🌐 {name}",          // 默认重命名规则
         "include": "",                  // 默认包含规则
         "exclude": "测试|过期"          // 默认排除规则
@@ -604,17 +598,17 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 | `pages`   | number  | 可选   | `5`    | 每个频道爬取的页数     |
 | `exclude` | string  | 可选   | `""`   | 频道级别的排除规则     |
 
-**频道配置 (users)**：
+**频道配置 (channels)**：
 
 每个频道的具体配置：
 
 ```json
 {
-    "users": {
+    "channels": {
         "频道名称": {
             "include": "订阅|vmess|trojan",    // 包含关键词
             "exclude": "付费|广告",            // 排除关键词
-            "config": {                        // 频道专用配置
+            "task": {                          // 频道专用任务参数
                 "rename": "📱 TG-{name}"
             },
             "push_to": ["free"]               // 推送到的分组
@@ -631,7 +625,7 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
         "enable": true,
         "pages": 3,
         "exclude": "spam|ads",
-        "users": {
+        "channels": {
             "proxy_channel": {
                 "include": "订阅|subscription|免费",
                 "exclude": "付费|vip|premium",
@@ -657,7 +651,7 @@ CUSTOMIZE_LINK=https://example.com      # 自定义机场列表URL
 | `pages`   | number  | 可选   | `2`    | 搜索结果页数         |
 | `push_to` | array   | 必需   | `[]`   | 推送到的分组列表     |
 | `exclude` | string  | 可选   | `""`   | 排除规则             |
-| `spams`   | array   | 可选   | `[]`   | 排除的仓库名称列表   |
+| `exclude_repos`   | array   | 可选   | `[]`   | 排除的仓库名称列表   |
 
 **环境变量**：
 ```bash
@@ -676,7 +670,7 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
         "pages": 3,
         "push_to": ["free"],
         "exclude": "test|demo|example",
-        "spams": ["spam-repo", "fake-proxy"]
+        "exclude_repos": ["spam-repo", "fake-proxy"]
     }
 }
 ```
@@ -689,8 +683,9 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 | ---------- | ------- | ------ | ------- | -------------------- |
 | `enable`   | boolean | 可选   | `false` | 是否启用（默认禁用） |
 | `exclude`  | string  | 可选   | `""`    | 排除规则             |
-| `limits`   | number  | 可选   | `100`   | 最大搜索结果数       |
-| `notinurl` | array   | 可选   | `[]`    | 排除的域名列表       |
+| `limit`    | number  | 可选   | `100`   | 最大搜索结果数       |
+| `days`     | number  | 可选   | `7`     | 搜索时间范围（天）   |
+| `exclude_sites` | array   | 可选   | `[]`    | 排除的域名列表       |
 | `push_to`  | array   | 必需   | `[]`    | 推送到的分组         |
 
 **Yandex 搜索**：
@@ -699,9 +694,9 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 | ---------- | ------- | ------ | ------- | -------------------- |
 | `enable`   | boolean | 可选   | `false` | 是否启用（默认禁用） |
 | `exclude`  | string  | 可选   | `""`    | 排除规则             |
-| `within`   | number  | 可选   | `3`     | 搜索时间范围（天）   |
+| `days`     | number  | 可选   | `3`     | 搜索时间范围（天）   |
 | `pages`    | number  | 可选   | `5`     | 搜索页数             |
-| `notinurl` | array   | 可选   | `[]`    | 排除的域名列表       |
+| `exclude_sites` | array   | 可选   | `[]`    | 排除的域名列表       |
 | `push_to`  | array   | 必需   | `[]`    | 推送到的分组         |
 
 **示例配置**：
@@ -710,16 +705,16 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
     "google": {
         "enable": false,
         "exclude": "spam|blocked",
-        "limits": 50,
-        "notinurl": ["spam.com", "blocked.site"],
+        "limit": 50,
+        "exclude_sites": ["spam.com", "blocked.site"],
         "push_to": ["free"]
     },
     "yandex": {
         "enable": false,
         "exclude": "spam",
-        "within": 7,
+        "days": 7,
         "pages": 3,
-        "notinurl": ["spam.com"],
+        "exclude_sites": ["spam.com"],
         "push_to": ["free"]
     }
 }
@@ -742,10 +737,10 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
     "users": {
         "用户名": {
             "enable": true,              // 是否启用此用户
-            "num": 30,                   // 检查的推文数量
+            "tweets": 30,                // 检查的推文数量
             "include": "proxy|vpn|节点", // 包含关键词
             "exclude": "广告|付费",      // 排除关键词
-            "config": {                  // 用户专用配置
+            "task": {                    // 用户专用任务参数
                 "rename": "🐦 Twitter-{name}"
             },
             "push_to": ["free"]         // 推送到的分组
@@ -762,7 +757,7 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 | ----------- | ------- | ------ | ------- | -------------- |
 | `enable`    | boolean | 可选   | `false` | 是否启用此仓库 |
 | `username`  | string  | 必需   | `""`    | GitHub 用户名  |
-| `repo_name` | string  | 必需   | `""`    | 仓库名称       |
+| `repo` | string  | 必需   | `""`    | 仓库名称       |
 | `commits`   | number  | 可选   | `3`     | 检查的提交数量 |
 | `exclude`   | string  | 可选   | `""`    | 排除规则       |
 | `push_to`   | array   | 必需   | `[]`    | 推送到的分组   |
@@ -774,7 +769,7 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
         {
             "enable": true,
             "username": "proxy-user",
-            "repo_name": "free-proxy-list",
+            "repo": "free-proxy-list",
             "commits": 5,
             "exclude": "test|demo",
             "push_to": ["free"]
@@ -801,7 +796,7 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 
 | 配置项        | 类型    | 必需性 | 默认值 | 说明           |
 | ------------- | ------- | ------ | ------ | -------------- |
-| `multiple`    | boolean | 可选   | `true` | 是否为批量页面 |
+| `paged`    | boolean | 可选   | `true` | 是否为批量页面 |
 | `placeholder` | string  | 条件   | `""`   | URL中的占位符  |
 | `start`       | number  | 可选   | `1`    | 起始页码       |
 | `end`         | number  | 可选   | `10`   | 结束页码       |
@@ -815,7 +810,7 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
             "url": "https://example.com/proxies",
             "include": "vmess://|trojan://|ss://",
             "exclude": "过期|失效",
-            "config": {
+            "task": {
                 "rename": "🌍 Web-{name}"
             },
             "push_to": ["free"]
@@ -823,7 +818,7 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
         {
             "enable": true,
             "url": "https://example.com/page/{page}",
-            "multiple": true,
+            "paged": true,
             "placeholder": "{page}",
             "start": 1,
             "end": 5,
@@ -840,62 +835,15 @@ GH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
 | 配置项   | 类型    | 必需性 | 默认值  | 说明                            |
 | -------- | ------- | ------ | ------- | ------------------------------- |
 | `enable` | boolean | 可选   | `false` | 是否启用此脚本                  |
-| `script` | string  | 必需   | `""`    | 脚本路径，格式：`文件名#函数名` |
-| `params` | object  | 可选   | `{}`    | 传递给脚本的参数                |
+| `plugin` | string  | 必需   | `""`    | 插件名，对应 `crawl/scripts` 下的注册名 |
+| `persist` | string/object | 可选 | | 引用 `storage.items` 名或内联存储项 |
+| `task` | object  | 可选   | `{}`    | 生成 TaskConfig 的参数 |
 
-**参数配置 (params)**：
-
-```json
-{
-    "params": {
-        "persist": {                    // 持久化配置
-            "fileid": "custom_output"   // 存储文件ID
-        },
-        "api_key": "任意需要的配置",     // 自定义参数，可以是任意键值对
-        "timeout": 30,                  // 其他自定义配置
-        "config": {                     // 通用配置
-            "enable": true,
-            "liveness": true,
-            "exclude": "test|spam",
-            "rename": "🔧 Custom-{name}",
-            "push_to": ["premium"]
-        }
-    }
-}
-```
+公共字段只有 `enable` / `plugin` / `persist` / `task`，其余为插件私有字段。
 
 **脚本开发示例**：
 
-创建 `scripts/custom_crawler.py`：
-
-```python
-def main_function(params):
-    """
-    自定义爬虫函数
-    
-    Args:
-        params: 配置参数字典
-        
-    Returns:
-        list: 返回订阅配置列表
-    """
-    api_key = params.get("api_key")           # 获取自定义配置
-    custom_param = params.get("custom_param") # 获取其他参数
-    config = params.get("config", {})
-    
-    # 你的爬取逻辑
-    subscriptions = []
-    
-    # 返回格式
-    return [
-        {
-            "name": "custom-source",
-            "sub": "https://example.com/subscribe",
-            "push_to": config.get("push_to", []),
-            "saved": False  # 是否已保存
-        }
-    ]
-```
+插件放在 `subscribe/crawl/scripts/` 下，实现 `parse(ctx) -> TConfig` 和 `run(config, ctx) -> ChannelResult`，并用 `plugin` 名注册。
 
 **完整示例**：
 ```json
@@ -903,20 +851,14 @@ def main_function(params):
     "scripts": [
         {
             "enable": true,
-            "script": "custom_crawler#main_function",
-            "params": {
-                "persist": {
-                    "fileid": "custom_output"
-                },
-                "api_key": "任意需要的配置值",
-                "custom_param": "其他参数",
-                "config": {
-                    "enable": true,
-                    "liveness": true,
-                    "exclude": "test|demo",
-                    "rename": "🔧 API-{name}",
-                    "push_to": ["premium"]
-                }
+            "plugin": "dynamic",
+            "persist": "custom_output",
+            "task": {
+                "enable": true,
+                "check_alive": true,
+                "exclude": "test|demo",
+                "rename": "🔧 API-{name}",
+                "push_to": ["premium"]
             }
         }
     ]
@@ -932,7 +874,7 @@ def main_function(params):
 | 配置项  | 类型    | 必需性 | 默认值 | 说明                      |
 | ------- | ------- | ------ | ------ | ------------------------- |
 | `emoji` | boolean | 可选   | `true` | 是否添加国家/地区表情符号 |
-| `list`  | boolean | 可选   | `true` | 是否生成节点列表模式      |
+| `list_only` | boolean | 可选 | `true` | 转换时只输出代理节点列表 |
 
 #### 输出目标 (targets)
 
@@ -967,7 +909,7 @@ def main_function(params):
     "groups": {
         "premium": {
             "emoji": true,
-            "list": true,
+            "list_only": true,
             "targets": {
                 "clash": "premium-clash",
                 "v2ray": "premium-v2ray",
@@ -977,12 +919,12 @@ def main_function(params):
                 "enable": true,
                 "locate": true,
                 "residential": false,
-                "bits": 2
+                "digits": 2
             }
         },
         "free": {
             "emoji": true,
-            "list": false,
+            "list_only": false,
             "targets": {
                 "clash": "free-clash",
                 "v2ray": "free-v2ray"
@@ -990,7 +932,7 @@ def main_function(params):
         },
         "backup": {
             "emoji": false,
-            "list": true,
+            "list_only": true,
             "targets": {
                 "singbox": "backup-singbox"
             }
@@ -1035,7 +977,7 @@ def main_function(params):
         "items": {
             "premium-clash": {
                 "username": "your-github-username",
-                "gistid": "your-gist-id",
+                "gist_id": "your-gist-id",
                 "filename": "premium-clash.yaml"
             }
         }
@@ -1067,8 +1009,8 @@ PUSH_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx  # GitHub 个人访问令牌
         "items": {
             "premium-clash": {
                 "username": "your-username",
-                "folderid": "folder-id",
-                "fileid": "file-id"
+                "folder_id": "folder-id",
+                "file_id": "file-id"
             }
         }
     }
@@ -1098,7 +1040,7 @@ PUSH_TOKEN=your_pastegg_api_key
         "domain": "https://imperialb.in",
         "items": {
             "premium-clash": {
-                "fileid": "document-id"
+                "file_id": "document-id"
             }
         }
     }
@@ -1122,7 +1064,7 @@ PUSH_TOKEN=your_imperial_api_token
         "base": "https://pastefy.app",
         "items": {
             "premium-clash": {
-                "fileid": "paste-id"
+                "file_id": "paste-id"
             }
         }
     }
@@ -1146,7 +1088,7 @@ PUSH_TOKEN=your_pastefy_api_token
         "base": "https://qbin.me",
         "items": {
             "premium-clash": {
-                "fileid": "file-id",
+                "file_id": "file-id",
                 "password": "optional-password",
                 "expire": 86400
             }
@@ -1175,8 +1117,8 @@ PUSH_TOKEN=your_qbin_token
         "engine": "local",
         "items": {
             "premium-clash": {
-                "folderid": "output/premium",
-                "fileid": "clash.yaml"
+                "folder_id": "output/premium",
+                "file_id": "clash.yaml"
             }
         }
     }
@@ -1200,9 +1142,9 @@ LOCAL_BASEDIR=/path/to/output/directory  # 基础输出目录
        "storage": {
            "engine": "gist",
            "items": {
-               "premium-clash": {"username": "user", "gistid": "id1", "filename": "premium.yaml"},
-               "free-clash": {"username": "user", "gistid": "id2", "filename": "free.yaml"},
-               "crawledsubs": {"username": "user", "gistid": "id3", "filename": "subs.json"}
+               "premium-clash": {"username": "user", "gist_id": "id1", "filename": "premium.yaml"},
+               "free-clash": {"username": "user", "gist_id": "id2", "filename": "free.yaml"},
+               "crawledsubs": {"username": "user", "gist_id": "id3", "filename": "subs.json"}
            }
        }
    }
@@ -1394,7 +1336,7 @@ classDiagram
 #### 基本工作流程
 1. **准备配置**
 ```bash
-cp subscribe/config/config.default.json my-config.json
+cp subscribe/examples/config.default.json my-config.json
 # 编辑 my-config.json 设置您的配置
 ```
 

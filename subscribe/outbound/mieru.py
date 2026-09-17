@@ -21,7 +21,7 @@ class MieruVerifier(OutboundVerifier):
     mihomo_only = True
     require_port = False
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         has_port = "port" in item and item.get("port") not in (None, "")
         has_range = bool(wrap(item.get("port-range", "")))
         if has_port == has_range:
@@ -41,5 +41,5 @@ class MieruVerifier(OutboundVerifier):
             return False
         return True
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("username", ""), item.get("password", ""))

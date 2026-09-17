@@ -9,8 +9,11 @@ import json
 import random
 import re
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
+
+RequestFn = Callable[..., tuple[bool, Any]]
 
 import utils
 from logger import logger
@@ -68,7 +71,7 @@ def _valid_public_ipv4(text: str) -> str:
     return str(addr)
 
 
-def _parse_egress_ipv4(content) -> str:
+def _parse_egress_ipv4(content: object) -> str:
     if content is None:
         return ""
     if isinstance(content, dict):
@@ -107,7 +110,7 @@ def _parse_egress_ipv4(content) -> str:
     return ""
 
 
-def resolve_egress_ipv4(port: int, request, max_retries: int = 2, timeout: int = 15) -> str:
+def resolve_egress_ipv4(port: int, request: RequestFn, max_retries: int = 2, timeout: int = 15) -> str:
     urls = list(EGRESS_IPV4_URLS)
     random.shuffle(urls)
     tries = min(len(urls), max(_EGRESS_IPV4_TRIES, max_retries + 1))
@@ -134,20 +137,24 @@ class IPClassifyResult:
     company_type: str = ""
     asn_type: str = ""
     score: Optional[int] = None
-    raw: dict = field(default_factory=dict)
+    raw: dict[str, object] = field(default_factory=dict)
 
 
 class IPLibrary:
     name: str = ""
     needs_egress_ip: bool = False
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         raise NotImplementedError
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         raise NotImplementedError
 
-    def _resolve_egress_ip(self, port: int, request, max_retries: int = 2, timeout: int = 15, ip: str = "") -> str:
+    def _resolve_egress_ip(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 15, ip: str = ""
+    ) -> str:
         text = _valid_public_ipv4(ip) if ip else ""
         if text:
             return text
@@ -155,14 +162,14 @@ class IPLibrary:
 
     def _get(
         self,
-        request,
+        request: RequestFn,
         port: int,
         url: str,
         max_retries: int,
         timeout: int,
-        headers: dict = None,
+        headers: dict[str, str] | None = None,
         deserialize: bool = True,
-    ):
+    ) -> object | None:
         success, response = request(
             port=port,
             url=url,
@@ -176,7 +183,7 @@ class IPLibrary:
         return response
 
     @staticmethod
-    def _parse_trust_score(value, *, invert: bool = False) -> Optional[int]:
+    def _parse_trust_score(value: object, *, invert: bool = False) -> Optional[int]:
         if value is None:
             return None
 
@@ -194,7 +201,7 @@ class IPLibrary:
         return max(0, min(100, n))
 
     @staticmethod
-    def _nested(data, *keys) -> dict:
+    def _nested(data: object, *keys: str) -> dict[str, object]:
         current = data
         for key in keys:
             if not isinstance(current, dict):
@@ -207,7 +214,9 @@ class IPNetCoffeeLibrary(IPLibrary):
     name = "ipnetcoffee"
     needs_egress_ip = True
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         ip = self._resolve_egress_ip(port, request, max_retries=max_retries, timeout=timeout, ip=ip)
         if not ip:
             return {}
@@ -216,7 +225,7 @@ class IPNetCoffeeLibrary(IPLibrary):
         response = self._get(request, port, url, max_retries, timeout)
         return response if isinstance(response, dict) else {}
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         data = data if isinstance(data, dict) else {}
         if data.get("isResidential") is True and utils.trim(data.get("company_type", "")) != "business":
             company_type, asn_type = "isp", "isp"
@@ -236,7 +245,9 @@ class MeowVPSLibrary(IPLibrary):
     name = "meowvps"
     needs_egress_ip = True
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         ip = self._resolve_egress_ip(port, request, max_retries=max_retries, timeout=timeout, ip=ip)
         if not ip:
             return {}
@@ -261,7 +272,7 @@ class MeowVPSLibrary(IPLibrary):
 
         return response
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         data = data if isinstance(data, dict) else {}
         core = self._nested(data, "core_data")
         digital = self._nested(data, "api4", "digital")
@@ -288,7 +299,7 @@ class MeowVPSLibrary(IPLibrary):
         )
 
     @classmethod
-    def _is_residential(cls, digital_type: str, user_type: str, data: dict) -> bool:
+    def _is_residential(cls, digital_type: str, user_type: str, data: dict[str, object]) -> bool:
         if digital_type in {"hosting", "edu"}:
             return False
         if user_type in {"hosting", "content_delivery_network", "college"}:
@@ -309,11 +320,13 @@ class MeowVPSLibrary(IPLibrary):
 class IPPureLibrary(IPLibrary):
     name = "ippure"
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         response = self._get(request, port, "https://my.ippure.com/v1/info", max_retries, timeout)
         return response if isinstance(response, dict) else {}
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         data = data if isinstance(data, dict) else {}
         if data.get("isResidential", False):
             company_type, asn_type = "isp", "isp"
@@ -332,7 +345,9 @@ class IPPureLibrary(IPLibrary):
 class IP2LocationLibrary(IPLibrary):
     name = "ip2location"
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         headers = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"}
         response = self._get(
             request,
@@ -352,7 +367,7 @@ class IP2LocationLibrary(IPLibrary):
             return {}
         return data
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         data = data if isinstance(data, dict) else {}
         usage_type = utils.trim(data.get("usage_type", "")).lower()
         as_info = data.get("as_info", {})
@@ -375,7 +390,7 @@ class IP2LocationLibrary(IPLibrary):
         )
 
     @staticmethod
-    def _extract_data(content: str) -> dict:
+    def _extract_data(content: str) -> dict[str, object]:
         if not content or not isinstance(content, str):
             return {}
 
@@ -406,11 +421,13 @@ class IP2LocationLibrary(IPLibrary):
 class IPLarkLibrary(IPLibrary):
     name = "iplark"
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         response = self._get(request, port, "https://iplark.com/ipapi/public/ipinfo", max_retries, timeout)
         return response if isinstance(response, dict) else {}
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         data = data if isinstance(data, dict) else {}
         node_type = utils.trim(data.get("type", "")).lower()
         if node_type == "isp":
@@ -432,7 +449,9 @@ class IPInfoLibrary(IPLibrary):
     name = "ipinfo"
     needs_egress_ip = True
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         ip = self._resolve_egress_ip(port, request, max_retries=max_retries, timeout=timeout, ip=ip)
         if not ip:
             return {}
@@ -445,7 +464,7 @@ class IPInfoLibrary(IPLibrary):
         data = response.get("data", response)
         return data if isinstance(data, dict) else {}
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         data = data if isinstance(data, dict) else {}
         company = data.get("company", {}) if isinstance(data.get("company"), dict) else {}
         asn = data.get("asn", {}) if isinstance(data.get("asn"), dict) else {}
@@ -460,10 +479,12 @@ class IPInfoLibrary(IPLibrary):
 class IPApiLibrary(IPLibrary):
     name = "ipapi"
 
-    def __init__(self, api_key: str = ""):
+    def __init__(self, api_key: str = "") -> None:
         self.api_key = utils.trim(api_key)
 
-    def fetch(self, port: int, request, max_retries: int = 2, timeout: int = 12, ip: str = "") -> dict:
+    def fetch(
+        self, port: int, request: RequestFn, max_retries: int = 2, timeout: int = 12, ip: str = ""
+    ) -> dict[str, object]:
         url = "https://api.ipapi.is"
         if self.api_key:
             url += f"?key={self.api_key}"
@@ -471,7 +492,7 @@ class IPApiLibrary(IPLibrary):
         response = self._get(request, port, url, max_retries, timeout)
         return response if isinstance(response, dict) else {}
 
-    def classify(self, data: dict) -> IPClassifyResult:
+    def classify(self, data: dict[str, object]) -> IPClassifyResult:
         data = data if isinstance(data, dict) else {}
         location = data.get("location", {}) if isinstance(data.get("location"), dict) else {}
         company = data.get("company", {}) if isinstance(data.get("company"), dict) else {}

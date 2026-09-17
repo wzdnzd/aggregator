@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import utils
-
 from outbound.base import OutboundVerifier, VerifyContext
 from outbound.tls import verify_reality_opts
 from outbound.transport import (
@@ -23,7 +22,7 @@ VMESS_NETWORKS = ("tcp", "ws", "h2", "http", "grpc", "mkcp", "kcp", "mekya")
 class VmessVerifier(OutboundVerifier):
     type_name = "vmess"
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         network = normalize_httpupgrade(item)
         if not network:
             for key, value in (
@@ -38,13 +37,13 @@ class VmessVerifier(OutboundVerifier):
                     network = value
                     break
             else:
-                network = "tcp" if ctx.mihomo else "ws"
+                network = "tcp" if ctx.is_mihomo else "ws"
 
-        allowed = VMESS_NETWORKS if ctx.mihomo else ("ws", "h2", "http", "grpc")
+        allowed = VMESS_NETWORKS if ctx.is_mihomo else ("ws", "h2", "http", "grpc")
         if network not in allowed:
             return False
 
-        ciphers = VMESS_CIPHERS + ["zero"] if ctx.mihomo else VMESS_CIPHERS
+        ciphers = VMESS_CIPHERS + ["zero"] if ctx.is_mihomo else VMESS_CIPHERS
         if item.get("cipher") not in ciphers:
             return False
         if "alterId" not in item or not utils.is_number(item["alterId"]):
@@ -57,11 +56,11 @@ class VmessVerifier(OutboundVerifier):
         if not verify_ws_opts(item, network):
             return False
         if "grpc-opts" in item:
-            if not ctx.mihomo:
+            if not ctx.is_mihomo:
                 return False
             if not verify_grpc_opts(item, network):
                 return False
-        if ctx.mihomo:
+        if ctx.is_mihomo:
             if not verify_mkcp_opts(item, network):
                 return False
             if not verify_mekya_opts(item, network):
@@ -70,5 +69,5 @@ class VmessVerifier(OutboundVerifier):
                 return False
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return "uuid"

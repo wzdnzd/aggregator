@@ -6,11 +6,12 @@
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import renewal
 import utils
 from airport import ANOTHER_API_PREFIX, AirPort
+from config.models import NodeInput, ProcessConfig, RenewJob, SiteConfig
 from logger import logger
 from origin import Origin
 from push import PushTo
@@ -18,83 +19,41 @@ from push import PushTo
 
 @dataclass
 class TaskConfig:
-    # 任务名
     name: str
-
-    # subconverter程序名
     bin_name: str
-
-    # 任务编号
     taskid: int = -1
-
-    # 网址域名
     domain: str = ""
-
-    # 订阅地址
-    sub: str = ""
-
-    # 任务编号
+    nodes: NodeInput = field(default_factory=NodeInput)
     index: int = 1
-
-    # 失败重试次数
     retry: int = 3
-
-    # 最高允许倍率
-    rate: float = 20.0
-
-    # 套餐续期配置
-    renew: dict = None
-
-    # 优惠码
+    max_rate: float = 20.0
+    renew: RenewJob | None = None
     coupon: str = ""
-
-    # 节点重命名规则
     rename: str = ""
-
-    # 节点排除规则
     exclude: str = ""
     include: str = ""
-
-    # ChatGPT连通性测试节点过滤规则
-    chatgpt: dict = None
-
-    # 是否检测节点存活状态
-    liveness: bool = True
-
-    # 是否强制开启 tls 及阻止跳过证书验证
-    disable_insecure: bool = False
-
-    # 覆盖subconverter默认exclude规则
-    ignorede: bool = False
-
-    # 是否允许特殊协议
+    check_alive: bool = True
+    require_tls: bool = False
+    ignore_default_exclude: bool = False
     special_protocols: bool = False
-
-    # 对于具有邮箱域名白名单且需要验证码的情况，是否使用 Gmail 别名邮箱尝试，为 True 时表示不使用
-    rigid: bool = True
-
-    # 是否丢弃可能需要人机验证的站点
-    chuck: bool = False
-
-    # 邀请码
+    allow_gmail_alias: bool = False
+    skip_captcha: bool = False
     invite_code: str = ""
-
-    # 接口地址前缀，如 /api/v1/ 或 /api?scheme=
     api_prefix: str = "/api/v1/"
 
 
-def execute(task_conf: TaskConfig) -> list:
+def execute(task_conf: TaskConfig) -> list[dict[str, object]]:
     if not task_conf or not isinstance(task_conf, TaskConfig):
         return []
 
     obj = AirPort(
         name=task_conf.name,
         site=task_conf.domain,
-        sub=task_conf.sub,
+        nodes=task_conf.nodes,
         rename=task_conf.rename,
         exclude=task_conf.exclude,
         include=task_conf.include,
-        liveness=task_conf.liveness,
+        check_alive=task_conf.check_alive,
         coupon=task_conf.coupon,
         api_prefix=task_conf.api_prefix,
     )
@@ -105,30 +64,32 @@ def execute(task_conf: TaskConfig) -> list:
     if task_conf.renew:
         sub_url = renewal.add_traffic_flow(
             domain=obj.ref,
-            params=task_conf.renew,
+            job=task_conf.renew,
             jsonify=obj.api_prefix == ANOTHER_API_PREFIX,
         )
         if sub_url and not obj.registed:
             obj.registed = True
-            obj.sub = sub_url
+            obj.nodes.subscribe = sub_url
 
-    cookie, authorization = obj.get_subscribe(
-        retry=task_conf.retry,
-        rigid=task_conf.rigid,
-        chuck=task_conf.chuck,
-        invite_code=task_conf.invite_code,
-    )
+    cookie, authorization = "", ""
+    if task_conf.nodes.empty() and task_conf.domain:
+        cookie, authorization = obj.get_subscribe(
+            retry=task_conf.retry,
+            allow_gmail_alias=task_conf.allow_gmail_alias,
+            skip_captcha=task_conf.skip_captcha,
+            invite_code=task_conf.invite_code,
+        )
 
     proxies = obj.parse(
         cookie=cookie,
         auth=authorization,
         retry=task_conf.retry,
-        rate=task_conf.rate,
+        rate=task_conf.max_rate,
         bin_name=task_conf.bin_name,
-        disable_insecure=task_conf.disable_insecure,
-        ignore_exclude=task_conf.ignorede,
-        chatgpt=task_conf.chatgpt,
+        require_tls=task_conf.require_tls,
+        ignore_exclude=task_conf.ignore_default_exclude,
         special_protocols=task_conf.special_protocols,
+        nodes=task_conf.nodes,
     )
 
     logger.info(
@@ -138,7 +99,7 @@ def execute(task_conf: TaskConfig) -> list:
     return proxies
 
 
-def executewrapper(task_conf: TaskConfig) -> tuple[int, list]:
+def executewrapper(task_conf: TaskConfig) -> tuple[int, list[dict[str, object]]]:
     if not task_conf:
         return (-1, [])
 
@@ -147,7 +108,7 @@ def executewrapper(task_conf: TaskConfig) -> tuple[int, list]:
     return (taskid, proxies)
 
 
-def liveness_fillter(proxies: list) -> tuple[list, list]:
+def liveness_fillter(proxies: list[dict[str, object]]) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     if not list:
         return [], []
 
@@ -161,13 +122,12 @@ def liveness_fillter(proxies: list) -> tuple[list, list]:
             checks.append(p)
         else:
             p.pop("sub", "")
-            p.pop("chatgpt", False)
             nochecks.append(p)
 
     return checks, nochecks
 
 
-def cleanup(filepath: str = "", filenames: list = []) -> None:
+def cleanup(filepath: str = "", filenames: list[str] | None = None) -> None:
     if not filepath or not filenames:
         return
 
@@ -177,7 +137,7 @@ def cleanup(filepath: str = "", filenames: list = []) -> None:
             os.remove(filename)
 
 
-def dedup_task(tasks: list) -> list:
+def dedup_task(tasks: list[TaskConfig]) -> list[TaskConfig]:
     if not tasks:
         return []
     items = []
@@ -188,7 +148,7 @@ def dedup_task(tasks: list) -> list:
     return items
 
 
-def exists(tasks: list, task: TaskConfig) -> bool:
+def exists(tasks: list[TaskConfig], task: TaskConfig) -> bool:
     if not isinstance(task, TaskConfig):
         logger.error(f"[DedupError] need type 'TaskConfig' but got type '{type(task)}'")
         return True
@@ -197,8 +157,10 @@ def exists(tasks: list, task: TaskConfig) -> bool:
 
     found = False
     for item in tasks:
-        if task.sub != "":
-            if task.sub == item.sub:
+        left = task.nodes.subscribe_list()
+        right = item.nodes.subscribe_list()
+        if left:
+            if left == right:
                 found = True
         else:
             if task.domain == item.domain and task.index == item.index:
@@ -211,83 +173,79 @@ def exists(tasks: list, task: TaskConfig) -> bool:
                 item.exclude = "|".join([item.exclude, task.exclude]).removeprefix("|")
             if task.include:
                 item.include = "|".join([item.include, task.include]).removeprefix("|")
-        break
+            break
 
     return found
 
 
-def merge_config(configs: list) -> list:
-    def judge_exists(raw: dict, target: dict) -> bool:
-        if not raw or not target:
-            return False
+def _subscribe_key(site: SiteConfig) -> str | list[str]:
+    subs = site.nodes.subscribe_list()
+    if len(subs) <= 1:
+        return subs[0] if subs else ""
+    return subs
 
-        rsub = raw.get("sub").strip()
-        tsub = target.get("sub", "")
-        if not tsub:
+
+def merge_config(sites: list[SiteConfig]) -> list[SiteConfig]:
+    def judge_exists(raw: SiteConfig, target: SiteConfig) -> bool:
+        rsubs = raw.nodes.subscribe_list()
+        tsubs = target.nodes.subscribe_list()
+        rsub = rsubs[0] if rsubs else ""
+        if not tsubs:
             if rsub:
                 return False
-            return raw.get("domain", "").strip() == target.get("domain", "").strip()
-        if isinstance(tsub, str):
-            return rsub == tsub.strip()
-        for sub in tsub:
-            if rsub == sub.strip():
-                return True
-        return False
+            return utils.trim(raw.domain) == utils.trim(target.domain)
+        return rsub in tsubs
 
-    if not configs:
+    if not sites:
         return []
     items = []
-    for conf in configs:
-        if not isinstance(conf, dict):
-            logger.error(f"[MergeError] need type 'dict' but got type '{type(conf)}'")
+    for site in sites:
+        if not isinstance(site, SiteConfig):
+            logger.error(f"[MergeError] need type 'SiteConfig' but got type '{type(site)}'")
             continue
 
-        sub = conf.get("sub", "")
-        if isinstance(sub, list) and len(sub) <= 1:
-            sub = sub[0] if sub else ""
+        sub = _subscribe_key(site)
+        if isinstance(sub, str):
+            site.nodes.subscribe = sub
 
-        # 人工维护配置，无需合并
-        if isinstance(sub, list) or conf.get("renew", {}):
-            items.append(conf)
+        if isinstance(sub, list) or site.renew:
+            items.append(site)
             continue
 
         found = False
-        conf["sub"] = sub
         for item in items:
-            found = judge_exists(raw=conf, target=item)
+            found = judge_exists(raw=site, target=item)
             if found:
-                if conf.get("errors", 0) > item.get("errors", 0):
-                    item["errors"] = conf.get("errors", 0)
-                if item.get("debut", False):
-                    item["debut"] = conf.get("debut", False)
-                if not item.get("rename", ""):
-                    item["rename"] = conf.get("rename", "")
-                if conf.get("exclude", ""):
-                    item["exclude"] = "|".join([item.get("exclude", ""), conf.get("exclude", "")]).removeprefix("|")
-                if conf.get("include", ""):
-                    item["include"] = "|".join([item.get("include", ""), conf.get("include", "")]).removeprefix("|")
-
+                if site.errors > item.errors:
+                    item.errors = site.errors
+                if item.debut:
+                    item.debut = site.debut
+                if not item.rename:
+                    item.rename = site.rename
+                if site.exclude:
+                    item.exclude = "|".join([item.exclude, site.exclude]).removeprefix("|")
+                if site.include:
+                    item.include = "|".join([item.include, site.include]).removeprefix("|")
                 break
-
         if not found:
-            items.append(conf)
-
+            items.append(site)
     return items
 
 
-def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_remark: bool = False) -> None:
-    if not config or not push:
+def refresh(
+    config: ProcessConfig, push: PushTo, alives: dict[str, bool] | None, filepath: str = "", skip_remark: bool = False
+) -> None:
+    if not isinstance(config, ProcessConfig) or not isinstance(push, PushTo):
         logger.error("[UpdateError] cannot update remote config because content is empty")
         return
 
-    # mark invalid crawled subscription
     invalidsubs = None if (skip_remark or not alives) else [k for k, v in alives.items() if not v]
-    if invalidsubs:
-        crawledsub = config.get("crawl", {}).get("persist", {}).get("subs", "")
-        threshold = max(config.get("threshold", 1), 1)
-        pushconf = config.get("groups", {}).get(crawledsub, {})
-        if push.validate(config=pushconf):
-            url = push.raw_url(config=pushconf)
+    if invalidsubs and config.crawl:
+        crawledsub = config.crawl.persist.subscribe
+        threshold = max(config.crawl.max_fails, 1)
+        pushconf = config.storage.items.get(crawledsub)
+        if push.validate(item=pushconf):
+            url = push.raw_url(item=pushconf)
             content = utils.http_get(url=url)
             try:
                 data, count = json.loads(content), 0
@@ -295,57 +253,56 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
                     record = data.pop(sub, None)
                     if not record:
                         continue
-
-                    defeat = record.get("defeat", 0) + 1
+                    errors = record.get("errors", 0) + 1
                     count += 1
-                    if defeat <= threshold and standard_sub(url=sub):
-                        record["defeat"] = defeat
+                    if errors <= threshold and standard_sub(url=sub):
+                        record["errors"] = errors
                         data[sub] = record
-
                 if count > 0:
                     content = json.dumps(data)
-                    push.push_to(content=content, config=pushconf, group="crawled-remark")
+                    push.push_to(content=content, item=pushconf, group="crawled-remark")
                     logger.info(f"[UpdateInfo] found {count} invalid crawled subscriptions")
-            except:
-                logger.error(f"[UpdateError] remark invalid crawled subscriptions failed")
+            except Exception:
+                logger.error("[UpdateError] remark invalid crawled subscriptions failed")
 
-    update_conf = config.get("update", {})
-    if not update_conf.get("enable", False):
+    if not config.update.enable:
         logger.debug("[UpdateError] skip update remote config because enable=[False]")
         return
 
-    if not push.validate(config=update_conf):
-        logger.error(f"[UpdateError] update config is invalidate")
+    if not push.validate(item=config.update.item):
+        logger.error("[UpdateError] update config is invalidate")
         return
 
-    domains = merge_config(configs=config.get("domains", []))
+    sites_conf = merge_config(sites=config.sites)
     if alives:
         sites = []
-        for item in domains:
-            source = item.get("origin", "")
-            sub = item.get("sub", "")
-            if isinstance(sub, list) and len(sub) <= 1:
-                sub = sub[0] if sub else ""
-            if source in [Origin.TEMPORARY.name, Origin.OWNED.name] or isinstance(sub, list) or alives.get(sub, False):
-                item.pop("errors", None)
-                item.pop("debut", None)
+        for item in sites_conf:
+            if not item.enable:
                 sites.append(item)
                 continue
-
-            errors = item.get("errors", 1)
-            expire = Origin.get_expire(source)
-            if errors < expire and not item.get("debut", False):
-                item.pop("debut", None)
+            sub = _subscribe_key(item)
+            source = item.origin
+            if (
+                source in [Origin.TEMPORARY.name, Origin.OWNED.name]
+                or isinstance(sub, list)
+                or (isinstance(sub, str) and alives.get(sub, False))
+            ):
+                item.errors = 0
+                item.debut = False
                 sites.append(item)
+                continue
+            expire = Origin.get_expire(source)
+            if item.errors < expire and not item.debut:
+                item.debut = False
+                sites.append(item)
+        config.sites = sites
+        sites_conf = sites
 
-        config["domains"] = sites
-        domains = config.get("domains", [])
-
-    if not domains:
-        logger.error("[UpdateError] skip update remote config because domians is empty")
+    if not sites_conf:
+        logger.error("[UpdateError] skip update remote config because sites is empty")
         return
 
-    content = json.dumps(config)
+    content = json.dumps(config.to_dict())
     if filepath:
         directory = os.path.abspath(os.path.dirname(filepath))
         os.makedirs(directory, exist_ok=True)
@@ -353,7 +310,7 @@ def refresh(config: dict, push: PushTo, alives: dict, filepath: str = "", skip_r
             f.write(content)
             f.flush()
 
-    push.push_to(content=content, config=update_conf, group="update")
+    push.push_to(content=content, item=config.update.item, group="update")
 
 
 def standard_sub(url: str) -> bool:

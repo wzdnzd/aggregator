@@ -5,29 +5,24 @@
 
 import argparse
 import base64
-import copy
 import itertools
 import json
 import os
-import random
 import re
-import subprocess
 import sys
 import time
 import traceback
-from copy import deepcopy
-from dataclasses import dataclass, field
 
-import crawl
 import executable
 import location
+import pipeline
 import push
 import utils
 import workflow
 import yaml
 from airport import AirPort
+from config.models import NodeInput, ProcessConfig, StorageItem
 from logger import logger
-from origin import Origin
 from workflow import TaskConfig
 
 import clash
@@ -36,25 +31,9 @@ import subconverter
 PATH = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
-@dataclass
-class ProcessConfig(object):
-    # task list
-    tasks: list[dict] = field(default_factory=list)
-
-    # crawl config
-    crawl: dict = field(default_factory=dict)
-
-    # persist config
-    storage: dict = field(default_factory=dict)
-
-    # groups config
-    groups: dict[dict] = field(default_factory=dict)
-
-    # update config
-    update: dict = field(default_factory=dict)
-
-    # max acceptable delay
-    delay: int = 5000
+def parse_workflow_mode(raw: str | None = None) -> int:
+    text = utils.trim(raw if raw is not None else os.environ.get("WORKFLOW_MODE", "0"))
+    return 0 if not text.isdigit() else min(max(int(text), 0), 2)
 
 
 def load_configs(
@@ -63,211 +42,11 @@ def load_configs(
     num_threads: int = 0,
     display: bool = True,
     retry: int = 3,
+    mode: int = 0,
 ) -> ProcessConfig:
-    def parse_config(config: dict) -> None:
-        tasks.extend(config.get("domains", []))
-        groups.update(config.get("groups", {}))
-        update_conf.update(config.get("update", {}))
-        crawl_conf.update(config.get("crawl", {}))
-        storage.update(config.get("storage", {}))
+    from crawl.engine import run
 
-        push_conf = deepcopy(storage)
-        push_conf.pop("items", None)
-
-        nonlocal delay
-        delay = min(delay, max(config.get("delay", sys.maxsize), 50))
-
-        if only_check:
-            return
-
-        # global exclude
-        params["exclude"] = crawl_conf.get("exclude", "")
-
-        # persistence configuration
-        persist = {k: storage.get("items", {}).get(v, {}) for k, v in crawl_conf.get("persist", {}).items()}
-        params["storage"] = {"items": persist, **push_conf}
-
-        params["config"] = crawl_conf.get("config", {})
-        params["enable"] = crawl_conf.get("enable", True)
-        params["singlelink"] = crawl_conf.get("singlelink", False)
-
-        threshold = max(crawl_conf.get("threshold", 1), 1)
-        params["threshold"] = threshold
-        spiders = deepcopy(crawl_conf)
-
-        # spider's config for telegram
-        telegram_conf = spiders.get("telegram", {})
-        users = telegram_conf.pop("users", {})
-        telegram_conf["pages"] = max(telegram_conf.get("pages", 1), 1)
-        if telegram_conf.pop("enable", True) and users:
-            enabled_users, common_exclude = {}, telegram_conf.pop("exclude", "")
-            for k, v in users.items():
-                exclude = v.get("exclude", "").strip()
-                v["exclude"] = f"{exclude}|{common_exclude}".removeprefix("|") if common_exclude else exclude
-                v["push_to"] = list(set(v.get("push_to", [])))
-
-                enabled_users[k] = v
-            telegram_conf["users"] = enabled_users
-            params["telegram"] = telegram_conf
-
-        # spider's config for google
-        google_conf = spiders.get("google", {})
-        push_to = list(set(google_conf.get("push_to", [])))
-        if google_conf.pop("enable", True) and push_to:
-            google_conf["push_to"] = push_to
-            params["google"] = google_conf
-
-        # spider's config for yandex
-        yandex_conf = spiders.get("yandex", {})
-        push_to = list(set(yandex_conf.get("push_to", [])))
-        if yandex_conf.pop("enable", True) and push_to:
-            yandex_conf["push_to"] = push_to
-            params["yandex"] = yandex_conf
-
-        # spider's config for github
-        github_conf = spiders.get("github", {})
-        push_to = list(set(github_conf.get("push_to", [])))
-        spams = list(set(github_conf.get("spams", [])))
-        if github_conf.pop("enable", True) and push_to:
-            github_conf["pages"] = max(github_conf.get("pages", 1), 1)
-            github_conf["push_to"] = push_to
-            github_conf["spams"] = spams
-            params["github"] = github_conf
-
-        # spider's config for twitter
-        twitter_conf = spiders.get("twitter", {})
-        users = twitter_conf.pop("users", {})
-        if twitter_conf.pop("enable", True) and users:
-            enabled_users = {}
-            for k, v in users.items():
-                if utils.isblank(k) or not v or type(v) != dict or not v.pop("enable", True):
-                    continue
-
-                v["push_to"] = list(set(v.get("push_to", [])))
-                enabled_users[k] = v
-
-            params["twitter"] = enabled_users
-
-        # spider's config for github's repositories
-        repo_conf, repositories = spiders.get("repositories", []), {}
-        for repo in repo_conf:
-            enable = repo.pop("enable", True)
-            username = repo.get("username", "").strip()
-            repo_name = repo.get("repo_name", "").strip()
-            if not enable or not username or not repo_name:
-                continue
-
-            key = "/".join([username, repo_name])
-            push_to = list(set(repo.get("push_to", [])))
-            repo["username"] = username
-            repo["repo_name"] = repo_name
-            repo["commits"] = max(repo.get("commits", 3), 1)
-            repo["push_to"] = push_to
-
-            repositories[key] = repo
-        params["repositories"] = repositories
-
-        # spider's config for specified page
-        pages_conf, pages = spiders.get("pages", []), {}
-        for page in pages_conf:
-            enable = page.pop("enable", True)
-            url = page.get("url", "")
-            push_to = list(set(page.get("push_to", [])))
-            if not enable or not url or not push_to:
-                continue
-
-            multiple = page.pop("multiple", False)
-            if not multiple:
-                page["push_to"] = push_to
-                if isinstance(url, str):
-                    pages[url] = page
-                elif isinstance(url, list):
-                    for u in url:
-                        u = utils.trim(u)
-                        if u:
-                            pages[u] = page
-            else:
-                placeholder = utils.trim(page.pop("placeholder", ""))
-                if not placeholder or placeholder not in url or not isinstance(url, str):
-                    continue
-
-                # page number range
-                start, end = -1, -1
-                try:
-                    start = int(page.pop("start", 1))
-                    end = int(page.pop("end", 1))
-                except:
-                    pass
-
-                if start < 0 or end < start:
-                    continue
-
-                for i in range(start, end + 1):
-                    copypage = deepcopy(page)
-                    link = url.replace(placeholder, str(i))
-                    copypage["url"] = link
-                    copypage["push_to"] = push_to
-                    pages[link] = copypage
-
-        params["pages"] = pages
-
-        # spider's config for scripts
-        scripts_conf, scripts = spiders.get("scripts", []), {}
-
-        for script in scripts_conf:
-            enable = script.pop("enable", True)
-            path = script.pop("script", "").strip()
-            if not enable or not path:
-                continue
-
-            task_conf = script.get("params", {})
-            if not isinstance(task_conf, dict):
-                task_conf = {}
-
-            # record storge
-            task_conf["storage"] = {"items": task_conf.pop("persist", {}), **push_conf}
-
-            scripts[path] = task_conf
-        params["scripts"] = scripts
-
-    def verify(storage: dict, groups: dict) -> bool:
-        if not isinstance(storage, dict) or not isinstance(groups, dict):
-            return False
-
-        pushtool = push.get_instance(config=push.PushConfig.from_dict(storage))
-        if not isinstance(storage.get("items", {}), dict):
-            logger.error(f"cannot found any valid storage config")
-            return False
-
-        items = pushtool.filter_push(config=storage.get("items", {}))
-        for name, group in groups.items():
-            name = utils.trim(name)
-
-            if not name or not isinstance(group, dict):
-                logger.error(f"invalid group config, name: {name}")
-                return False
-
-            targets = group.get("targets", {})
-            if not targets or not isinstance(targets, dict):
-                logger.error(f"group {name} should contain at least one type conversion")
-                return False
-
-            for category, storage_name in targets.items():
-                category = utils.trim(category).lower()
-                if category not in subconverter.CONVERT_TARGETS:
-                    logger.error(f"group {name} contains unsupported conversion type: {category}")
-                    return False
-
-                storage_name = utils.trim(storage_name)
-                if storage_name not in items:
-                    logger.error(f"missing storage configuration for group {name} to convert type to {category}")
-                    return False
-
-        return True
-
-    tasks, delay, storage, groups = [], sys.maxsize, {}, {}
-    params, crawl_conf, update_conf = {}, {}, {}
-
+    raw = {}
     try:
         if re.match(
             r"^(https?:\/\/(([a-zA-Z0-9]+-?)+[a-zA-Z0-9]+\.)+[a-zA-Z]+)(:\d+)?(\/.*)?(\?.*)?(#.*)?$",
@@ -279,39 +58,38 @@ def load_configs(
                 logger.error(f"cannot fetch config from remote, url: {utils.hide(url=url)}")
             else:
                 os.environ["SUBSCRIBE_CONF"] = url
-                parse_config(json.loads(content))
+                raw = json.loads(content)
         else:
             localfile = os.path.abspath(url)
             if os.path.exists(localfile) and os.path.isfile(localfile):
-                config = json.loads(open(localfile, "r", encoding="utf8").read())
+                raw = json.loads(open(localfile, "r", encoding="utf8").read())
                 os.environ["SUBSCRIBE_CONF"] = localfile
-                parse_config(config)
 
-        # check configuration
-        if not verify(storage=storage, groups=groups):
-            raise ValueError(f"there are some errors in the configuration, please check and confirm")
-
-        # execute crawl tasks
-        if params:
-            result = crawl.batch_crawl(conf=params, num_threads=num_threads, display=display)
-            tasks.extend(result)
+        config = ProcessConfig.parse(raw or {})
+        pushtool = push.get_instance(config.storage)
+        config.verify(pushtool)
+        crawl_enabled = bool(config.crawl and config.crawl.enable)
+        if not only_check:
+            if mode == 1 and not crawl_enabled:
+                logger.warning("exit process because mode=1 and crawling task is disabled")
+                sys.exit(0)
+            if crawl_enabled:
+                config.sites.extend(
+                    run(config.crawl, storage=config.storage, num_threads=num_threads, display=display, mode=mode)
+                )
+                if mode == 1:
+                    sys.exit(0)
+        return config
     except SystemExit as e:
         if e.code != 0:
             logger.error("parse configuration failed due to process abnormally exits")
-
         sys.exit(e.code)
-    except:
+    except ValueError as e:
+        logger.error(f"invalid configuration: {e}")
+        sys.exit(0)
+    except Exception:
         logger.error(f"occur error when load task config:\n{traceback.format_exc()}")
         sys.exit(0)
-
-    return ProcessConfig(
-        tasks=tasks,
-        crawl=crawl_conf,
-        storage=storage,
-        groups=groups,
-        update=update_conf,
-        delay=delay,
-    )
 
 
 def assign(
@@ -320,188 +98,54 @@ def assign(
     bin_name: str,
     remain: bool,
     pushtool: push.PushTo,
-    only_check=False,
+    only_check: bool = False,
     rigid: bool = True,
-) -> tuple[list[TaskConfig], dict, list]:
-    if not isinstance(pc, ProcessConfig):
-        return [], {}, []
+    special_protocols: bool | None = None,
+) -> tuple[list[TaskConfig], dict[str, list[int]]]:
+    if not isinstance(pc, ProcessConfig) or not isinstance(pushtool, push.PushTo):
+        return [], {}
 
-    tasks, groups, arrays = [], {}, []
-    retry, globalid = max(1, retry), 0
+    special_protocols = AirPort.enable_special_protocols(special_protocols)
 
-    # 是否允许特殊协议
-    special_protocols = AirPort.enable_special_protocols()
-
-    sites = [] if not isinstance(pc.tasks, list) else deepcopy(pc.tasks)
-    for site in sites:
-        if not site:
-            continue
-
-        name = site.get("name", "").strip().lower()
-        domain = site.get("domain", "").strip().lower()
-
-        # 订阅地址，支持单个或多个
-        subscribe = site.get("sub", "")
-        if isinstance(subscribe, str):
-            subscribe = [subscribe.strip()]
-        subscribe = [s for s in subscribe if s.strip() != ""]
-        if len(subscribe) >= 2:
-            subscribe = list(set(subscribe))
-
-        # 节点倍率超过该值将会被丢弃
-        rate = float(site.get("rate", 3.0))
-
-        # 需要注册账号的个数
-        num = min(max(1, int(site.get("count", 1))), 10)
-
-        # 如果订阅链接不为空，num为订阅链接数
-        num = len(subscribe) if subscribe else num
-
-        # 组名列表
-        push_names = site.get("push_to", [])
-
-        # 失败次数，超过该值将不再尝试注册
-        errors = max(site.get("errors", 0), 0) + 1
-
-        # 来源类别
-        source = site.get("origin", "")
-
-        # 重命名规则，正常正则表达式
-        rename = site.get("rename", "")
-
-        # 排除匹配到的节点，支持正则表达式
-        exclude = site.get("exclude", "").strip()
-
-        # 仅保留匹配到的节点，支持正则表达式
-        include = site.get("include", "").strip()
-
-        # 是否检查 ChatGPT 的连通性
-        chatgpt = site.get("chatgpt", {})
-
-        # 是否对节点测活
-        liveness = site.get("liveness", True)
-
-        # 拒绝跳过证书验证
-        disable_insecure = site.get("secure", False)
-
-        # 优惠码
-        coupon = utils.trim(site.get("coupon", ""))
-
-        # 邀请码
-        invite_code = utils.trim(site.get("invite_code", ""))
-
-        # 覆盖subconverter默认exclude规则
-        ignoreder = site.get("ignorede", False)
-
-        # 需要人机验证时是否直接放弃
-        chuck = site.get("chuck", False)
-
-        # 接口地址前缀
-        api_prefix = site.get("api_prefix", "")
-
-        if not source:
-            source = Origin.TEMPORARY.name if not domain else Origin.OWNED.name
-        site["origin"] = source
-
-        if source != Origin.TEMPORARY.name:
-            site["errors"] = errors
-
-        site["name"] = name.rsplit(crawl.SEPARATOR, maxsplit=1)[0]
-        arrays.append(site)
-
-        renews = copy.deepcopy(site.get("renew", {}))
-        accounts = renews.pop("account", [])
-
-        # 如果renew不为空，num为配置的renew账号数
-        num = len(accounts) if accounts else num
-
-        if not site.get("enable", True) or "" == name or ("" == domain and not subscribe) or num <= 0:
-            continue
-
-        for i in range(num):
-            index = -1 if num == 1 else i + 1
-            sub = subscribe[i] if subscribe else ""
-            renew = {"coupon_code": coupon} if coupon else {}
-
-            globalid += 1
-            if accounts:
-                renew.update(accounts[i])
-                renew.update(renews)
-
-            if renew and api_prefix:
-                renew["api_prefix"] = api_prefix
-
-            task = TaskConfig(
-                name=name,
-                taskid=globalid,
-                domain=domain,
-                sub=sub,
-                index=index,
-                retry=retry,
-                rate=rate,
-                bin_name=bin_name,
-                renew=renew,
-                rename=rename,
-                exclude=exclude,
-                include=include,
-                chatgpt=chatgpt,
-                liveness=liveness,
-                coupon=coupon,
-                disable_insecure=disable_insecure,
-                ignorede=ignoreder,
-                rigid=rigid,
-                chuck=chuck,
-                special_protocols=special_protocols,
-                invite_code=invite_code,
-                api_prefix=api_prefix,
-            )
-            found = workflow.exists(tasks=tasks, task=task)
-            if found:
-                continue
-
-            tasks.append(task)
-            for push_name in push_names:
-                if push_name not in pc.groups:
-                    logger.error(f"cannot found push config, name=[{push_name}]\tsite=[{name}]")
-                    continue
-
-                taskids = groups.get(push_name, [])
-                taskids.append(globalid)
-                groups[push_name] = taskids
+    tasks, groups = pipeline.assign_sites(
+        sites=pc.sites,
+        groups=pc.groups,
+        retry=retry,
+        bin_name=bin_name,
+        allow_gmail_alias=not rigid,
+        special_protocols=special_protocols,
+    )
 
     if (remain or only_check) and pc.groups:
         if only_check:
-            # clean all extra tasks
-            tasks, groups, globalid = [], {k: [] for k in groups.keys()}, 0
+            tasks, groups, globalid = [], {k: [] for k in pc.groups.keys()}, 0
+        else:
+            globalid = max([task.taskid for task in tasks], default=0)
 
-        for k, v in pc.groups.items():
-            taskids = groups.get(k, [])
-            targets = v.get("targets", {})
-            if not targets:
+        for name, group in pc.groups.items():
+            taskids = groups.get(name, [])
+            if not group.targets:
                 continue
-
-            # get the first conversion configuration for each group
-            values = list(targets.values())
-            config = pc.storage.get("items", {}).get(values[0], {})
-            subscribe = pushtool.raw_url(config=config)
-            if k not in groups or not subscribe:
+            values = list(group.targets.values())
+            item = pc.storage.items.get(values[0])
+            subscribe = pushtool.raw_url(item=item) if item else ""
+            if name not in groups or not subscribe:
                 continue
-
             globalid += 1
             tasks.append(
                 TaskConfig(
-                    name=f"remains-{k}",
+                    name=f"remains-{name}",
                     taskid=globalid,
-                    sub=subscribe,
+                    nodes=NodeInput(subscribe=subscribe),
                     index=-1,
-                    retry=retry,
+                    retry=max(1, retry),
                     bin_name=bin_name,
                     special_protocols=special_protocols,
                 )
             )
             taskids.append(globalid)
-            groups[k] = taskids
-    return tasks, groups, arrays
+            groups[name] = taskids
+    return tasks, groups
 
 
 def aggregate(args: argparse.Namespace) -> None:
@@ -520,13 +164,13 @@ def aggregate(args: argparse.Namespace) -> None:
         num_threads=args.num,
         display=display,
         retry=retry,
+        mode=args.mode,
     )
 
-    storages = process_config.storage or {}
-    pushtool = push.get_instance(config=push.PushConfig.from_dict(storages))
+    pushtool = push.get_instance(process_config.storage)
 
     # generate tasks
-    tasks, groups, sites = assign(
+    tasks, groups = assign(
         pc=process_config,
         retry=retry,
         bin_name=subconverter_bin,
@@ -534,6 +178,7 @@ def aggregate(args: argparse.Namespace) -> None:
         pushtool=pushtool,
         only_check=args.check,
         rigid=not args.flexible,
+        special_protocols=args.special_protocols,
     )
     if not tasks:
         logger.error("cannot found any valid config, exit")
@@ -552,8 +197,9 @@ def aggregate(args: argparse.Namespace) -> None:
         data = results[i]
         if not data or data[0] < 0 or not data[1]:
             # not contain any proxy
-            if tasks[i] and tasks[i].sub:
-                subscribes[tasks[i].sub] = False
+            if tasks[i]:
+                for url in tasks[i].nodes.subscribe_list():
+                    subscribes[url] = False
             continue
 
         datasets[data[0]] = data[1]
@@ -570,59 +216,21 @@ def aggregate(args: argparse.Namespace) -> None:
             continue
 
         workspace = os.path.join(PATH, "clash")
-        binpath = os.path.join(workspace, clash_bin)
         filename = "config.yaml"
-        proxies = clash.generate_config(workspace, proxies, filename)
-
-        # filter
-        skip = utils.trim(os.environ.get("SKIP_ALIVE_CHECK", "false")).lower() in ["true", "1"]
-        nochecks, starttime = proxies, time.time()
-
-        if not skip:
-            checks, nochecks = workflow.liveness_fillter(proxies=proxies)
-            if checks:
-                # executable
-                utils.chmod(binpath)
-
-                logger.info(f"startup clash now, workspace: {workspace}, config: {filename}")
-                process = subprocess.Popen(
-                    [
-                        binpath,
-                        "-d",
-                        workspace,
-                        "-f",
-                        os.path.join(workspace, filename),
-                    ]
-                )
-
-                logger.info(f"clash start success, begin check proxies, group: {k}\tcount: {len(checks)}")
-                time.sleep(random.randint(5, 8))
-
-                params = [
-                    [p, clash.EXTERNAL_CONTROLLER, args.timeout, args.url, process_config.delay, False]
-                    for p in checks
-                    if isinstance(p, dict)
-                ]
-
-                # check
-                masks = utils.multi_thread_run(
-                    func=clash.check,
-                    tasks=params,
-                    num_threads=args.num,
-                    show_progress=display,
-                )
-
-                # close clash client
-                try:
-                    process.terminate()
-                except:
-                    logger.error(f"terminate clash process error, group: {k}")
-
-                availables = [checks[i] for i in range(len(checks)) if masks[i]]
-                nochecks.extend(availables)
-
-                dead = len(checks) - len(availables)
-                logger.info(f"proxies check finished, total: {len(checks)}, alive: {len(availables)}, dead: {dead}")
+        starttime = time.time()
+        nochecks = pipeline.check_alive_proxies(
+            proxies=proxies,
+            clash_bin=clash_bin,
+            workspace=workspace,
+            filename=filename,
+            timeout=args.timeout,
+            test_url=args.url,
+            delay=process_config.delay,
+            num_threads=args.num,
+            display=display,
+            skip=args.skip_alive_check,
+            group=k,
+        )
 
         for item in nochecks:
             item.pop("sub", "")
@@ -631,30 +239,22 @@ def aggregate(args: argparse.Namespace) -> None:
             logger.error(f"cannot fetch any proxy, group=[{k}], cost: {time.time()-starttime:.2f}s")
             continue
 
-        group_conf = process_config.groups.get(k, {})
-        emoji = group_conf.get("emoji", True)
-        list_only = group_conf.get("list", True)
+        group = process_config.groups.get(k)
+        if not group:
+            continue
+        emoji = group.emoji
+        list_only = group.list_only
 
-        regularize = group_conf.get("regularize", {})
-        if regularize and isinstance(regularize, dict) and regularize.get("enable", False):
-            locate = regularize.get("locate", False)
-            residential = regularize.get("residential", False)
-            ip_library = regularize.get("library", "")
-            score = regularize.get("score", False)
-            try:
-                bits = max(1, int(regularize.get("bits", 2)))
-            except:
-                bits = 2
-
+        if group.regularize and group.regularize.enable:
             nochecks = location.regularize(
                 proxies=nochecks,
                 num_threads=args.num,
                 show_progress=display,
-                locate=locate,
-                residential=residential,
-                ip_library=ip_library,
-                digits=bits,
-                score=score,
+                locate=group.regularize.locate,
+                residential=group.regularize.residential,
+                ip_library=group.regularize.library,
+                digits=max(1, group.regularize.digits),
+                score=group.regularize.score,
             )
 
         source_file, data = "config.yaml", {"proxies": nochecks}
@@ -663,7 +263,7 @@ def aggregate(args: argparse.Namespace) -> None:
             yaml.add_representer(clash.QuotedStr, clash.quoted_scalar)
             yaml.dump(data, f, allow_unicode=True)
 
-        targets = group_conf.get("targets", {})
+        targets = group.targets
         for target, storage_name in targets.items():
             persisted, content = False, " "
 
@@ -709,7 +309,7 @@ def aggregate(args: argparse.Namespace) -> None:
                 # save to remote server
                 persisted = pushtool.push_to(
                     content=content,
-                    config=process_config.storage.get("items", {}).get(storage_name, {}),
+                    item=process_config.storage.items.get(storage_name, StorageItem()),
                     group=f"{k}::{target}",
                 )
 
@@ -726,21 +326,27 @@ def aggregate(args: argparse.Namespace) -> None:
         cost = "{:.2f}s".format(time.time() - starttime)
         logger.info(f"group [{k}] process finished, count: {len(nochecks)}, cost: {cost}")
 
-    config = {
-        "domains": sites,
-        "crawl": process_config.crawl,
-        "groups": process_config.groups,
-        "storage": process_config.storage,
-        "update": process_config.update,
-    }
-    skip_remark = utils.trim(os.environ.get("SKIP_REMARK", "false")).lower() in ["true", "1"]
-
-    workflow.refresh(config=config, push=pushtool, alives=dict(subscribes), skip_remark=skip_remark)
+    workflow.refresh(
+        config=process_config,
+        push=pushtool,
+        alives=dict(subscribes),
+        skip_remark=args.skip_remark,
+    )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    env_parser = argparse.ArgumentParser(add_help=False)
+    env_parser.add_argument(
+        "-e",
+        "--environment",
+        type=str,
+        default=".env",
+        help="environment file name",
+    )
+    env_args, _ = env_parser.parse_known_args()
+    utils.load_dotenv(env_args.environment)
 
+    parser = argparse.ArgumentParser(parents=[env_parser])
     parser.add_argument(
         "-c",
         "--check",
@@ -748,15 +354,6 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="only check proxies are alive",
-    )
-
-    parser.add_argument(
-        "-e",
-        "--environment",
-        type=str,
-        required=False,
-        default=".env",
-        help="environment file name",
     )
 
     parser.add_argument(
@@ -775,6 +372,15 @@ if __name__ == "__main__":
         action="store_true",
         default=False,
         help="don't show check progress bar",
+    )
+
+    parser.add_argument(
+        "-m",
+        "--mode",
+        type=int,
+        choices=[0, 1, 2],
+        default=parse_workflow_mode(),
+        help="workflow mode: 0=crawl+aggregate, 1=crawl only, 2=aggregate only",
     )
 
     parser.add_argument(
@@ -809,8 +415,29 @@ if __name__ == "__main__":
         "--server",
         type=str,
         required=False,
-        default="",
+        default=utils.trim(os.environ.get("SUBSCRIBE_CONF", "")),
         help="remote config file",
+    )
+
+    parser.add_argument(
+        "--skip-alive-check",
+        action=argparse.BooleanOptionalAction,
+        default=utils.env_bool("SKIP_ALIVE_CHECK", False),
+        help="skip proxy liveness check",
+    )
+
+    parser.add_argument(
+        "--skip-remark",
+        action=argparse.BooleanOptionalAction,
+        default=utils.env_bool("SKIP_REMARK", False),
+        help="skip remark update for crawled subscriptions",
+    )
+
+    parser.add_argument(
+        "--special-protocols",
+        action=argparse.BooleanOptionalAction,
+        default=utils.env_bool("ENABLE_SPECIAL_PROTOCOLS", True),
+        help="include special protocols such as vless and hysteria",
     )
 
     parser.add_argument(
@@ -832,6 +459,4 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    utils.load_dotenv(args.environment)
-
     aggregate(args=args)

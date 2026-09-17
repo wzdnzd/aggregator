@@ -11,13 +11,13 @@ class _BuiltinVerifier(OutboundVerifier):
     require_server = False
     require_port = False
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("name", ""))
 
 
@@ -36,5 +36,5 @@ class RejectVerifier(_BuiltinVerifier):
 class RematchVerifier(_BuiltinVerifier):
     type_name = "rematch"
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         return ensure_str(item, "target-rematch-name") and ensure_str(item, "target-sub-rule")

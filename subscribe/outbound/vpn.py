@@ -27,14 +27,14 @@ class WireGuardVerifier(OutboundVerifier):
     type_name = "wireguard"
     mihomo_only = True
 
-    def needs_server(self, item: dict) -> bool:
+    def needs_server(self, item: dict[str, object]) -> bool:
         peers = item.get("peers")
         return not (isinstance(peers, list) and peers)
 
-    def needs_port(self, item: dict) -> bool:
+    def needs_port(self, item: dict[str, object]) -> bool:
         return self.needs_server(item)
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not wrap(item.get("private-key", "")):
             return False
         peers = item.get("peers")
@@ -49,10 +49,10 @@ class WireGuardVerifier(OutboundVerifier):
             return True
         return bool(wrap(item.get("public-key", "")))
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("private-key", ""), item.get("public-key", ""))
 
 
@@ -60,7 +60,7 @@ class OpenVPNVerifier(OutboundVerifier):
     type_name = "openvpn"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not wrap(item.get("ca", "")):
             return False
         if "proto" in item and wrap(item.get("proto", "")).lower() not in OPENVPN_PROTOS:
@@ -76,12 +76,12 @@ class OpenVPNVerifier(OutboundVerifier):
         has_cert = bool(wrap(item.get("cert", "")) and wrap(item.get("key", "")))
         return has_user or has_cert
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         if wrap(item.get("password", "")):
             return "password"
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (
             self.type_name,
             item.get("username", ""),
@@ -95,7 +95,7 @@ class MasqueVerifier(OutboundVerifier):
     type_name = "masque"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         if not wrap(item.get("private-key", "")) or not wrap(item.get("public-key", "")):
             return False
         network = wrap(item.get("network", ""))
@@ -103,8 +103,8 @@ class MasqueVerifier(OutboundVerifier):
             return False
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name, item.get("private-key", ""), item.get("public-key", ""))

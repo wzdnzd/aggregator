@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import utils
-
 from outbound.base import OutboundVerifier, VerifyContext
 from outbound.common import QuotedStr
 
 
 class _UserPassVerifier(OutboundVerifier):
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         for field in ("username", "password"):
             value = item.get(field, None)
             if not value:
@@ -22,10 +21,10 @@ class _UserPassVerifier(OutboundVerifier):
                 item[field] = utils.trim(value)
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return None
 
-    def duplicate_key(self, item: dict) -> tuple:
+    def duplicate_key(self, item: dict[str, object]) -> tuple[str, object]:
         return (self.type_name,)
 
 

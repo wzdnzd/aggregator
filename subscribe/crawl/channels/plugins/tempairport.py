@@ -6,25 +6,34 @@
 import json
 from copy import deepcopy
 
-import push
 import utils
 from airport import AirPort, issspanel
-from crawl import is_available
+from config.models import NodeInput, StorageItem
+from crawl.helpers import is_available
+from crawl.models import ChannelResult
 from logger import logger
+from push import PushTo
 from urlvalidator import isurl
 
 from . import commons, scaner
+from .base import PluginContext, ScriptPlugin, register_plugin
+from .commons import as_channel_result, plugin_params
 
 
 def register(
-    domain: str, subtype: int = 1, coupon: str = "", rigid: bool = True, chuck: bool = False, invite_code: str = ""
+    domain: str,
+    subtype: int = 1,
+    coupon: str = "",
+    allow_gmail_alias: bool = False,
+    skip_captcha: bool = False,
+    invite_code: str = "",
 ) -> AirPort:
     url = utils.extract_domain(url=domain, include_protocal=True)
     if not isurl(url=url):
         logger.error(f"[TempSubError] cannot register because domain=[{domain}] is invalidate")
         return None
 
-    airport = AirPort(name=domain.split("//")[1], site=url, sub="", coupon=coupon)
+    airport = AirPort(name=domain.split("//")[1], site=url, nodes=NodeInput(), coupon=coupon)
     if issspanel(domain=url):
         email = utils.random_chars(length=8, punctuation=False) + "@gmail.com"
         passwd = utils.random_chars(length=10, punctuation=True)
@@ -35,32 +44,39 @@ def register(
 
         airport.username = email
         airport.password = passwd
-        airport.sub = suburl
+        airport.nodes.subscribe = suburl
     else:
-        airport.get_subscribe(retry=3, rigid=rigid, chuck=chuck, invite_code=invite_code)
+        airport.get_subscribe(
+            retry=3,
+            allow_gmail_alias=allow_gmail_alias,
+            skip_captcha=skip_captcha,
+            invite_code=invite_code,
+        )
 
     return airport
 
 
-def fetchsub(params: dict) -> list:
+def fetchsub(params: dict[str, object], ctx: PluginContext | None = None) -> list[dict[str, object]]:
     if not params or type(params) != dict:
         return []
 
     config = params.get("config", {})
-    storage = params.get("storage", {})
-    if not storage or type(storage) != dict:
-        logger.error(f"[TempSubError] cannot fetch subscribes bcause storage config is invalidate")
+    if ctx is not None and not isinstance(ctx, PluginContext):
+        return []
+    pushtool = ctx.pushtool if ctx else None
+    persist = ctx.persist if ctx else None
+    threshold = max(int(params.get("threshold", 1) or 1), 1)
+    if (
+        not isinstance(pushtool, PushTo)
+        or not isinstance(persist, StorageItem)
+        or not pushtool.validate(item=persist)
+        or not isinstance(config, dict)
+        or not config.get("push_to")
+    ):
+        logger.error("[TempSubError] cannot fetch subscribes bcause not found arguments 'persist' or 'push_to'")
         return []
 
-    persist = storage.get("items", {})
-    push_config = push.PushConfig.from_dict(storage)
-
-    threshold = max(params.get("threshold", 1), 1)
-    if not persist or not config or type(config) != dict or not config.get("push_to"):
-        logger.error(f"[TempSubError] cannot fetch subscribes bcause not found arguments 'persist' or 'push_to'")
-        return []
-
-    exists, unregisters, unknowns, data = load(config=push_config, persist=persist, retry=params.get("retry", True))
+    exists, unregisters, unknowns, data = load(pushtool=pushtool, persist=persist, retry=params.get("retry", True))
     if not exists and not unregisters and unknowns:
         logger.warning(f"[TempSubError] skip fetchsub because cannot get any valid config")
         return []
@@ -75,34 +91,36 @@ def fetchsub(params: dict) -> list:
             if not task:
                 task = data.get("unknowns", {}).get(airport.ref, {})
 
-            if not airport.available or not airport.sub:
+            subscribe = airport.nodes.subscribe_list()
+            subscribe_url = subscribe[0] if subscribe else ""
+            if not airport.available or not subscribe_url:
                 logger.error(
                     f"[TempSubInfo] cannot get subscribe because domain=[{airport.ref}] forced validation or need pay"
                 )
-                if not utils.isblank(airport.sub):
+                if subscribe_url:
                     logger.warning(
-                        f"[TempSubInfo] renew error, domain: {airport.ref} username: {airport.username} password: {airport.password} sub: {airport.sub}"
+                        f"[TempSubInfo] renew error, domain: {airport.ref} username: {airport.username} password: {airport.password} sub: {subscribe_url}"
                     )
 
-                defeat = task.get("defeat", 0) + 1
+                defeat = task.get("errors", task.get("defeat", 0)) + 1
                 if defeat > threshold:
                     task["enable"] = False
-                task["defeat"] = defeat
+                task["errors"] = defeat
                 unknowns[airport.ref] = task
             else:
                 task.update(
                     {
-                        "sub": airport.sub,
+                        "subscribe": subscribe_url,
                         "username": airport.username,
                         "password": airport.password,
-                        "defeat": 0,
+                        "errors": 0,
                     }
                 )
                 exists[airport.ref] = task
 
         # persist subscribes
         payload = {"usables": exists, "unknowns": unknowns}
-        commons.persist(config=push_config, data=payload, persist=persist)
+        commons.persist(pushtool=pushtool, data=payload, item=persist)
 
     if not exists:
         logger.info(f"[TempSubInfo] fetchsub finished, cannot found any subscribes")
@@ -114,7 +132,7 @@ def fetchsub(params: dict) -> list:
             continue
 
         item = deepcopy(config)
-        item["sub"] = subscribe.get("sub")
+        item["sub"] = subscribe.get("subscribe", subscribe.get("sub"))
         if "config" in subscribe:
             item.update(subscribe.get("config"))
 
@@ -128,12 +146,13 @@ def fetchsub(params: dict) -> list:
     return results
 
 
-def load(config: push.PushConfig, persist: dict, retry: bool = False) -> tuple[dict, list, dict, dict]:
-    pushtool = push.get_instance(config=config)
-    if not pushtool.validate(config=persist):
+def load(
+    pushtool: PushTo | None, persist: StorageItem | None, retry: bool = False
+) -> tuple[dict[str, object], list[object], dict[str, object], dict[str, object]]:
+    if not isinstance(pushtool, PushTo) or not isinstance(persist, StorageItem) or not pushtool.validate(item=persist):
         return {}, [], {}, {}
 
-    url = pushtool.raw_url(config=persist)
+    url = pushtool.raw_url(item=persist)
     try:
         content = utils.http_get(url=url)
         data = json.loads(content)
@@ -153,15 +172,15 @@ def load(config: push.PushConfig, persist: dict, retry: bool = False) -> tuple[d
                 v = unknowns.get(k, {})
                 if v and v.get("enable", True):
                     # 包含订阅，再次检测，否则重新注册
-                    if not utils.isblank(v.get("sub", "")):
+                    if not utils.isblank(v.get("subscribe", v.get("sub", ""))):
                         exists[k] = v
                     else:
                         coupon = v.get("coupon", "")
-                        rigid = v.get("rigid", True)
-                        chuck = v.get("chuck", False)
+                        allow_gmail_alias = bool(v.get("allow_gmail_alias", False))
+                        skip_captcha = bool(v.get("skip_captcha", False))
                         invite_code = v.get("invite_code", "")
 
-                        unregisters.append([k, v.get("type", 1), coupon, rigid, chuck, invite_code])
+                        unregisters.append([k, v.get("type", 1), coupon, allow_gmail_alias, skip_captcha, invite_code])
 
                     unknowns.pop(k, None)
 
@@ -170,7 +189,7 @@ def load(config: push.PushConfig, persist: dict, retry: bool = False) -> tuple[d
             if not v or not v.get("enable", True):
                 continue
             domains.append(k)
-            subscribes.append([v.get("sub", ""), 2, 0.5, 1.0])
+            subscribes.append([v.get("subscribe", v.get("sub", "")), 2, 0.5, 1.0])
 
         if not domains:
             return exists, unregisters, unknowns, rawdata
@@ -189,3 +208,16 @@ def load(config: push.PushConfig, persist: dict, retry: bool = False) -> tuple[d
         return exists, unregisters, unknowns, rawdata
     except:
         return {}, [], {}, {}
+
+
+class TempAirportPlugin(ScriptPlugin[dict[str, object]]):
+    name = "tempairport"
+
+    def parse(self, ctx: PluginContext) -> dict[str, object]:
+        return plugin_params(ctx)
+
+    def run(self, config: dict[str, object], ctx: PluginContext) -> ChannelResult:
+        return as_channel_result(fetchsub(config, ctx))
+
+
+register_plugin(TempAirportPlugin())

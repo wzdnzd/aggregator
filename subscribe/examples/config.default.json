@@ -1,28 +1,28 @@
 {
-    "domains": [
-        {
+   "sites": [
+       {
             "name": "",
-            "sub": [],
+            "subscribe": [],
             "domain": "",
             "enable": true,
             "rename": "",
             "include": "",
             "exclude": "",
             "push_to": [],
-            "ignorede": true,
-            "liveness": true,
-            "rate": 2.5,
+            "ignore_default_exclude": true,
+            "check_alive": true,
+            "max_rate": 2.5,
             "count": 2,
             "coupon": "",
-            "secure": false,
+            "require_tls": false,
             "renew": {
-                "account": [
+                "accounts": [
                     {
                         "email": "",
-                        "passwd": "",
+                        "password": "",
                         "ticket": {
                             "enable": true,
-                            "autoreset": false,
+                            "auto_reset": false,
                             "subject": "",
                             "message": "",
                             "level": 1
@@ -32,41 +32,34 @@
                 "plan_id": 3,
                 "package": "",
                 "method": 1,
-                "coupon_code": "",
-                "chatgpt": {
-                    "enable": true,
-                    "regex": "",
-                    "operate": "IN"
-                }
+                "coupon_code": ""
             }
         }
     ],
     "crawl": {
         "enable": true,
         "exclude": "",
-        "threshold": 5,
-        "singlelink": true,
+        "max_fails": 5,
+        "include_nodes": true,
         "persist": {
-            "subs": "crawledsubs",
-            "proxies": "crawledproxies"
+            "subscribe": "crawledsubs",
+            "nodes": "crawledproxies"
         },
-        "config": {
+        "task": {
             "rename": "",
             "include": "",
-            "exclude": "",
-            "xxxxxxx": ""
+            "exclude": ""
         },
         "telegram": {
             "enable": true,
             "pages": 5,
             "exclude": "",
-            "users": {
+            "channels": {
                 "channel": {
                     "include": "",
                     "exclude": "",
-                    "config": {
-                        "rename": "",
-                        "xxxxxx": ""
+                    "task": {
+                        "rename": ""
                     },
                     "push_to": []
                 }
@@ -75,16 +68,17 @@
         "google": {
             "enable": false,
             "exclude": "",
-            "limits": 100,
-            "notinurl": [],
+            "limit": 100,
+            "days": 7,
+            "exclude_sites": [],
             "push_to": []
         },
         "yandex": {
             "enable": false,
             "exclude": "",
-            "within": 3,
+            "days": 3,
             "pages": 5,
-            "notinurl": [],
+            "exclude_sites": [],
             "push_to": []
         },
         "github": {
@@ -92,19 +86,18 @@
             "pages": 2,
             "push_to": [],
             "exclude": "",
-            "spams": []
+            "exclude_repos": []
         },
         "twitter": {
             "enable": true,
             "users": {
                 "username": {
                     "enable": true,
-                    "num": 30,
+                    "tweets": 30,
                     "include": "",
                     "exclude": "",
-                    "config": {
-                        "rename": "",
-                        "xxxxxx": ""
+                    "task": {
+                        "rename": ""
                     },
                     "push_to": []
                 }
@@ -114,7 +107,7 @@
             {
                 "enable": false,
                 "username": "",
-                "repo_name": "",
+                "repo": "",
                 "commits": 3,
                 "exclude": "",
                 "push_to": []
@@ -126,11 +119,11 @@
                 "url": "",
                 "include": "",
                 "exclude": "",
-                "multiple": true,
+                "paged": true,
                 "placeholder": "",
                 "start": 1,
                 "end": 10,
-                "config": {
+                "task": {
                     "rename": ""
                 },
                 "push_to": []
@@ -139,19 +132,14 @@
         "scripts": [
             {
                 "enable": false,
-                "script": "file#function",
-                "params": {
-                    "persist": {
-                        "fileid": ""
-                    },
-                    "any": "xxx",
-                    "config": {
-                        "enable": true,
-                        "liveness": true,
-                        "exclude": "",
-                        "rename": "",
-                        "push_to": []
-                    }
+                "plugin": "dynamic",
+                "persist": "",
+                "task": {
+                    "enable": true,
+                    "check_alive": true,
+                    "exclude": "",
+                    "rename": "",
+                    "push_to": []
                 }
             }
         ]
@@ -159,7 +147,7 @@
     "groups": {
         "xxx": {
             "emoji": true,
-            "list": true,
+            "list_only": true,
             "targets": {
                 "clash": "xxx-clash",
                 "singbox": "xxx-singbox",
@@ -169,7 +157,7 @@
                 "enable": false,
                 "locate": true,
                 "residential": true,
-                "bits": 2
+                "digits": 2
             }
         }
     },
@@ -180,25 +168,25 @@
         "items": {
             "xxx-clash": {
                 "username": "",
-                "folderid": "",
-                "fileid": ""
+                "folder_id": "",
+                "file_id": ""
             },
             "xxx-singbox": {
-                "fileid": ""
+                "file_id": ""
             },
             "xxx-v2ray": {
                 "username": "",
-                "fileid": ""
+                "file_id": ""
             },
             "crawledsubs": {
                 "username": "",
-                "folderid": "",
-                "fileid": ""
+                "folder_id": "",
+                "file_id": ""
             },
             "crawledproxies": {
                 "username": "",
-                "folderid": "",
-                "fileid": ""
+                "folder_id": "",
+                "file_id": ""
             }
         }
     }

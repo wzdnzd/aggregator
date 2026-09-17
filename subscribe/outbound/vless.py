@@ -5,12 +5,16 @@ from __future__ import annotations
 import base64
 import re
 
-import utils
-
 from outbound.base import OutboundVerifier, VerifyContext
 from outbound.common import wrap
 from outbound.tls import verify_reality_opts
-from outbound.transport import verify_grpc_opts, verify_h2_opts, verify_http_opts, verify_ws_opts, verify_xhttp_opts
+from outbound.transport import (
+    verify_grpc_opts,
+    verify_h2_opts,
+    verify_http_opts,
+    verify_ws_opts,
+    verify_xhttp_opts,
+)
 
 VLESS_MLKEM_X25519_PLUS_PREFIX = "mlkem768x25519plus"
 VLESS_MLKEM_X25519_PLUS_MODES = ("native", "xorpub", "random")
@@ -55,7 +59,7 @@ class VlessVerifier(OutboundVerifier):
     type_name = "vless"
     mihomo_only = True
 
-    def verify_fields(self, item: dict, ctx: VerifyContext) -> bool:
+    def verify_fields(self, item: dict[str, object], ctx: VerifyContext) -> bool:
         encryption = wrap(item.get("encryption", ""))
         if not verify_vless_encryption(encryption):
             return False
@@ -86,5 +90,5 @@ class VlessVerifier(OutboundVerifier):
             return False
         return True
 
-    def auth_field(self, item: dict) -> str | None:
+    def auth_field(self, item: dict[str, object]) -> str | None:
         return "uuid"

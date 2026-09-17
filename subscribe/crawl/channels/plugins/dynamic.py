@@ -7,11 +7,17 @@ import re
 from copy import deepcopy
 from datetime import datetime, timedelta
 
-import crawl
 import utils
+from config.models import TaskParams
+from crawl.channels.page import PageChannel
+from crawl.helpers import fetch_jobs, is_available
+from crawl.models import ChannelResult, CrawlContext
 from logger import logger
 from origin import Origin
 from urlvalidator import isurl
+
+from .base import PluginContext, ScriptPlugin, register_plugin
+from .commons import as_channel_result, plugin_params
 
 # github content api prefix
 GITHUB_CONTENT_API = "https://raw.githubusercontent.com"
@@ -20,7 +26,7 @@ GITHUB_CONTENT_API = "https://raw.githubusercontent.com"
 DEFAULT_BRANCH = "main"
 
 
-def format(text: str, date: datetime = None) -> str:
+def format(text: str, date: datetime | None = None) -> str:
     """
     Replace all time placeholders in text with current time values
 
@@ -48,7 +54,7 @@ def format(text: str, date: datetime = None) -> str:
     if not date or not isinstance(date, datetime):
         date = datetime.now()
 
-    def replace(match):
+    def replace(match: re.Match[str]) -> str:
         # YYYY, mm, dd, HH, MM, SS
         placeholder = match.group(1)
 
@@ -83,7 +89,7 @@ def format(text: str, date: datetime = None) -> str:
     return result
 
 
-def collect_subs(params: dict) -> list[dict]:
+def collect_subs(params: dict[str, object], ctx: PluginContext | None = None) -> list[dict[str, object]]:
     if not params or type(params) != dict:
         return []
 
@@ -141,23 +147,28 @@ def collect_subs(params: dict) -> list[dict]:
                 target.update({"sub": url, "saved": True})
                 materials[url] = target
             else:
-                sources.append([url, push_to, include, exclude, config, None, Origin.PAGE])
+                sources.append(
+                    PageChannel(url=url, include=include, exclude=exclude, push_to=push_to, origin=Origin.PAGE.name)
+                )
 
     if sources:
-        urls = [x[0] for x in sources]
+        urls = [job.url for job in sources]
         logger.info(f"[CollectSub] start to collect subscriptions from {len(urls)} urls: {urls}")
+        crawled = fetch_jobs(
+            sources,
+            (
+                ctx.crawl
+                if ctx and ctx.crawl
+                else CrawlContext(
+                    mode=0, include_nodes=True, max_fails=5, exclude="", task=TaskParams(), storage=None, pushtool=None
+                )
+            ),
+        )
 
-        results = utils.multi_thread_run(func=crawl.crawl_single_page, tasks=sources)
-        for result in results:
-            if not result or not isinstance(result, dict):
-                continue
-
-            for k, v in result.items():
-                if not k or not v or not isinstance(v, dict):
-                    continue
-
-                v.update({"sub": k, "saved": True})
-                materials[k] = v
+        for item in crawled.items:
+            payload = deepcopy(config)
+            payload.update({"sub": item.url, "saved": True})
+            materials[item.url] = payload
 
     # filter conditions
     try:
@@ -170,10 +181,23 @@ def collect_subs(params: dict) -> list[dict]:
     # check availability
     candidates = list(materials.keys())
     tasks = [[x, 2, remain, life] for x in candidates]
-    masks = utils.multi_thread_run(func=crawl.is_available, tasks=tasks)
+    masks = utils.multi_thread_run(func=is_available, tasks=tasks)
 
     # filter available subscriptions
     subs = sorted([candidates[i] for i in range(len(masks)) if masks[i]])
     logger.info(f"[CollectSub] collect task finished, found {len(subs)} subscriptions")
 
     return [materials.get(k) for k in subs]
+
+
+class DynamicPlugin(ScriptPlugin[dict[str, object]]):
+    name = "dynamic"
+
+    def parse(self, ctx: PluginContext) -> dict[str, object]:
+        return plugin_params(ctx)
+
+    def run(self, config: dict[str, object], ctx: PluginContext) -> ChannelResult:
+        return as_channel_result(collect_subs(config, ctx))
+
+
+register_plugin(DynamicPlugin())
