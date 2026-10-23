@@ -228,7 +228,7 @@ match = "(Moldova|摩尔多瓦)"
 emoji = "🇲🇩"
 
 [[emoji]]
-match = "(北马其顿|Macedonia)"
+match = "(马其顿|Macedonia)"
 emoji = "🇲🇰"
 
 [[emoji]]
