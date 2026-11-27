@@ -11,6 +11,8 @@
 
 一个强大的免费代理池构建工具，通过爬取多个平台/网页的代理资源，自动验证、聚合并转换为各种客户端所需格式。
 
+<img width="2076" height="1116" alt="image" src="https://github.com/user-attachments/assets/f1cdae58-91c2-41a1-9790-10fbb1f61fb3" />
+
 ### ✨ 核心特性
 
 - **🕷️ 多源爬取** - Telegram、GitHub、Google、Yandex、Twitter 等
